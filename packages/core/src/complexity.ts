@@ -40,6 +40,62 @@ export function calculateComplexity(sourceFile: ts.SourceFile): MethodComplexity
     }
 
     visit(sourceFile);
+
+    // Aggregate scores from nested functions to their parents
+    for (const parent of methods) {
+        for (const child of methods) {
+            if (parent === child) continue;
+
+            // Check if child is inside parent
+            if (child.node.getStart(sourceFile) >= parent.node.getStart(sourceFile) &&
+                child.node.getEnd() <= parent.node.getEnd()) {
+
+                // Add child's score to parent
+                // Note: We add the child's *calculated* score (which is "own" score).
+                // If the child also contains other functions, those are added to the child,
+                // AND also added to the parent (because they are also inside the parent).
+                // This is correct: Total(Parent) = Own(Parent) + Sum(Own(Descendant) for Descendant in Parent).
+                // We use the 'score' property which was initialized with 'own' score.
+                // But wait, if we modify 'parent.score' in place, and we iterate,
+                // we might double count if we are not careful?
+                // No, we are iterating over the list.
+                // If we update parent.score, and then use parent.score to update grandparent...
+                // Wait.
+                // Logic: A contains B. B contains C.
+                // Initial: A=1, B=2, C=3.
+                // 1. Add C to B. B becomes 5.
+                // 2. Add C to A. A becomes 4.
+                // 3. Add B to A. A becomes 4 + 5 = 9?
+                // WRONG. A should be 1 + 2 + 3 = 6.
+                // So we should NOT use the updated score of the child. We should use the ORIGINAL score.
+
+                // We need to keep original scores or separate "total" from "own".
+                // But the interface says `score`.
+                // Let's create a map of original scores.
+            }
+        }
+    }
+
+    // To do this correctly without O(N^2) double counting issues:
+    // 1. Store original scores.
+    const originalScores = new Map<MethodComplexity, number>();
+    for (const m of methods) {
+        originalScores.set(m, m.score);
+    }
+
+    for (const parent of methods) {
+        for (const child of methods) {
+            if (parent === child) continue;
+
+             if (child.node.getStart(sourceFile) >= parent.node.getStart(sourceFile) &&
+                child.node.getEnd() <= parent.node.getEnd()) {
+
+                 // Add child's ORIGINAL score to parent
+                 parent.score += originalScores.get(child)!;
+             }
+        }
+    }
+
     return methods;
 }
 
