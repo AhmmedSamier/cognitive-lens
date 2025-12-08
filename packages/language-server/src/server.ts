@@ -74,9 +74,14 @@ connection.onInitialized(() => {
     }
 });
 
-const complexityCache = new Map<string, MethodComplexity[]>();
+const complexityCache = new Map<string, { version: number, complexities: MethodComplexity[] }>();
 
 function getComplexity(textDocument: TextDocument): MethodComplexity[] {
+    const cached = complexityCache.get(textDocument.uri);
+    if (cached && cached.version === textDocument.version) {
+        return cached.complexities;
+    }
+
     const text = textDocument.getText();
     const sourceFile = ts.createSourceFile(
         textDocument.uri,
@@ -85,7 +90,7 @@ function getComplexity(textDocument: TextDocument): MethodComplexity[] {
         true
     );
     const complexities = calculateComplexity(sourceFile);
-    complexityCache.set(textDocument.uri, complexities);
+    complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
     return complexities;
 }
 
