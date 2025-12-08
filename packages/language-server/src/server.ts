@@ -140,10 +140,15 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
 
     const result: InlayHint[] = [];
 
+    const startLine = params.range.start.line;
+    const endLine = params.range.end.line;
+
     // Add method total score as inlay hint
     for (const method of complexities) {
         const startPos = document.positionAt(method.node.getStart());
         const line = startPos.line;
+
+        if (line < startLine || line > endLine) continue;
 
         const lineText = document.getText({
              start: { line, character: 0 },
@@ -160,6 +165,8 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
     }
 
     for (const [line, details] of hintsByLine) {
+        if (line < startLine || line > endLine) continue;
+
         const totalScore = details.reduce((sum, d) => sum + d.score, 0);
         // Collect unique messages, excluding "nesting" if there are other messages?
         // Actually, just exclude "nesting" from the text label as per request (+2 if).
