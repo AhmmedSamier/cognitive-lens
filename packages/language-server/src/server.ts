@@ -123,9 +123,15 @@ connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
 // Use connection.languages.inlayHint.on instead of connection.onInlayHint
 connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
     const document = documents.get(params.textDocument.uri);
-    if (!document) return [];
+    if (!document) {
+        connection.console.log(`Document not found: ${params.textDocument.uri}`);
+        return [];
+    }
+
+    connection.console.log(`Calculating inlay hints for ${params.textDocument.uri} in range ${params.range.start.line}-${params.range.end.line}`);
 
     const complexities = getComplexity(document);
+    connection.console.log(`Found ${complexities.length} methods`);
 
     // Group by line
     const hintsByLine = new Map<number, { score: number, message: string }[]>();
@@ -204,6 +210,7 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
         });
     }
 
+    connection.console.log(`Returning ${result.length} inlay hints`);
     return result;
 });
 
