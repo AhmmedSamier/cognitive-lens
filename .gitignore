@@ -4,3 +4,4 @@ out
 *.vsix
 .DS_Store
 packages/zed-extension/target
+packages/zed-extension/server.js

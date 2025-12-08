@@ -15,6 +15,7 @@ This monorepo contains extensions for VS Code and Zed to calculate and display C
 *   Node.js
 *   VS Code
 *   Zed
+*   Rust (for building Zed extension)
 
 ## Build Instructions
 
@@ -40,16 +41,26 @@ cd packages/vscode-extension
 bun run package:vsix
 ```
 
-This will create a `.vsix` file.
-
 ### 4. Build Zed Extension
 
-For Zed, you need to compile the Rust code to WASM.
+For Zed, you need to compile the Rust code to WASM and bundle the server script.
 
-```bash
-cd packages/zed-extension
-cargo build --target wasm32-wasi --release
-```
+1.  Build the server script (if not already done):
+    ```bash
+    cd packages/vscode-extension
+    bun run package:server
+    ```
+
+2.  Copy the server script to the Zed extension directory:
+    ```bash
+    cp packages/vscode-extension/dist/server.js packages/zed-extension/server.js
+    ```
+
+3.  Build the WASM:
+    ```bash
+    cd packages/zed-extension
+    cargo build --target wasm32-wasip1 --release
+    ```
 
 ## Running
 
@@ -61,11 +72,11 @@ cargo build --target wasm32-wasi --release
 
 ### Zed
 
-1.  Ensure you have the language server binary available in your PATH.
-    *   Since this project builds `dist/server.js`, you can create a wrapper script named `cognitive-complexity-ls` that runs `node /path/to/packages/vscode-extension/dist/server.js`.
-    *   Make sure `cognitive-complexity-ls` is executable and in your PATH.
-2.  Install the Zed extension from the local folder `packages/zed-extension`.
-    *   Open Zed -> Extensions -> Install Dev Extension -> Select `packages/zed-extension`.
+1.  Open Zed.
+2.  Go to Extensions -> Install Dev Extension.
+3.  Select the `packages/zed-extension` directory.
+    *   Note: Ensure `server.js` is present in that directory.
+4.  Open a TypeScript or JavaScript file.
 
 ## Features
 
