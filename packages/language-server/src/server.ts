@@ -140,7 +140,28 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
 
     const result: InlayHint[] = [];
     for (const [line, details] of hintsByLine) {
-        const label = details.map(d => `(+${d.score} ${d.message})`).join(' ');
+        const totalScore = details.reduce((sum, d) => sum + d.score, 0);
+        // Collect unique messages, excluding "nesting" if there are other messages?
+        // Actually, just exclude "nesting" from the text label as per request (+2 if).
+        // If "nesting" is the ONLY message, we might keep it?
+        // But nesting is usually associated with a structural element on the same line.
+        // If I have `else` (+1) + `nesting` (+1), I want `(+2 else)`.
+
+        const messages = details
+            .map(d => d.message)
+            .filter(m => m !== 'nesting');
+
+        // If messages is empty (only nesting?), fallback to 'nesting' or original behavior?
+        // With current logic, nesting always comes with something unless it's pure nesting?
+        // Pure nesting happens for `else`? No, `else` is "else".
+
+        let uniqueMessages = Array.from(new Set(messages));
+        if (uniqueMessages.length === 0 && totalScore > 0) {
+            // Should not happen based on current logic, but fallback
+             uniqueMessages = ['nesting'];
+        }
+
+        const label = `(+${totalScore} ${uniqueMessages.join(', ')})`;
 
         const lineText = document.getText({
              start: { line, character: 0 },
