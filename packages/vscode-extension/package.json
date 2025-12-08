@@ -37,9 +37,7 @@
   "scripts": {
     "vscode:prepublish": "bun run package",
     "compile": "bun run package",
-    "package": "bun run package:extension && bun run package:server",
-    "package:extension": "tsup src/extension.ts --external vscode --format cjs",
-    "package:server": "tsup src/server.ts --format cjs",
+    "package": "tsup",
     "package:vsix": "vsce package --no-dependencies"
   },
   "dependencies": {
