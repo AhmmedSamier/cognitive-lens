@@ -1,8 +1,8 @@
 {
   "name": "cognitive-complexity-vscode",
   "displayName": "Cognitive Complexity",
-  "description": "Shows Cognitive Complexity for TypeScript methods",
-  "version": "1.0.0",
+  "description": "Shows Cognitive Complexity for TypeScript and C# methods",
+  "version": "1.0.1",
   "publisher": "jules",
   "engines": {
     "vscode": "^1.80.0"
@@ -12,7 +12,10 @@
   ],
   "activationEvents": [
     "onLanguage:typescript",
-    "onLanguage:typescriptreact"
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
   ],
   "main": "./dist/extension.js",
   "contributes": {
