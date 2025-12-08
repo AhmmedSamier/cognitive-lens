@@ -48,7 +48,7 @@ connection.onInitialize((params: InitializeParams) => {
                 resolveProvider: true
             },
             inlayHintProvider: {
-                resolveProvider: true
+                resolveProvider: false
             }
         }
     };
