@@ -1,0 +1,25 @@
+id = "cognitive-complexity"
+name = "Cognitive Complexity"
+version = "0.0.1"
+schema_version = 1
+authors = ["Jules"]
+description = "Shows Cognitive Complexity for TypeScript methods"
+repository = "https://github.com/example/cognitive-complexity"
+
+[ls]
+image = "node:latest" # or whatever runtime Zed supports for extensions?
+# Actually Zed extensions are usually Rust (WASM) or just configuration for an LSP.
+# If it's just configuration, we define how to start the LSP.
+
+# Zed extensions documentation says:
+# "You can add a language server to Zed by creating an extension."
+# The extension.toml defines the extension.
+# We likely need a small Rust shim to start the language server?
+# Or can we just point to a command?
+
+# "For many languages, you can just configure the LSP in your settings.json."
+# But to make it an extension...
+# "Extensions are compiled to WebAssembly."
+# So I need a Rust project in `packages/zed-extension`.
+
+# I will create a basic Rust structure for Zed extension.

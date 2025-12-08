@@ -1,0 +1,58 @@
+{
+  "name": "cognitive-complexity-vscode",
+  "displayName": "Cognitive Complexity",
+  "description": "Shows Cognitive Complexity for TypeScript methods",
+  "version": "1.0.0",
+  "publisher": "jules",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Cognitive Complexity",
+      "properties": {
+        "cognitiveComplexity.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "bun run package",
+    "compile": "bun run package",
+    "package": "bun run package:extension && bun run package:server",
+    "package:extension": "tsup src/extension.ts --external vscode --format cjs",
+    "package:server": "tsup src/server.ts --format cjs",
+    "package:vsix": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0",
+    "@cognitive-complexity/language-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "tsup": "^8.0.0",
+    "vsce": "^2.15.0",
+    "bun-types": "latest"
+  },
+  "bin": {
+      "cognitive-complexity-ls": "./dist/server.js"
+  }
+}
