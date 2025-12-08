@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "npm: package",
+            "command": "bun run package",
+            "options": {
+                "cwd": "${workspaceFolder}/packages/vscode-extension"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

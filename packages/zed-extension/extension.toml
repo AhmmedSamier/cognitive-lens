@@ -1,0 +1,11 @@
+id = "cognitive-complexity"
+name = "Cognitive Complexity"
+version = "0.0.1"
+schema_version = 1
+authors = ["Jules"]
+description = "Shows Cognitive Complexity for TypeScript methods"
+repository = "https://github.com/example/cognitive-complexity"
+
+[language_servers.cognitive-complexity-ls]
+name = "Cognitive Complexity"
+languages = ["TypeScript", "TSX", "JavaScript", "JavaScript (Partially)"]
