@@ -139,6 +139,26 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
     }
 
     const result: InlayHint[] = [];
+
+    // Add method total score as inlay hint
+    for (const method of complexities) {
+        const startPos = document.positionAt(method.node.getStart());
+        const line = startPos.line;
+
+        const lineText = document.getText({
+             start: { line, character: 0 },
+             end: { line: line + 1, character: 0 }
+        });
+        const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
+
+        result.push({
+            position: { line, character: len },
+            label: ` Cognitive Complexity: ${method.score}`,
+            kind: InlayHintKind.Type,
+            paddingLeft: true
+        });
+    }
+
     for (const [line, details] of hintsByLine) {
         const totalScore = details.reduce((sum, d) => sum + d.score, 0);
         // Collect unique messages, excluding "nesting" if there are other messages?
