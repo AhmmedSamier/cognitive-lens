@@ -20,6 +20,7 @@ import * as ts from 'typescript';
 import { calculateComplexity, MethodComplexity } from '@cognitive-complexity/core';
 import { Parser } from 'web-tree-sitter';
 import * as path from 'path';
+import * as fs from 'fs';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -41,23 +42,33 @@ async function initParser() {
             const treeSitterWasmPath = path.resolve(__dirname, 'tree-sitter.wasm');
             connection.console.log(`Initializing Parser with ${treeSitterWasmPath}`);
 
+            // Read wasm file manually to avoid resolution issues in bundled environment
+            if (!fs.existsSync(treeSitterWasmPath)) {
+                throw new Error(`tree-sitter.wasm not found at ${treeSitterWasmPath}`);
+            }
+            const wasmBuffer = fs.readFileSync(treeSitterWasmPath);
+
             await Parser.init({
-                locateFile: () => treeSitterWasmPath
+                wasmBinary: wasmBuffer
             });
 
             csharpParser = new Parser();
             // Determine path to wasm.
             // In bundled extension, it should be adjacent to the server file or in a known location.
             // We will assume it is in the same directory as this script.
-            const wasmPath = path.resolve(__dirname, 'tree-sitter-c_sharp.wasm');
-            connection.console.log(`Loading C# grammar from ${wasmPath}`);
+            const csharpWasmPath = path.resolve(__dirname, 'tree-sitter-c_sharp.wasm');
+            connection.console.log(`Loading C# grammar from ${csharpWasmPath}`);
 
-            const lang = await Parser.Language.load(wasmPath);
+            const lang = await Parser.Language.load(csharpWasmPath);
             csharpParser.setLanguage(lang);
             parserInitialized = true;
             connection.console.log('C# Parser initialized successfully');
         } catch (e) {
             connection.console.error(`Failed to initialize C# parser: ${e}`);
+            // Log stack trace if available
+            if (e instanceof Error && e.stack) {
+                connection.console.error(e.stack);
+            }
             throw e;
         }
     })();
@@ -136,11 +147,10 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
                  try {
                      await initPromise;
                  } catch (e) {
-                     connection.console.warn('C# parser initialization failed, skipping complexity calculation');
+                     // Already logged
                      return [];
                  }
              } else {
-                 // Should not happen if onInitialize called it, but safety check
                  initParser();
                  try {
                     await initPromise;
@@ -151,7 +161,6 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
         }
 
         if (!parserInitialized || !csharpParser) {
-            connection.console.warn('C# parser not ready yet (unexpected state)');
             return [];
         }
 
@@ -214,14 +223,11 @@ connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
 connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<InlayHint[]> => {
     const document = documents.get(params.textDocument.uri);
     if (!document) {
-        connection.console.log(`Document not found: ${params.textDocument.uri}`);
+        // connection.console.log(`Document not found: ${params.textDocument.uri}`);
         return [];
     }
 
-    // connection.console.log(`Calculating inlay hints for ${params.textDocument.uri} in range ${params.range.start.line}-${params.range.end.line}`);
-
     const complexities = await getComplexity(document);
-    // connection.console.log(`Found ${complexities.length} methods`);
 
     // Group by line
     const hintsByLine = new Map<number, { score: number, message: string }[]>();
@@ -241,7 +247,7 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
 
     // Add method total score as inlay hint
     for (const method of complexities) {
-        if (method.isCallback) continue; // Skip callbacks/arguments
+        if (method.isCallback) continue;
 
         const startPos = document.positionAt(method.startIndex);
         const line = startPos.line;
@@ -292,7 +298,6 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
         });
     }
 
-    // connection.console.log(`Returning ${result.length} inlay hints`);
     return result;
 });
 
