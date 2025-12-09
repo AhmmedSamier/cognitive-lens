@@ -7,23 +7,23 @@ function createSourceFile(code: string) {
 }
 
 describe("Cognitive Complexity", () => {
-    test("Simple function", () => {
+    test("Simple function", async () => {
         const code = `function hello() { console.log('hello'); }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
         expect(results.length).toBe(1);
         expect(results[0].score).toBe(0);
     });
 
-    test("If statement", () => {
+    test("If statement", async () => {
         const code = `function test(a) { if (a) { return true; } }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
         expect(results[0].score).toBe(1);
         expect(results[0].details).toEqual([{ line: 0, score: 1, message: "if" }]);
     });
 
-    test("If else", () => {
+    test("If else", async () => {
         const code = `
         function test(a) {
             if (a) {
@@ -33,13 +33,13 @@ describe("Cognitive Complexity", () => {
             }
         }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
         expect(results[0].score).toBe(2); // if +1, else +1
         // Details: line 2 (if), line 4 (else)
         expect(results[0].details.length).toBe(2);
     });
 
-    test("If else if else", () => {
+    test("If else if else", async () => {
         const code = `
         function test(a) {
             if (a) {
@@ -51,12 +51,12 @@ describe("Cognitive Complexity", () => {
             }
         }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
         // if (+1), else if (+1), else (+1) = 3
         expect(results[0].score).toBe(3);
     });
 
-    test("Nesting", () => {
+    test("Nesting", async () => {
         const code = `
         function test(a, b) {
             if (a) { // +1
@@ -66,7 +66,7 @@ describe("Cognitive Complexity", () => {
             }
         }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
         expect(results[0].score).toBe(3);
         const details = results[0].details;
         // Verify details
@@ -78,7 +78,7 @@ describe("Cognitive Complexity", () => {
         expect(details.length).toBe(3); // if, if, nesting
     });
 
-    test("Binary operators", () => {
+    test("Binary operators", async () => {
         const code = `
         function test(a, b, c) {
             if (a && b && c) { // +1 (if), +1 (&& sequence)
@@ -86,11 +86,11 @@ describe("Cognitive Complexity", () => {
             }
         }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
         expect(results[0].score).toBe(2);
     });
 
-    test("Binary operators mixed", () => {
+    test("Binary operators mixed", async () => {
         const code = `
         function test(a, b, c) {
             if (a && b || c) { // +1 (if), +1 (&&), +1 (||) = 3
@@ -98,7 +98,7 @@ describe("Cognitive Complexity", () => {
             }
         }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
         expect(results[0].score).toBe(3);
     });
 });
