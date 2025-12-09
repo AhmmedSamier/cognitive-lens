@@ -10,6 +10,7 @@ export default defineConfig({
   clean: true,
   outDir: 'dist',
   publicDir: 'public',
+  shims: true,
   loader: {
       '.wasm': 'file'
   }
