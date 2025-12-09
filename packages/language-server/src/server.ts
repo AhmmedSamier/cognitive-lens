@@ -18,7 +18,7 @@ import {
 } from 'vscode-languageserver-textdocument';
 import * as ts from 'typescript';
 import { calculateComplexity, MethodComplexity } from '@cognitive-complexity/core';
-import Parser = require('web-tree-sitter');
+import { Parser } from 'web-tree-sitter';
 import * as path from 'path';
 
 const connection = createConnection(ProposedFeatures.all);
