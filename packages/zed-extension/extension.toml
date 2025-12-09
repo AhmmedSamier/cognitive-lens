@@ -8,4 +8,4 @@ repository = "https://github.com/example/cognitive-complexity"
 
 [language_servers.cognitive-complexity-ls]
 name = "Cognitive Complexity"
-languages = ["TypeScript", "TSX", "JavaScript", "JavaScript (Partially)", "C#"]
+languages = ["TypeScript", "TSX", "JavaScript", "JavaScript (Partially)", "CSharp"]
