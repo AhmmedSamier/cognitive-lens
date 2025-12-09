@@ -10,4 +10,5 @@ export interface MethodComplexity {
     details: ComplexityDetail[];
     startIndex: number;
     endIndex: number;
+    isCallback?: boolean;
 }

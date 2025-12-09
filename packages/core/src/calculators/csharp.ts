@@ -20,12 +20,21 @@ export function calculateCSharpComplexity(tree: Tree): MethodComplexity[] {
                  if (nameNode) name = nameNode.text;
             }
 
+            // Check if it is a callback/argument.
+            let isCallback = false;
+            if (node.parent && node.parent.type === 'argument') {
+                isCallback = true;
+            }
+            // Also arrow functions can be in `parenthesized_expression` or other places
+            // But usually arguments are wrapped in `argument`.
+
             const method: MethodComplexity = {
                 name,
                 score: complexity.score,
                 details: complexity.details,
                 startIndex: node.startIndex,
-                endIndex: node.endIndex
+                endIndex: node.endIndex,
+                isCallback
             };
             rawMethods.push({ method, node });
         }

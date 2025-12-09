@@ -241,6 +241,8 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
 
     // Add method total score as inlay hint
     for (const method of complexities) {
+        if (method.isCallback) continue; // Skip callbacks/arguments
+
         const startPos = document.positionAt(method.startIndex);
         const line = startPos.line;
 

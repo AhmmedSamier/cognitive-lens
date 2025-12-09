@@ -4,13 +4,6 @@ import { MethodComplexity, ComplexityDetail } from '../types';
 export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): MethodComplexity[] {
     const methods: MethodComplexity[] = [];
 
-    // Temporary storage for node to map back later if needed, but for now we conform to interface
-    // We will store the original node in a WeakMap if we really needed it, but here we just need the range.
-
-    // We need to keep track of "own" score vs "total" score.
-    // The previous implementation added child scores to parents.
-
-    // Let's first collect all methods with their "own" complexity.
     const rawMethods: { method: MethodComplexity, node: ts.FunctionLikeDeclaration }[] = [];
 
     function visit(node: ts.Node) {
@@ -26,12 +19,18 @@ export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): Method
                 name = node.parent.name.text;
             }
 
+            // Check if it is a callback (argument to a call)
+            // Or typically any function passed as argument.
+            const isCallback = ts.isCallExpression(node.parent) ||
+                               (ts.isNewExpression(node.parent));
+
             const method: MethodComplexity = {
                 name,
                 score: complexity.score,
                 details: complexity.details,
                 startIndex: node.getStart(sourceFile),
-                endIndex: node.getEnd()
+                endIndex: node.getEnd(),
+                isCallback
             };
 
             rawMethods.push({ method, node: node as ts.FunctionLikeDeclaration });
