@@ -18,7 +18,7 @@ import {
 } from 'vscode-languageserver-textdocument';
 import * as ts from 'typescript';
 import { calculateComplexity, MethodComplexity } from '@cognitive-complexity/core';
-import { Parser } from 'web-tree-sitter';
+import { Parser, Language } from 'web-tree-sitter';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -59,7 +59,7 @@ async function initParser() {
             const csharpWasmPath = path.resolve(__dirname, 'tree-sitter-c_sharp.wasm');
             connection.console.log(`Loading C# grammar from ${csharpWasmPath}`);
 
-            const lang = await Parser.Language.load(csharpWasmPath);
+            const lang = await Language.load(csharpWasmPath);
             csharpParser.setLanguage(lang);
             parserInitialized = true;
             connection.console.log('C# Parser initialized successfully');
