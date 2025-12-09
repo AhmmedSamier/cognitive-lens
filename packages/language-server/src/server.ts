@@ -30,29 +30,46 @@ let hasDiagnosticRelatedInformationCapability = false;
 
 let csharpParser: Parser | undefined;
 let parserInitialized = false;
+let initPromise: Promise<void> | undefined;
 
 // Initialize web-tree-sitter
 async function initParser() {
-    try {
-        await Parser.init();
-        csharpParser = new Parser();
-        // Determine path to wasm.
-        // In bundled extension, it should be adjacent to the server file or in a known location.
-        // We will assume it is in the same directory as this script.
-        const wasmPath = path.resolve(__dirname, 'tree-sitter-c_sharp.wasm');
-        connection.console.log(`Loading C# grammar from ${wasmPath}`);
-        const lang = await Parser.Language.load(wasmPath);
-        csharpParser.setLanguage(lang);
-        parserInitialized = true;
-        connection.console.log('C# Parser initialized successfully');
-    } catch (e) {
-        connection.console.error(`Failed to initialize C# parser: ${e}`);
-    }
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+        try {
+            const treeSitterWasmPath = path.resolve(__dirname, 'tree-sitter.wasm');
+            connection.console.log(`Initializing Parser with ${treeSitterWasmPath}`);
+
+            await Parser.init({
+                locateFile: () => treeSitterWasmPath
+            });
+
+            csharpParser = new Parser();
+            // Determine path to wasm.
+            // In bundled extension, it should be adjacent to the server file or in a known location.
+            // We will assume it is in the same directory as this script.
+            const wasmPath = path.resolve(__dirname, 'tree-sitter-c_sharp.wasm');
+            connection.console.log(`Loading C# grammar from ${wasmPath}`);
+
+            const lang = await Parser.Language.load(wasmPath);
+            csharpParser.setLanguage(lang);
+            parserInitialized = true;
+            connection.console.log('C# Parser initialized successfully');
+        } catch (e) {
+            connection.console.error(`Failed to initialize C# parser: ${e}`);
+            throw e;
+        }
+    })();
+
+    return initPromise;
 }
 
 connection.onInitialize(async (params: InitializeParams) => {
     // Start parser init
-    initParser();
+    initParser().catch(e => {
+        // Logged inside
+    });
 
     const capabilities = params.capabilities;
 
@@ -113,13 +130,39 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
     let complexities: MethodComplexity[] = [];
 
     if (textDocument.languageId === 'csharp') {
+        if (!parserInitialized) {
+             // Try to wait for initialization
+             if (initPromise) {
+                 try {
+                     await initPromise;
+                 } catch (e) {
+                     connection.console.warn('C# parser initialization failed, skipping complexity calculation');
+                     return [];
+                 }
+             } else {
+                 // Should not happen if onInitialize called it, but safety check
+                 initParser();
+                 try {
+                    await initPromise;
+                 } catch (e) {
+                     return [];
+                 }
+             }
+        }
+
         if (!parserInitialized || !csharpParser) {
-            connection.console.warn('C# parser not ready yet');
+            connection.console.warn('C# parser not ready yet (unexpected state)');
             return [];
         }
-        const tree = csharpParser.parse(text);
-        complexities = await calculateComplexity(tree, 'csharp');
-        tree.delete(); // Clean up tree
+
+        try {
+            const tree = csharpParser.parse(text);
+            complexities = await calculateComplexity(tree, 'csharp');
+            tree.delete(); // Clean up tree
+        } catch (e) {
+            connection.console.error(`Error calculating C# complexity: ${e}`);
+            return [];
+        }
     } else {
         // Default to TypeScript/JavaScript
         const sourceFile = ts.createSourceFile(
