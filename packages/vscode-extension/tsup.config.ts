@@ -9,6 +9,7 @@ export default defineConfig({
   sourcemap: false,
   clean: true,
   outDir: 'dist',
+  publicDir: 'public',
   loader: {
       '.wasm': 'file'
   }
