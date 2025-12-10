@@ -13,5 +13,6 @@ export default defineConfig({
   shims: true,
   loader: {
       '.wasm': 'file'
-  }
+  },
+  onSuccess: 'bun run copy:wasm'
 });

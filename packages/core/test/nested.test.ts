@@ -7,7 +7,7 @@ function createSourceFile(code: string) {
 }
 
 describe("Nested Functions Aggregation", () => {
-    test("Nested functions are aggregated into parent", () => {
+    test("Nested functions are aggregated into parent", async () => {
         const code = `
         function outer() {
             if (true) { // +1
@@ -17,7 +17,7 @@ describe("Nested Functions Aggregation", () => {
             }
         }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
 
         const outer = results.find(r => r.name === 'outer');
         const inner = results.find(r => r.name === 'inner');
@@ -29,7 +29,7 @@ describe("Nested Functions Aggregation", () => {
         expect(outer!.score).toBe(2);
     });
 
-    test("Deep nesting aggregation", () => {
+    test("Deep nesting aggregation", async () => {
         const code = `
         function A() {
             if (a) {} // +1
@@ -41,7 +41,7 @@ describe("Nested Functions Aggregation", () => {
             }
         }`;
         const source = createSourceFile(code);
-        const results = calculateComplexity(source);
+        const results = await calculateComplexity(source, 'typescript');
 
         const A = results.find(r => r.name === 'A');
         const B = results.find(r => r.name === 'B');
