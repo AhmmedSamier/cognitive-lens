@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "build:zed": "bun run scripts/build-zed.ts"
   }
 }
