@@ -5,3 +5,4 @@ out
 .DS_Store
 packages/zed-extension/target
 packages/zed-extension/server.js
+packages/visual-studio-extension/Resources/
