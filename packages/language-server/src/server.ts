@@ -218,53 +218,66 @@ connection.onDidChangeConfiguration(change => {
 });
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
-    // In this simple example we get the settings for every validate run.
-    const settings = await getDocumentSettings(textDocument.uri);
-
-    const complexities = await getComplexity(textDocument);
-    const diagnostics: Diagnostic[] = [];
-
-    for (const complexity of complexities) {
-        if (complexity.score >= settings.threshold.warning) {
-            const start = textDocument.positionAt(complexity.startIndex);
-            const end = textDocument.positionAt(complexity.endIndex);
-
-            // Limit range to the first line (method signature)
-            // Or ideally, just the method name if we had that location.
-            // Since startIndex/endIndex covers the whole method block, we need to be careful.
-            // For now, let's just highlight the first line of the method definition.
-
-            let range = { start, end };
-
-            // Try to approximate the method signature line
-            if (end.line > start.line) {
-                 const lineText = textDocument.getText({
-                     start: { line: start.line, character: 0 },
-                     end: { line: start.line + 1, character: 0 }
-                 });
-                 // Use line length to stay within LSP bounds
-                 range.end = { line: start.line, character: lineText.length };
+    try {
+        // In this simple example we get the settings for every validate run.
+        let settings = defaultSettings;
+        try {
+            settings = await getDocumentSettings(textDocument.uri);
+            if (!settings || !settings.threshold) {
+                settings = defaultSettings;
             }
-
-            const severity = complexity.score >= settings.threshold.error
-                ? DiagnosticSeverity.Error
-                : DiagnosticSeverity.Warning;
-
-            const diagnostic: Diagnostic = {
-                severity,
-                range,
-                message: `Cognitive Complexity is ${complexity.score} (threshold: ${
-                    severity === DiagnosticSeverity.Error
-                        ? settings.threshold.error
-                        : settings.threshold.warning
-                })`,
-                source: 'Cognitive Complexity'
-            };
-            diagnostics.push(diagnostic);
+        } catch (e) {
+            connection.console.warn(`Failed to get settings for diagnostics, using defaults: ${e}`);
+            settings = defaultSettings;
         }
-    }
 
-    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+        const complexities = await getComplexity(textDocument);
+        const diagnostics: Diagnostic[] = [];
+
+        for (const complexity of complexities) {
+            if (complexity.score >= settings.threshold.warning) {
+                const start = textDocument.positionAt(complexity.startIndex);
+                const end = textDocument.positionAt(complexity.endIndex);
+
+                // Limit range to the first line (method signature)
+                // Or ideally, just the method name if we had that location.
+                // Since startIndex/endIndex covers the whole method block, we need to be careful.
+                // For now, let's just highlight the first line of the method definition.
+
+                let range = { start, end };
+
+                // Try to approximate the method signature line
+                if (end.line > start.line) {
+                     const lineText = textDocument.getText({
+                         start: { line: start.line, character: 0 },
+                         end: { line: start.line + 1, character: 0 }
+                     });
+                     // Use line length to stay within LSP bounds
+                     range.end = { line: start.line, character: lineText.length };
+                }
+
+                const severity = complexity.score >= settings.threshold.error
+                    ? DiagnosticSeverity.Error
+                    : DiagnosticSeverity.Warning;
+
+                const diagnostic: Diagnostic = {
+                    severity,
+                    range,
+                    message: `Cognitive Complexity is ${complexity.score} (threshold: ${
+                        severity === DiagnosticSeverity.Error
+                            ? settings.threshold.error
+                            : settings.threshold.warning
+                    })`,
+                    source: 'Cognitive Complexity'
+                };
+                diagnostics.push(diagnostic);
+            }
+        }
+
+        connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+    } catch (e) {
+        connection.console.error(`Error in validateTextDocument: ${e}`);
+    }
 }
 
 async function getDocumentSettings(resource: string): Promise<CognitiveComplexitySettings> {
