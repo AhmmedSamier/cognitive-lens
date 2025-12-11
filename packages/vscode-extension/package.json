@@ -33,6 +33,18 @@
           ],
           "default": "off",
           "description": "Traces the communication between VS Code and the language server."
+        },
+        "cognitiveComplexity.threshold.warning": {
+          "scope": "resource",
+          "type": "number",
+          "default": 15,
+          "description": "Complexity score threshold for showing a warning."
+        },
+        "cognitiveComplexity.threshold.error": {
+          "scope": "resource",
+          "type": "number",
+          "default": 30,
+          "description": "Complexity score threshold for showing an error."
         }
       }
     }

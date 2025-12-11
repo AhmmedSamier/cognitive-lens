@@ -11,7 +11,9 @@ import {
     InlayHint,
     InlayHintParams,
     InlayHintKind,
-    Position
+    Position,
+    Diagnostic,
+    DiagnosticSeverity
 } from 'vscode-languageserver/node';
 import {
     TextDocument
@@ -129,6 +131,22 @@ connection.onInitialized(() => {
     }
 });
 
+interface CognitiveComplexitySettings {
+    threshold: {
+        warning: number;
+        error: number;
+    };
+}
+
+const defaultSettings: CognitiveComplexitySettings = {
+    threshold: {
+        warning: 15,
+        error: 30
+    }
+};
+
+let globalSettings: CognitiveComplexitySettings = defaultSettings;
+
 const complexityCache = new Map<string, { version: number, complexities: MethodComplexity[] }>();
 
 async function getComplexity(textDocument: TextDocument): Promise<MethodComplexity[]> {
@@ -187,32 +205,146 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
     return complexities;
 }
 
+connection.onDidChangeConfiguration(change => {
+    if (hasConfigurationCapability) {
+        // Reset all cached document settings
+    } else {
+        globalSettings = <CognitiveComplexitySettings>(
+            (change.settings.cognitiveComplexity || defaultSettings)
+        );
+    }
+    // Revalidate all open text documents
+    documents.all().forEach(validateTextDocument);
+});
+
+async function validateTextDocument(textDocument: TextDocument): Promise<void> {
+    try {
+        // In this simple example we get the settings for every validate run.
+        let settings = defaultSettings;
+        try {
+            settings = await getDocumentSettings(textDocument.uri);
+            if (!settings || !settings.threshold) {
+                settings = defaultSettings;
+            }
+        } catch (e) {
+            connection.console.warn(`Failed to get settings for diagnostics, using defaults: ${e}`);
+            settings = defaultSettings;
+        }
+
+        const complexities = await getComplexity(textDocument);
+        const diagnostics: Diagnostic[] = [];
+
+        for (const complexity of complexities) {
+            if (complexity.score >= settings.threshold.warning) {
+                const start = textDocument.positionAt(complexity.startIndex);
+                const end = textDocument.positionAt(complexity.endIndex);
+
+                // Limit range to the first line (method signature)
+                // Or ideally, just the method name if we had that location.
+                // Since startIndex/endIndex covers the whole method block, we need to be careful.
+                // For now, let's just highlight the first line of the method definition.
+
+                let range = { start, end };
+
+                // Try to approximate the method signature line
+                if (end.line > start.line) {
+                     const lineText = textDocument.getText({
+                         start: { line: start.line, character: 0 },
+                         end: { line: start.line + 1, character: 0 }
+                     });
+                     // Use line length to stay within LSP bounds
+                     range.end = { line: start.line, character: lineText.length };
+                }
+
+                const severity = complexity.score >= settings.threshold.error
+                    ? DiagnosticSeverity.Error
+                    : DiagnosticSeverity.Warning;
+
+                const diagnostic: Diagnostic = {
+                    severity,
+                    range,
+                    message: `Cognitive Complexity is ${complexity.score} (threshold: ${
+                        severity === DiagnosticSeverity.Error
+                            ? settings.threshold.error
+                            : settings.threshold.warning
+                    })`,
+                    source: 'Cognitive Complexity'
+                };
+                diagnostics.push(diagnostic);
+            }
+        }
+
+        connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+    } catch (e) {
+        connection.console.error(`Error in validateTextDocument: ${e}`);
+    }
+}
+
+async function getDocumentSettings(resource: string): Promise<CognitiveComplexitySettings> {
+    if (!hasConfigurationCapability) {
+        return Promise.resolve(globalSettings);
+    }
+    // For now return global configuration from client
+    return connection.workspace.getConfiguration({
+        scopeUri: resource,
+        section: 'cognitiveComplexity'
+    });
+}
+
 documents.onDidChangeContent(async change => {
-    await getComplexity(change.document);
+    await validateTextDocument(change.document);
 });
 
 connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
+    return [];
+
+    // The following code is disabled per user request but kept for future reference.
+    /*
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
 
-    const complexities = await getComplexity(document);
+    try {
+        const complexities = await getComplexity(document);
+        let settings = defaultSettings;
+        try {
+            settings = await getDocumentSettings(document.uri);
+            if (!settings || !settings.threshold) {
+                settings = defaultSettings;
+            }
+        } catch (e) {
+            // Fallback to default settings
+            connection.console.warn(`Failed to get settings, using defaults: ${e}`);
+            settings = defaultSettings;
+        }
 
-    return complexities.map(c => {
-        // Find start position
-        // Using startIndex/endIndex from new generic interface
-        const start = document.positionAt(c.startIndex);
-        const end = document.positionAt(c.endIndex);
+        return complexities.map(c => {
+            // Find start position
+            // Using startIndex/endIndex from new generic interface
+            const start = document.positionAt(c.startIndex);
+            const end = document.positionAt(c.endIndex);
 
-        return {
-            range: { start, end },
-            command: {
-                title: `Cognitive Complexity: ${c.score}`,
-                command: '',
-                arguments: []
-            },
-            data: c.name
-        };
-    });
+            let icon = '🟢';
+            if (c.score >= settings.threshold.error) {
+                icon = '🔴';
+            } else if (c.score >= settings.threshold.warning) {
+                icon = '🟡';
+            }
+
+            return {
+                range: { start, end },
+                command: {
+                    title: `${icon} Cognitive Complexity: ${c.score}`,
+                    command: '',
+                    arguments: []
+                },
+                data: c.name
+            };
+        });
+    } catch (e) {
+        connection.console.error(`Error in onCodeLens: ${e}`);
+        return [];
+    }
+    */
 });
 
 connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
@@ -221,16 +353,27 @@ connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
 
 // Use connection.languages.inlayHint.on instead of connection.onInlayHint
 connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<InlayHint[]> => {
-    const document = documents.get(params.textDocument.uri);
-    if (!document) {
-        // connection.console.log(`Document not found: ${params.textDocument.uri}`);
-        return [];
-    }
+    try {
+        const document = documents.get(params.textDocument.uri);
+        if (!document) {
+            // connection.console.log(`Document not found: ${params.textDocument.uri}`);
+            return [];
+        }
 
-    const complexities = await getComplexity(document);
+        const complexities = await getComplexity(document);
+        let settings = defaultSettings;
+        try {
+            settings = await getDocumentSettings(document.uri);
+            if (!settings || !settings.threshold) {
+                settings = defaultSettings;
+            }
+        } catch (e) {
+             connection.console.warn(`Failed to get settings for inlay hints, using defaults: ${e}`);
+             settings = defaultSettings;
+        }
 
-    // Group by line
-    const hintsByLine = new Map<number, { score: number, message: string }[]>();
+        // Group by line
+        const hintsByLine = new Map<number, { score: number, message: string }[]>();
     for (const method of complexities) {
         for (const detail of method.details) {
             if (!hintsByLine.has(detail.line)) {
@@ -260,9 +403,16 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
         });
         const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
 
+        let icon = '🟢';
+        if (method.score >= settings.threshold.error) {
+            icon = '🔴';
+        } else if (method.score >= settings.threshold.warning) {
+            icon = '🟡';
+        }
+
         result.push({
             position: { line, character: len },
-            label: ` Cognitive Complexity: ${method.score}`,
+            label: ` ${icon} Cognitive Complexity: ${method.score}`,
             kind: InlayHintKind.Type,
             paddingLeft: true
         });
@@ -298,7 +448,11 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
         });
     }
 
-    return result;
+        return result;
+    } catch (e) {
+        connection.console.error(`Error in onInlayHint: ${e}`);
+        return [];
+    }
 });
 
 documents.listen(connection);
