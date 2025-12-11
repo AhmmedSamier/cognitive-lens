@@ -282,6 +282,7 @@ connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
     if (!document) return [];
 
     const complexities = await getComplexity(document);
+    const settings = await getDocumentSettings(document.uri);
 
     return complexities.map(c => {
         // Find start position
@@ -289,10 +290,17 @@ connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
         const start = document.positionAt(c.startIndex);
         const end = document.positionAt(c.endIndex);
 
+        let icon = '🟢';
+        if (c.score >= settings.threshold.error) {
+            icon = '🔴';
+        } else if (c.score >= settings.threshold.warning) {
+            icon = '🟡';
+        }
+
         return {
             range: { start, end },
             command: {
-                title: `Cognitive Complexity: ${c.score}`,
+                title: `${icon} Cognitive Complexity: ${c.score}`,
                 command: '',
                 arguments: []
             },
