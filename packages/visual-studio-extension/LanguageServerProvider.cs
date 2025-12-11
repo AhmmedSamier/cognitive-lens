@@ -4,13 +4,20 @@ using System.Reflection;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Editor;
 using Microsoft.VisualStudio.Extensibility.LanguageServer;
+using Microsoft.VisualStudio.RpcContracts.LanguageServerProvider;
 using Nerdbank.Streams;
 
 namespace CognitiveComplexity
 {
+#pragma warning disable VSEXTPREVIEW_LSP
     [VisualStudioContribution]
     public class CognitiveComplexityLanguageServerProvider : LanguageServerProvider
     {
+        public CognitiveComplexityLanguageServerProvider(ExtensionCore extensionCore, VisualStudioExtensibility extensibility, TraceSource traceSource)
+            : base(extensionCore, extensibility, traceSource)
+        {
+        }
+
         [VisualStudioContribution]
         public static DocumentTypeConfiguration TypeScriptDocumentType => new("typescript")
         {
@@ -63,6 +70,18 @@ namespace CognitiveComplexity
         public override Task OnServerInitializationResultAsync(ServerInitializationResult serverInitializationResult, LanguageServerInitializationFailureInfo? initializationFailureInfo, CancellationToken cancellationToken)
         {
             return base.OnServerInitializationResultAsync(serverInitializationResult, initializationFailureInfo, cancellationToken);
+        }
+
+        private class DuplexPipe : IDuplexPipe
+        {
+            public DuplexPipe(PipeReader input, PipeWriter output)
+            {
+                Input = input;
+                Output = output;
+            }
+
+            public PipeReader Input { get; }
+            public PipeWriter Output { get; }
         }
     }
 }

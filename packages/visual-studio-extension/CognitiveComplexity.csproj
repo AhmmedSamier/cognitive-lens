@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.9.43" />
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.9.43" />
+    <PackageReference Include="Nerdbank.Streams" Version="2.11.79" />
   </ItemGroup>
 
   <ItemGroup>
