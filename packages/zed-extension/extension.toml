@@ -1,10 +1,10 @@
-id = "cognitive-complexity"
-name = "Cognitive Complexity"
+id = "cognitive-lens"
+name = "Cognitive Lens"
 version = "0.0.1"
 schema_version = 1
-authors = ["Jules"]
+authors = ["ASamir"]
 description = "Shows Cognitive Complexity for TypeScript and C# methods"
-repository = "https://github.com/example/cognitive-complexity"
+repository = "https://github.com/AhmmedSamier/cognitive-lens"
 
 [language_servers.cognitive-complexity-ls]
 name = "Cognitive Complexity"

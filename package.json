@@ -7,6 +7,7 @@
   ],
   "scripts": {
     "test": "bun test",
-    "build:zed": "bun run scripts/build-zed.ts"
+    "build:zed": "bun run scripts/build-zed.ts",
+    "build:vs": "bun run scripts/build-vs.ts"
   }
 }

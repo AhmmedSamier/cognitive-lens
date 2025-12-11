@@ -1,9 +1,9 @@
 {
-  "name": "cognitive-complexity-vscode",
-  "displayName": "Cognitive Complexity",
+  "name": "cognitive-lens",
+  "displayName": "Cognitive Lens",
   "description": "Shows Cognitive Complexity for TypeScript and C# methods",
   "version": "1.0.1",
-  "publisher": "jules",
+  "publisher": "ASamir",
   "engines": {
     "vscode": "^1.80.0"
   },
