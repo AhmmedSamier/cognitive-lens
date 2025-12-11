@@ -296,6 +296,10 @@ documents.onDidChangeContent(async change => {
 });
 
 connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
+    return [];
+
+    // The following code is disabled per user request but kept for future reference.
+    /*
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
 
@@ -340,6 +344,7 @@ connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
         connection.console.error(`Error in onCodeLens: ${e}`);
         return [];
     }
+    */
 });
 
 connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
