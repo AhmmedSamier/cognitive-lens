@@ -238,7 +238,12 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 
             // Try to approximate the method signature line
             if (end.line > start.line) {
-                 range.end = { line: start.line, character: Number.MAX_VALUE };
+                 const lineText = textDocument.getText({
+                     start: { line: start.line, character: 0 },
+                     end: { line: start.line + 1, character: 0 }
+                 });
+                 // Use line length to stay within LSP bounds
+                 range.end = { line: start.line, character: lineText.length };
             }
 
             const severity = complexity.score >= settings.threshold.error
@@ -322,6 +327,7 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
     }
 
     const complexities = await getComplexity(document);
+    const settings = await getDocumentSettings(document.uri);
 
     // Group by line
     const hintsByLine = new Map<number, { score: number, message: string }[]>();
@@ -354,9 +360,16 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
         });
         const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
 
+        let icon = '🟢';
+        if (method.score >= settings.threshold.error) {
+            icon = '🔴';
+        } else if (method.score >= settings.threshold.warning) {
+            icon = '🟡';
+        }
+
         result.push({
             position: { line, character: len },
-            label: ` Cognitive Complexity: ${method.score}`,
+            label: ` ${icon} Cognitive Complexity: ${method.score}`,
             kind: InlayHintKind.Type,
             paddingLeft: true
         });
