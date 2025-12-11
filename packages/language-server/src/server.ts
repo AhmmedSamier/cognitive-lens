@@ -286,32 +286,47 @@ connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
 
-    const complexities = await getComplexity(document);
-    const settings = await getDocumentSettings(document.uri);
-
-    return complexities.map(c => {
-        // Find start position
-        // Using startIndex/endIndex from new generic interface
-        const start = document.positionAt(c.startIndex);
-        const end = document.positionAt(c.endIndex);
-
-        let icon = '🟢';
-        if (c.score >= settings.threshold.error) {
-            icon = '🔴';
-        } else if (c.score >= settings.threshold.warning) {
-            icon = '🟡';
+    try {
+        const complexities = await getComplexity(document);
+        let settings = defaultSettings;
+        try {
+            settings = await getDocumentSettings(document.uri);
+            if (!settings || !settings.threshold) {
+                settings = defaultSettings;
+            }
+        } catch (e) {
+            // Fallback to default settings
+            connection.console.warn(`Failed to get settings, using defaults: ${e}`);
+            settings = defaultSettings;
         }
 
-        return {
-            range: { start, end },
-            command: {
-                title: `${icon} Cognitive Complexity: ${c.score}`,
-                command: '',
-                arguments: []
-            },
-            data: c.name
-        };
-    });
+        return complexities.map(c => {
+            // Find start position
+            // Using startIndex/endIndex from new generic interface
+            const start = document.positionAt(c.startIndex);
+            const end = document.positionAt(c.endIndex);
+
+            let icon = '🟢';
+            if (c.score >= settings.threshold.error) {
+                icon = '🔴';
+            } else if (c.score >= settings.threshold.warning) {
+                icon = '🟡';
+            }
+
+            return {
+                range: { start, end },
+                command: {
+                    title: `${icon} Cognitive Complexity: ${c.score}`,
+                    command: '',
+                    arguments: []
+                },
+                data: c.name
+            };
+        });
+    } catch (e) {
+        connection.console.error(`Error in onCodeLens: ${e}`);
+        return [];
+    }
 });
 
 connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
@@ -320,17 +335,27 @@ connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
 
 // Use connection.languages.inlayHint.on instead of connection.onInlayHint
 connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<InlayHint[]> => {
-    const document = documents.get(params.textDocument.uri);
-    if (!document) {
-        // connection.console.log(`Document not found: ${params.textDocument.uri}`);
-        return [];
-    }
+    try {
+        const document = documents.get(params.textDocument.uri);
+        if (!document) {
+            // connection.console.log(`Document not found: ${params.textDocument.uri}`);
+            return [];
+        }
 
-    const complexities = await getComplexity(document);
-    const settings = await getDocumentSettings(document.uri);
+        const complexities = await getComplexity(document);
+        let settings = defaultSettings;
+        try {
+            settings = await getDocumentSettings(document.uri);
+            if (!settings || !settings.threshold) {
+                settings = defaultSettings;
+            }
+        } catch (e) {
+             connection.console.warn(`Failed to get settings for inlay hints, using defaults: ${e}`);
+             settings = defaultSettings;
+        }
 
-    // Group by line
-    const hintsByLine = new Map<number, { score: number, message: string }[]>();
+        // Group by line
+        const hintsByLine = new Map<number, { score: number, message: string }[]>();
     for (const method of complexities) {
         for (const detail of method.details) {
             if (!hintsByLine.has(detail.line)) {
@@ -405,7 +430,11 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
         });
     }
 
-    return result;
+        return result;
+    } catch (e) {
+        connection.console.error(`Error in onInlayHint: ${e}`);
+        return [];
+    }
 });
 
 documents.listen(connection);
