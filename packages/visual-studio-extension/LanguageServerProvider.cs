@@ -5,7 +5,6 @@ using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Editor;
 using Microsoft.VisualStudio.Extensibility.LanguageServer;
 using Microsoft.VisualStudio.RpcContracts.LanguageServerProvider;
-using Nerdbank.Streams;
 
 namespace CognitiveComplexity
 {
@@ -14,7 +13,7 @@ namespace CognitiveComplexity
     public class CognitiveComplexityLanguageServerProvider : LanguageServerProvider
     {
         public CognitiveComplexityLanguageServerProvider(ExtensionCore extensionCore, VisualStudioExtensibility extensibility, TraceSource traceSource)
-            : base(extensionCore, extensibility, traceSource)
+            : base(extensionCore, extensibility)
         {
         }
 

@@ -1,3 +1,4 @@
+.vs
 node_modules
 dist
 out
@@ -6,3 +7,6 @@ out
 packages/zed-extension/target
 packages/zed-extension/server.js
 packages/visual-studio-extension/Resources/
+bin/
+obj/
+extension.wasm
