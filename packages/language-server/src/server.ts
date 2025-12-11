@@ -11,7 +11,9 @@ import {
     InlayHint,
     InlayHintParams,
     InlayHintKind,
-    Position
+    Position,
+    Diagnostic,
+    DiagnosticSeverity
 } from 'vscode-languageserver/node';
 import {
     TextDocument
@@ -129,6 +131,22 @@ connection.onInitialized(() => {
     }
 });
 
+interface CognitiveComplexitySettings {
+    threshold: {
+        warning: number;
+        error: number;
+    };
+}
+
+const defaultSettings: CognitiveComplexitySettings = {
+    threshold: {
+        warning: 15,
+        error: 30
+    }
+};
+
+let globalSettings: CognitiveComplexitySettings = defaultSettings;
+
 const complexityCache = new Map<string, { version: number, complexities: MethodComplexity[] }>();
 
 async function getComplexity(textDocument: TextDocument): Promise<MethodComplexity[]> {
@@ -187,8 +205,76 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
     return complexities;
 }
 
+connection.onDidChangeConfiguration(change => {
+    if (hasConfigurationCapability) {
+        // Reset all cached document settings
+    } else {
+        globalSettings = <CognitiveComplexitySettings>(
+            (change.settings.cognitiveComplexity || defaultSettings)
+        );
+    }
+    // Revalidate all open text documents
+    documents.all().forEach(validateTextDocument);
+});
+
+async function validateTextDocument(textDocument: TextDocument): Promise<void> {
+    // In this simple example we get the settings for every validate run.
+    const settings = await getDocumentSettings(textDocument.uri);
+
+    const complexities = await getComplexity(textDocument);
+    const diagnostics: Diagnostic[] = [];
+
+    for (const complexity of complexities) {
+        if (complexity.score >= settings.threshold.warning) {
+            const start = textDocument.positionAt(complexity.startIndex);
+            const end = textDocument.positionAt(complexity.endIndex);
+
+            // Limit range to the first line (method signature)
+            // Or ideally, just the method name if we had that location.
+            // Since startIndex/endIndex covers the whole method block, we need to be careful.
+            // For now, let's just highlight the first line of the method definition.
+
+            let range = { start, end };
+
+            // Try to approximate the method signature line
+            if (end.line > start.line) {
+                 range.end = { line: start.line, character: Number.MAX_VALUE };
+            }
+
+            const severity = complexity.score >= settings.threshold.error
+                ? DiagnosticSeverity.Error
+                : DiagnosticSeverity.Warning;
+
+            const diagnostic: Diagnostic = {
+                severity,
+                range,
+                message: `Cognitive Complexity is ${complexity.score} (threshold: ${
+                    severity === DiagnosticSeverity.Error
+                        ? settings.threshold.error
+                        : settings.threshold.warning
+                })`,
+                source: 'Cognitive Complexity'
+            };
+            diagnostics.push(diagnostic);
+        }
+    }
+
+    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+}
+
+async function getDocumentSettings(resource: string): Promise<CognitiveComplexitySettings> {
+    if (!hasConfigurationCapability) {
+        return Promise.resolve(globalSettings);
+    }
+    // For now return global configuration from client
+    return connection.workspace.getConfiguration({
+        scopeUri: resource,
+        section: 'cognitiveComplexity'
+    });
+}
+
 documents.onDidChangeContent(async change => {
-    await getComplexity(change.document);
+    await validateTextDocument(change.document);
 });
 
 connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
