@@ -23,6 +23,13 @@ import { calculateComplexity, MethodComplexity } from '@cognitive-complexity/cor
 import { Parser, Language } from 'web-tree-sitter';
 import * as path from 'path';
 import * as fs from 'fs';
+import {
+    CognitiveComplexitySettings,
+    defaultSettings,
+    computeDiagnostics,
+    computeInlayHints,
+    computeCodeLenses
+} from './logic';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -131,20 +138,6 @@ connection.onInitialized(() => {
     }
 });
 
-interface CognitiveComplexitySettings {
-    threshold: {
-        warning: number;
-        error: number;
-    };
-}
-
-const defaultSettings: CognitiveComplexitySettings = {
-    threshold: {
-        warning: 15,
-        error: 30
-    }
-};
-
 let globalSettings: CognitiveComplexitySettings = defaultSettings;
 
 const complexityCache = new Map<string, { version: number, complexities: MethodComplexity[] }>();
@@ -219,7 +212,6 @@ connection.onDidChangeConfiguration(change => {
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
     try {
-        // In this simple example we get the settings for every validate run.
         let settings = defaultSettings;
         try {
             settings = await getDocumentSettings(textDocument.uri);
@@ -232,47 +224,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
         }
 
         const complexities = await getComplexity(textDocument);
-        const diagnostics: Diagnostic[] = [];
-
-        for (const complexity of complexities) {
-            if (complexity.score >= settings.threshold.warning) {
-                const start = textDocument.positionAt(complexity.startIndex);
-                const end = textDocument.positionAt(complexity.endIndex);
-
-                // Limit range to the first line (method signature)
-                // Or ideally, just the method name if we had that location.
-                // Since startIndex/endIndex covers the whole method block, we need to be careful.
-                // For now, let's just highlight the first line of the method definition.
-
-                let range = { start, end };
-
-                // Try to approximate the method signature line
-                if (end.line > start.line) {
-                     const lineText = textDocument.getText({
-                         start: { line: start.line, character: 0 },
-                         end: { line: start.line + 1, character: 0 }
-                     });
-                     // Use line length to stay within LSP bounds
-                     range.end = { line: start.line, character: lineText.length };
-                }
-
-                const severity = complexity.score >= settings.threshold.error
-                    ? DiagnosticSeverity.Error
-                    : DiagnosticSeverity.Warning;
-
-                const diagnostic: Diagnostic = {
-                    severity,
-                    range,
-                    message: `Cognitive Complexity is ${complexity.score} (threshold: ${
-                        severity === DiagnosticSeverity.Error
-                            ? settings.threshold.error
-                            : settings.threshold.warning
-                    })`,
-                    source: 'Cognitive Complexity'
-                };
-                diagnostics.push(diagnostic);
-            }
-        }
+        const diagnostics = computeDiagnostics(textDocument, complexities, settings);
 
         connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
     } catch (e) {
@@ -284,11 +236,13 @@ async function getDocumentSettings(resource: string): Promise<CognitiveComplexit
     if (!hasConfigurationCapability) {
         return Promise.resolve(globalSettings);
     }
-    // For now return global configuration from client
-    return connection.workspace.getConfiguration({
+    const result = await connection.workspace.getConfiguration({
         scopeUri: resource,
         section: 'cognitiveComplexity'
     });
+
+    // Merge with defaults to ensure all properties exist
+    return { ...defaultSettings, ...result };
 }
 
 documents.onDidChangeContent(async change => {
@@ -296,10 +250,6 @@ documents.onDidChangeContent(async change => {
 });
 
 connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
-    return [];
-
-    // The following code is disabled per user request but kept for future reference.
-    /*
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
 
@@ -317,34 +267,11 @@ connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
             settings = defaultSettings;
         }
 
-        return complexities.map(c => {
-            // Find start position
-            // Using startIndex/endIndex from new generic interface
-            const start = document.positionAt(c.startIndex);
-            const end = document.positionAt(c.endIndex);
-
-            let icon = '🟢';
-            if (c.score >= settings.threshold.error) {
-                icon = '🔴';
-            } else if (c.score >= settings.threshold.warning) {
-                icon = '🟡';
-            }
-
-            return {
-                range: { start, end },
-                command: {
-                    title: `${icon} Cognitive Complexity: ${c.score}`,
-                    command: '',
-                    arguments: []
-                },
-                data: c.name
-            };
-        });
+        return computeCodeLenses(document, complexities, settings);
     } catch (e) {
         connection.console.error(`Error in onCodeLens: ${e}`);
         return [];
     }
-    */
 });
 
 connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
@@ -372,83 +299,7 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
              settings = defaultSettings;
         }
 
-        // Group by line
-        const hintsByLine = new Map<number, { score: number, message: string }[]>();
-    for (const method of complexities) {
-        for (const detail of method.details) {
-            if (!hintsByLine.has(detail.line)) {
-                hintsByLine.set(detail.line, []);
-            }
-            hintsByLine.get(detail.line)!.push(detail);
-        }
-    }
-
-    const result: InlayHint[] = [];
-
-    const startLine = params.range.start.line;
-    const endLine = params.range.end.line;
-
-    // Add method total score as inlay hint
-    for (const method of complexities) {
-        if (method.isCallback) continue;
-
-        const startPos = document.positionAt(method.startIndex);
-        const line = startPos.line;
-
-        if (line < startLine || line > endLine) continue;
-
-        const lineText = document.getText({
-             start: { line, character: 0 },
-             end: { line: line + 1, character: 0 }
-        });
-        const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
-
-        let icon = '🟢';
-        if (method.score >= settings.threshold.error) {
-            icon = '🔴';
-        } else if (method.score >= settings.threshold.warning) {
-            icon = '🟡';
-        }
-
-        result.push({
-            position: { line, character: len },
-            label: ` ${icon} Cognitive Complexity: ${method.score}`,
-            kind: InlayHintKind.Type,
-            paddingLeft: true
-        });
-    }
-
-    for (const [line, details] of hintsByLine) {
-        if (line < startLine || line > endLine) continue;
-
-        const totalScore = details.reduce((sum, d) => sum + d.score, 0);
-
-        const messages = details
-            .map(d => d.message)
-            .filter(m => m !== 'nesting');
-
-        let uniqueMessages = Array.from(new Set(messages));
-        if (uniqueMessages.length === 0 && totalScore > 0) {
-             uniqueMessages = ['nesting'];
-        }
-
-        const label = `(+${totalScore} ${uniqueMessages.join(', ')})`;
-
-        const lineText = document.getText({
-             start: { line, character: 0 },
-             end: { line: line + 1, character: 0 }
-        });
-        const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
-
-        result.push({
-            position: { line, character: len },
-            label: ` ${label}`,
-            kind: InlayHintKind.Parameter,
-            paddingLeft: true
-        });
-    }
-
-        return result;
+        return computeInlayHints(document, complexities, settings, params.range);
     } catch (e) {
         connection.console.error(`Error in onInlayHint: ${e}`);
         return [];

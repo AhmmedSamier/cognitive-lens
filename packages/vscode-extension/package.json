@@ -45,6 +45,12 @@
           "type": "number",
           "default": 30,
           "description": "Complexity score threshold for showing an error."
+        },
+        "cognitiveComplexity.showCodeLens": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable CodeLens for cognitive complexity."
         }
       }
     }
