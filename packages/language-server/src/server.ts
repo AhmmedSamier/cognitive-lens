@@ -141,6 +141,7 @@ connection.onInitialized(() => {
 let globalSettings: CognitiveComplexitySettings = defaultSettings;
 
 const complexityCache = new Map<string, { version: number, complexities: MethodComplexity[] }>();
+const complexityPromises = new Map<string, { version: number, promise: Promise<MethodComplexity[]> }>();
 const validationTimers = new Map<string, NodeJS.Timeout>();
 const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
 
@@ -161,54 +162,71 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
         return cached.complexities;
     }
 
-    const text = textDocument.getText();
-    let complexities: MethodComplexity[] = [];
-
-    if (textDocument.languageId === 'csharp') {
-        if (!parserInitialized) {
-             // Try to wait for initialization
-             if (initPromise) {
-                 try {
-                     await initPromise;
-                 } catch (e) {
-                     // Already logged
-                     return [];
-                 }
-             } else {
-                 initParser();
-                 try {
-                    await initPromise;
-                 } catch (e) {
-                     return [];
-                 }
-             }
-        }
-
-        if (!parserInitialized || !csharpParser) {
-            return [];
-        }
-
-        try {
-            const tree = csharpParser.parse(text);
-            complexities = await calculateComplexity(tree, 'csharp');
-            tree.delete(); // Clean up tree
-        } catch (e) {
-            connection.console.error(`Error calculating C# complexity: ${e}`);
-            return [];
-        }
-    } else {
-        // Default to TypeScript/JavaScript
-        const sourceFile = ts.createSourceFile(
-            textDocument.uri,
-            text,
-            ts.ScriptTarget.Latest,
-            false // setParentNodes = false for performance
-        );
-        complexities = await calculateComplexity(sourceFile, 'typescript');
+    // Check for pending calculation for the *same* version
+    const pending = complexityPromises.get(textDocument.uri);
+    if (pending && pending.version === textDocument.version) {
+        return pending.promise;
     }
 
-    complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
-    return complexities;
+    const promise = (async () => {
+        const text = textDocument.getText();
+        let complexities: MethodComplexity[] = [];
+
+        if (textDocument.languageId === 'csharp') {
+            if (!parserInitialized) {
+                // Try to wait for initialization
+                if (initPromise) {
+                    try {
+                        await initPromise;
+                    } catch (e) {
+                        // Already logged
+                        return [];
+                    }
+                } else {
+                    initParser();
+                    try {
+                        await initPromise;
+                    } catch (e) {
+                        return [];
+                    }
+                }
+            }
+
+            if (!parserInitialized || !csharpParser) {
+                return [];
+            }
+
+            try {
+                const tree = csharpParser.parse(text);
+                complexities = await calculateComplexity(tree, 'csharp');
+                tree.delete(); // Clean up tree
+            } catch (e) {
+                connection.console.error(`Error calculating C# complexity: ${e}`);
+                return [];
+            }
+        } else {
+            // Default to TypeScript/JavaScript
+            const sourceFile = ts.createSourceFile(
+                textDocument.uri,
+                text,
+                ts.ScriptTarget.Latest,
+                false // setParentNodes = false for performance
+            );
+            complexities = await calculateComplexity(sourceFile, 'typescript');
+        }
+
+        complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
+
+        // Only remove from promises if it's still the current one (handle race conditions)
+        const currentPending = complexityPromises.get(textDocument.uri);
+        if (currentPending && currentPending.version === textDocument.version) {
+            complexityPromises.delete(textDocument.uri);
+        }
+        return complexities;
+    })();
+
+    complexityPromises.set(textDocument.uri, { version: textDocument.version, promise });
+    return promise;
 }
 
 connection.onDidChangeConfiguration(change => {

@@ -48,8 +48,10 @@ export function calculateCSharpComplexity(tree: Tree): MethodComplexity[] {
             methods.push(method);
         }
 
-        for (const child of node.children) {
+        let child = node.firstChild;
+        while (child) {
             visit(child);
+            child = child.nextSibling;
         }
 
         if (isMethodNode) {
@@ -207,7 +209,8 @@ function computeComplexity(node: SyntaxNode): { score: number, details: Complexi
             childNesting = nesting + 1;
         }
 
-        for (const child of n.children) {
+        let child = n.firstChild;
+        while (child) {
              let nextNesting = childNesting;
 
              // Handle `else if` flattening
@@ -219,11 +222,14 @@ function computeComplexity(node: SyntaxNode): { score: number, details: Complexi
              }
 
              visit(child, nextNesting);
+             child = child.nextSibling;
         }
     }
 
-    for (const child of node.children) {
+    let child = node.firstChild;
+    while (child) {
         visit(child, 0);
+        child = child.nextSibling;
     }
 
     return { score, details };
