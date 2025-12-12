@@ -202,7 +202,7 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
             textDocument.uri,
             text,
             ts.ScriptTarget.Latest,
-            true
+            false // setParentNodes = false for performance
         );
         complexities = await calculateComplexity(sourceFile, 'typescript');
     }

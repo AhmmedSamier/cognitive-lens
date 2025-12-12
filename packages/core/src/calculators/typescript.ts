@@ -5,26 +5,25 @@ export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): Method
     const methods: MethodComplexity[] = [];
     const ancestors: MethodComplexity[] = [];
 
-    function visit(node: ts.Node) {
+    function visit(node: ts.Node, parent?: ts.Node) {
         let isMethodNode = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
         let method: MethodComplexity | undefined;
 
         if (isMethodNode) {
-            const complexity = computeComplexity(node as ts.FunctionLikeDeclaration);
+            const complexity = computeComplexity(node as ts.FunctionLikeDeclaration, sourceFile);
 
             let name = 'anonymous';
             if ((node as any).name) {
                 name = (node as any).name.getText(sourceFile);
-            } else if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) {
-                name = node.parent.name.text;
-            } else if (ts.isPropertyAssignment(node.parent) && ts.isIdentifier(node.parent.name)) {
-                name = node.parent.name.text;
+            } else if (parent && ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
+                name = parent.name.text;
+            } else if (parent && ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) {
+                name = parent.name.text;
             }
 
             // Check if it is a callback (argument to a call)
             // Or typically any function passed as argument.
-            const isCallback = ts.isCallExpression(node.parent) ||
-                               (ts.isNewExpression(node.parent));
+            const isCallback = parent ? (ts.isCallExpression(parent) || ts.isNewExpression(parent)) : false;
 
             method = {
                 name,
@@ -44,7 +43,7 @@ export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): Method
             methods.push(method);
         }
 
-        ts.forEachChild(node, visit);
+        ts.forEachChild(node, child => visit(child, node));
 
         if (isMethodNode) {
             ancestors.pop();
@@ -56,10 +55,10 @@ export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): Method
     return methods;
 }
 
-function computeComplexity(node: ts.FunctionLikeDeclaration): { score: number, details: ComplexityDetail[] } {
+function computeComplexity(node: ts.FunctionLikeDeclaration, sourceFile: ts.SourceFile): { score: number, details: ComplexityDetail[] } {
     let score = 0;
     const details: ComplexityDetail[] = [];
-    const sourceFile = node.getSourceFile();
+    // const sourceFile = node.getSourceFile(); // Removed: Avoid dependency on setParentNodes
 
     function add(n: ts.Node, amount: number, message: string) {
         if (amount === 0) return;
@@ -76,7 +75,7 @@ function computeComplexity(node: ts.FunctionLikeDeclaration): { score: number, d
                n.kind === ts.SyntaxKind.DoStatement;
     }
 
-    function visit(n: ts.Node, nesting: number) {
+    function visit(n: ts.Node, nesting: number, parent?: ts.Node) {
         if (n !== node && (ts.isFunctionDeclaration(n) || ts.isMethodDeclaration(n) || ts.isArrowFunction(n) || ts.isFunctionExpression(n))) {
             return;
         }
@@ -90,7 +89,7 @@ function computeComplexity(node: ts.FunctionLikeDeclaration): { score: number, d
                 label = 'if';
                 structural = 1;
                 increasesNesting = true;
-                if (ts.isIfStatement(n.parent) && n.parent.elseStatement === n) {
+                if (parent && ts.isIfStatement(parent) && parent.elseStatement === n) {
                     // else if
                 }
                 break;
@@ -147,7 +146,10 @@ function computeComplexity(node: ts.FunctionLikeDeclaration): { score: number, d
             add(n, structural, label);
 
             if (increasesNesting) {
-                if (!(ts.isIfStatement(n) && ts.isIfStatement(n.parent) && n.parent.elseStatement === n)) {
+                // If it's an 'else if', we don't increase nesting cost for the 'if' itself relative to the parent 'if'
+                // But we still count it as structural.
+                // Logic: else if (parent is if, n is elseStatement of parent)
+                if (!(ts.isIfStatement(n) && parent && ts.isIfStatement(parent) && parent.elseStatement === n)) {
                     if (nesting > 0) {
                         add(n, nesting, 'nesting');
                     }
@@ -167,14 +169,15 @@ function computeComplexity(node: ts.FunctionLikeDeclaration): { score: number, d
                 nextNesting = nesting;
             }
 
-            visit(child, nextNesting);
+            visit(child, nextNesting, n);
         });
     }
 
     if (node.body) {
-        visit(node.body, 0);
+        visit(node.body, 0, node);
     } else {
-        visit(node.body || node, 0);
+        // node.body should be present for Block, but if it's expression body arrow function, it's the expression
+        visit(node.body || node, 0, node);
     }
 
     return { score, details };
