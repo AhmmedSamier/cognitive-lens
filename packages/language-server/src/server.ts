@@ -141,6 +141,20 @@ connection.onInitialized(() => {
 let globalSettings: CognitiveComplexitySettings = defaultSettings;
 
 const complexityCache = new Map<string, { version: number, complexities: MethodComplexity[] }>();
+const complexityPromises = new Map<string, { version: number, promise: Promise<MethodComplexity[]> }>();
+const validationTimers = new Map<string, NodeJS.Timeout>();
+const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
+
+function validateTextDocumentDebounced(textDocument: TextDocument) {
+    const uri = textDocument.uri;
+    if (validationTimers.has(uri)) {
+        clearTimeout(validationTimers.get(uri));
+    }
+    validationTimers.set(uri, setTimeout(() => {
+        validationTimers.delete(uri);
+        validateTextDocument(textDocument);
+    }, 500)); // 500ms delay
+}
 
 async function getComplexity(textDocument: TextDocument): Promise<MethodComplexity[]> {
     const cached = complexityCache.get(textDocument.uri);
@@ -148,66 +162,84 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
         return cached.complexities;
     }
 
-    const text = textDocument.getText();
-    let complexities: MethodComplexity[] = [];
-
-    if (textDocument.languageId === 'csharp') {
-        if (!parserInitialized) {
-             // Try to wait for initialization
-             if (initPromise) {
-                 try {
-                     await initPromise;
-                 } catch (e) {
-                     // Already logged
-                     return [];
-                 }
-             } else {
-                 initParser();
-                 try {
-                    await initPromise;
-                 } catch (e) {
-                     return [];
-                 }
-             }
-        }
-
-        if (!parserInitialized || !csharpParser) {
-            return [];
-        }
-
-        try {
-            const tree = csharpParser.parse(text);
-            complexities = await calculateComplexity(tree, 'csharp');
-            tree.delete(); // Clean up tree
-        } catch (e) {
-            connection.console.error(`Error calculating C# complexity: ${e}`);
-            return [];
-        }
-    } else {
-        // Default to TypeScript/JavaScript
-        const sourceFile = ts.createSourceFile(
-            textDocument.uri,
-            text,
-            ts.ScriptTarget.Latest,
-            true
-        );
-        complexities = await calculateComplexity(sourceFile, 'typescript');
+    // Check for pending calculation for the *same* version
+    const pending = complexityPromises.get(textDocument.uri);
+    if (pending && pending.version === textDocument.version) {
+        return pending.promise;
     }
 
-    complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
-    return complexities;
+    const promise = (async () => {
+        const text = textDocument.getText();
+        let complexities: MethodComplexity[] = [];
+
+        if (textDocument.languageId === 'csharp') {
+            if (!parserInitialized) {
+                // Try to wait for initialization
+                if (initPromise) {
+                    try {
+                        await initPromise;
+                    } catch (e) {
+                        // Already logged
+                        return [];
+                    }
+                } else {
+                    initParser();
+                    try {
+                        await initPromise;
+                    } catch (e) {
+                        return [];
+                    }
+                }
+            }
+
+            if (!parserInitialized || !csharpParser) {
+                return [];
+            }
+
+            try {
+                const tree = csharpParser.parse(text);
+                complexities = await calculateComplexity(tree, 'csharp');
+                tree.delete(); // Clean up tree
+            } catch (e) {
+                connection.console.error(`Error calculating C# complexity: ${e}`);
+                return [];
+            }
+        } else {
+            // Default to TypeScript/JavaScript
+            const sourceFile = ts.createSourceFile(
+                textDocument.uri,
+                text,
+                ts.ScriptTarget.Latest,
+                false // setParentNodes = false for performance
+            );
+            complexities = await calculateComplexity(sourceFile, 'typescript');
+        }
+
+        complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
+
+        // Only remove from promises if it's still the current one (handle race conditions)
+        const currentPending = complexityPromises.get(textDocument.uri);
+        if (currentPending && currentPending.version === textDocument.version) {
+            complexityPromises.delete(textDocument.uri);
+        }
+        return complexities;
+    })();
+
+    complexityPromises.set(textDocument.uri, { version: textDocument.version, promise });
+    return promise;
 }
 
 connection.onDidChangeConfiguration(change => {
     if (hasConfigurationCapability) {
         // Reset all cached document settings
+        settingsCache.clear();
     } else {
         globalSettings = <CognitiveComplexitySettings>(
             (change.settings.cognitiveComplexity || defaultSettings)
         );
     }
     // Revalidate all open text documents
-    documents.all().forEach(validateTextDocument);
+    documents.all().forEach(validateTextDocumentDebounced);
 });
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
@@ -236,17 +268,21 @@ async function getDocumentSettings(resource: string): Promise<CognitiveComplexit
     if (!hasConfigurationCapability) {
         return Promise.resolve(globalSettings);
     }
-    const result = await connection.workspace.getConfiguration({
-        scopeUri: resource,
-        section: 'cognitiveComplexity'
-    });
-
-    // Merge with defaults to ensure all properties exist
-    return { ...defaultSettings, ...result };
+    let result = settingsCache.get(resource);
+    if (!result) {
+        result = connection.workspace.getConfiguration({
+            scopeUri: resource,
+            section: 'cognitiveComplexity'
+        }).then(settings => {
+            return { ...defaultSettings, ...settings };
+        });
+        settingsCache.set(resource, result);
+    }
+    return result;
 }
 
-documents.onDidChangeContent(async change => {
-    await validateTextDocument(change.document);
+documents.onDidChangeContent(change => {
+    validateTextDocumentDebounced(change.document);
 });
 
 connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {

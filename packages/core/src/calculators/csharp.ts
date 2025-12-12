@@ -4,11 +4,13 @@ import { MethodComplexity, ComplexityDetail } from '../types';
 export function calculateCSharpComplexity(tree: Tree): MethodComplexity[] {
     const methods: MethodComplexity[] = [];
     const rootNode = tree.rootNode;
-
-    const rawMethods: { method: MethodComplexity, node: SyntaxNode }[] = [];
+    const ancestors: MethodComplexity[] = [];
 
     function visit(node: SyntaxNode) {
-        if (isMethod(node)) {
+        let isMethodNode = isMethod(node);
+        let method: MethodComplexity | undefined;
+
+        if (isMethodNode) {
             const complexity = computeComplexity(node);
 
             let name = 'anonymous';
@@ -28,7 +30,7 @@ export function calculateCSharpComplexity(tree: Tree): MethodComplexity[] {
             // Also arrow functions can be in `parenthesized_expression` or other places
             // But usually arguments are wrapped in `argument`.
 
-            const method: MethodComplexity = {
+            method = {
                 name,
                 score: complexity.score,
                 details: complexity.details,
@@ -36,35 +38,30 @@ export function calculateCSharpComplexity(tree: Tree): MethodComplexity[] {
                 endIndex: node.endIndex,
                 isCallback
             };
-            rawMethods.push({ method, node });
+
+            // Aggregate score to all ancestors (nested functions increase parent complexity)
+            for (const ancestor of ancestors) {
+                ancestor.score += method.score;
+            }
+
+            ancestors.push(method);
+            methods.push(method);
         }
 
-        for (const child of node.children) {
+        let child = node.firstChild;
+        while (child) {
             visit(child);
+            child = child.nextSibling;
+        }
+
+        if (isMethodNode) {
+            ancestors.pop();
         }
     }
 
     visit(rootNode);
 
-    // Aggregate scores
-    const originalScores = new Map<MethodComplexity, number>();
-    for (const { method } of rawMethods) {
-        originalScores.set(method, method.score);
-    }
-
-    for (const parent of rawMethods) {
-        for (const child of rawMethods) {
-            if (parent === child) continue;
-
-            if (child.method.startIndex >= parent.method.startIndex &&
-                child.method.endIndex <= parent.method.endIndex) {
-
-                parent.method.score += originalScores.get(child.method)!;
-            }
-        }
-    }
-
-    return rawMethods.map(m => m.method);
+    return methods;
 }
 
 function isMethod(node: SyntaxNode): boolean {
@@ -212,7 +209,8 @@ function computeComplexity(node: SyntaxNode): { score: number, details: Complexi
             childNesting = nesting + 1;
         }
 
-        for (const child of n.children) {
+        let child = n.firstChild;
+        while (child) {
              let nextNesting = childNesting;
 
              // Handle `else if` flattening
@@ -224,11 +222,14 @@ function computeComplexity(node: SyntaxNode): { score: number, details: Complexi
              }
 
              visit(child, nextNesting);
+             child = child.nextSibling;
         }
     }
 
-    for (const child of node.children) {
+    let child = node.firstChild;
+    while (child) {
         visit(child, 0);
+        child = child.nextSibling;
     }
 
     return { score, details };
