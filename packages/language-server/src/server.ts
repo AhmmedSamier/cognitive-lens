@@ -141,6 +141,19 @@ connection.onInitialized(() => {
 let globalSettings: CognitiveComplexitySettings = defaultSettings;
 
 const complexityCache = new Map<string, { version: number, complexities: MethodComplexity[] }>();
+const validationTimers = new Map<string, NodeJS.Timeout>();
+const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
+
+function validateTextDocumentDebounced(textDocument: TextDocument) {
+    const uri = textDocument.uri;
+    if (validationTimers.has(uri)) {
+        clearTimeout(validationTimers.get(uri));
+    }
+    validationTimers.set(uri, setTimeout(() => {
+        validationTimers.delete(uri);
+        validateTextDocument(textDocument);
+    }, 500)); // 500ms delay
+}
 
 async function getComplexity(textDocument: TextDocument): Promise<MethodComplexity[]> {
     const cached = complexityCache.get(textDocument.uri);
@@ -201,13 +214,14 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
 connection.onDidChangeConfiguration(change => {
     if (hasConfigurationCapability) {
         // Reset all cached document settings
+        settingsCache.clear();
     } else {
         globalSettings = <CognitiveComplexitySettings>(
             (change.settings.cognitiveComplexity || defaultSettings)
         );
     }
     // Revalidate all open text documents
-    documents.all().forEach(validateTextDocument);
+    documents.all().forEach(validateTextDocumentDebounced);
 });
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
@@ -236,17 +250,21 @@ async function getDocumentSettings(resource: string): Promise<CognitiveComplexit
     if (!hasConfigurationCapability) {
         return Promise.resolve(globalSettings);
     }
-    const result = await connection.workspace.getConfiguration({
-        scopeUri: resource,
-        section: 'cognitiveComplexity'
-    });
-
-    // Merge with defaults to ensure all properties exist
-    return { ...defaultSettings, ...result };
+    let result = settingsCache.get(resource);
+    if (!result) {
+        result = connection.workspace.getConfiguration({
+            scopeUri: resource,
+            section: 'cognitiveComplexity'
+        }).then(settings => {
+            return { ...defaultSettings, ...settings };
+        });
+        settingsCache.set(resource, result);
+    }
+    return result;
 }
 
-documents.onDidChangeContent(async change => {
-    await validateTextDocument(change.document);
+documents.onDidChangeContent(change => {
+    validateTextDocumentDebounced(change.document);
 });
 
 connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
