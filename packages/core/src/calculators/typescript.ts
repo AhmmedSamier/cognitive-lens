@@ -3,12 +3,14 @@ import { MethodComplexity, ComplexityDetail } from '../types';
 
 export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): MethodComplexity[] {
     const methods: MethodComplexity[] = [];
-
-    const rawMethods: { method: MethodComplexity, node: ts.FunctionLikeDeclaration }[] = [];
+    const ancestors: MethodComplexity[] = [];
 
     function visit(node: ts.Node) {
-        if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
-            const complexity = computeComplexity(node);
+        let isMethodNode = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+        let method: MethodComplexity | undefined;
+
+        if (isMethodNode) {
+            const complexity = computeComplexity(node as ts.FunctionLikeDeclaration);
 
             let name = 'anonymous';
             if ((node as any).name) {
@@ -24,7 +26,7 @@ export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): Method
             const isCallback = ts.isCallExpression(node.parent) ||
                                (ts.isNewExpression(node.parent));
 
-            const method: MethodComplexity = {
+            method = {
                 name,
                 score: complexity.score,
                 details: complexity.details,
@@ -33,32 +35,25 @@ export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): Method
                 isCallback
             };
 
-            rawMethods.push({ method, node: node as ts.FunctionLikeDeclaration });
+            // Aggregate score to all ancestors
+            for (const ancestor of ancestors) {
+                ancestor.score += method.score;
+            }
+
+            ancestors.push(method);
+            methods.push(method);
         }
+
         ts.forEachChild(node, visit);
+
+        if (isMethodNode) {
+            ancestors.pop();
+        }
     }
 
     visit(sourceFile);
 
-    // Aggregate scores
-    const originalScores = new Map<MethodComplexity, number>();
-    for (const { method } of rawMethods) {
-        originalScores.set(method, method.score);
-    }
-
-    for (const parent of rawMethods) {
-        for (const child of rawMethods) {
-            if (parent === child) continue;
-
-            if (child.method.startIndex >= parent.method.startIndex &&
-                child.method.endIndex <= parent.method.endIndex) {
-
-                parent.method.score += originalScores.get(child.method)!;
-            }
-        }
-    }
-
-    return rawMethods.map(m => m.method);
+    return methods;
 }
 
 function computeComplexity(node: ts.FunctionLikeDeclaration): { score: number, details: ComplexityDetail[] } {
