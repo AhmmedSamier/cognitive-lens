@@ -163,7 +163,9 @@ export function computeCodeLenses(
         return [];
     }
 
-    return complexities.map(c => {
+    return complexities
+        .filter(c => !c.isCallback)
+        .map(c => {
         const start = document.positionAt(c.startIndex);
         const end = document.positionAt(c.endIndex);
 
