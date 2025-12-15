@@ -43,7 +43,7 @@
         "cognitiveComplexity.threshold.error": {
           "scope": "resource",
           "type": "number",
-          "default": 30,
+          "default": 25,
           "description": "Complexity score threshold for showing an error."
         },
         "cognitiveComplexity.showCodeLens": {

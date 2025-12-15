@@ -20,7 +20,7 @@ export interface CognitiveComplexitySettings {
 export const defaultSettings: CognitiveComplexitySettings = {
     threshold: {
         warning: 15,
-        error: 30
+        error: 25
     },
     showCodeLens: true
 };
@@ -94,6 +94,7 @@ export function computeInlayHints(
     // Add method total score as inlay hint
     for (const method of complexities) {
         if (method.isCallback) continue;
+        if (method.score === 0) continue; // Hide zero complexity
 
         const startPos = document.positionAt(method.startIndex);
         const line = startPos.line;
@@ -104,7 +105,9 @@ export function computeInlayHints(
              start: { line, character: 0 },
              end: { line: line + 1, character: 0 }
         });
-        const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
+
+        // Find indentation to place hint before the method definition but after indentation
+        const firstNonWhitespace = lineText.search(/\S|$/);
 
         let icon = '🟢';
         if (method.score >= settings.threshold.error) {
@@ -114,10 +117,10 @@ export function computeInlayHints(
         }
 
         result.push({
-            position: { line, character: len },
-            label: ` ${icon} Cognitive Complexity: ${method.score}`,
+            position: { line, character: firstNonWhitespace },
+            label: `${icon} Cognitive Complexity: ${method.score}`,
             kind: InlayHintKind.Type,
-            paddingLeft: true
+            paddingRight: true
         });
     }
 
