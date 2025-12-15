@@ -121,21 +121,51 @@ export function computeInlayHints(
             let hintPos: Position;
             let paddingLeft = false;
             let paddingRight = false;
+            let labelPrefix = "";
 
             if (line > 0) {
                 // Get previous line
                 const prevLineIndex = line - 1;
-                // We need to check if prevLineIndex is within valid range?
-                // document.getText handles range.
-                // We need the length of the previous line.
-                const prevLineText = document.getText({
+
+                const prevLineTextFull = document.getText({
                     start: { line: prevLineIndex, character: 0 },
                     end: { line: prevLineIndex + 1, character: 0 }
                 });
-                const prevLineLength = prevLineText.replace(/(\r\n|\n|\r)/gm, "").length;
+                const prevLineText = prevLineTextFull.replace(/(\r\n|\n|\r)/gm, "");
 
-                hintPos = { line: prevLineIndex, character: prevLineLength };
-                paddingLeft = true; // Separate from whatever is on the previous line
+                // Get current method indentation
+                const currentLineTextFull = document.getText({
+                     start: { line, character: 0 },
+                     end: { line: line + 1, character: 0 }
+                });
+                const currentLineText = currentLineTextFull.replace(/(\r\n|\n|\r)/gm, "");
+                const currentIndentEnd = currentLineText.search(/\S|$/);
+                const currentIndentStr = currentLineText.substring(0, currentIndentEnd);
+
+                if (prevLineText.trim().length === 0) {
+                    // Previous line is empty or whitespace only
+                    // We want to align with currentIndentStr
+
+                    // Logic: Append the difference between existing prevLineText and currentIndentStr
+                    if (currentIndentStr.startsWith(prevLineText)) {
+                         labelPrefix = currentIndentStr.substring(prevLineText.length);
+                    } else {
+                         // If we can't cleanly extend, we can't easily align perfectly if using tabs/spaces mix.
+                         // But we can try to just use space padding or accept best effort.
+                         // If prevLine is empty, this works.
+                         // If prevLine has some other whitespace, we try to append.
+                         if (prevLineText.length < currentIndentStr.length) {
+                             labelPrefix = " ".repeat(currentIndentStr.length - prevLineText.length);
+                         }
+                    }
+
+                    hintPos = { line: prevLineIndex, character: prevLineText.length };
+                    paddingLeft = false; // We handle padding/alignment manually
+                } else {
+                    // Previous line has content
+                    hintPos = { line: prevLineIndex, character: prevLineText.length };
+                    paddingLeft = true; // Separate from content
+                }
             } else {
                 // Fallback to start of line (indented)
                 if (line < startLine || line > endLine) continue; // Only check bounds if we are placing ON this line
@@ -165,7 +195,7 @@ export function computeInlayHints(
 
             result.push({
                 position: hintPos,
-                label: `${icon} Cognitive Complexity: ${method.score}`,
+                label: `${labelPrefix}${icon} Cognitive Complexity: ${method.score}`,
                 kind: InlayHintKind.Type,
                 paddingLeft,
                 paddingRight
