@@ -15,6 +15,11 @@ export interface CognitiveComplexitySettings {
         error: number;
     };
     showCodeLens: boolean;
+    showDiagnostics: boolean;
+    showInlayHints: {
+        methodScore: boolean;
+        details: boolean;
+    };
 }
 
 export const defaultSettings: CognitiveComplexitySettings = {
@@ -22,7 +27,12 @@ export const defaultSettings: CognitiveComplexitySettings = {
         warning: 15,
         error: 25
     },
-    showCodeLens: true
+    showCodeLens: true,
+    showDiagnostics: true,
+    showInlayHints: {
+        methodScore: true,
+        details: true
+    }
 };
 
 export function computeDiagnostics(
@@ -30,6 +40,10 @@ export function computeDiagnostics(
     complexities: MethodComplexity[],
     settings: CognitiveComplexitySettings
 ): Diagnostic[] {
+    if (!settings.showDiagnostics) {
+        return [];
+    }
+
     const diagnostics: Diagnostic[] = [];
 
     for (const complexity of complexities) {
@@ -92,66 +106,103 @@ export function computeInlayHints(
     }
 
     // Add method total score as inlay hint
-    for (const method of complexities) {
-        if (method.isCallback) continue;
-        if (method.score === 0) continue; // Hide zero complexity
+    if (settings.showInlayHints.methodScore) {
+        for (const method of complexities) {
+            if (method.isCallback) continue;
+            if (method.score === 0) continue;
 
-        const startPos = document.positionAt(method.startIndex);
-        const line = startPos.line;
+            const startPos = document.positionAt(method.startIndex);
+            const line = startPos.line;
 
-        if (line < startLine || line > endLine) continue;
+            // Placement logic:
+            // Prefer the end of the previous line to simulate "above".
+            // If line 0, fallback to start of current line.
 
-        const lineText = document.getText({
-             start: { line, character: 0 },
-             end: { line: line + 1, character: 0 }
-        });
+            let hintPos: Position;
+            let paddingLeft = false;
+            let paddingRight = false;
 
-        // Find indentation to place hint before the method definition but after indentation
-        const firstNonWhitespace = lineText.search(/\S|$/);
+            if (line > 0) {
+                // Get previous line
+                const prevLineIndex = line - 1;
+                // We need to check if prevLineIndex is within valid range?
+                // document.getText handles range.
+                // We need the length of the previous line.
+                const prevLineText = document.getText({
+                    start: { line: prevLineIndex, character: 0 },
+                    end: { line: prevLineIndex + 1, character: 0 }
+                });
+                const prevLineLength = prevLineText.replace(/(\r\n|\n|\r)/gm, "").length;
 
-        let icon = '🟢';
-        if (method.score >= settings.threshold.error) {
-            icon = '🔴';
-        } else if (method.score >= settings.threshold.warning) {
-            icon = '🟡';
+                hintPos = { line: prevLineIndex, character: prevLineLength };
+                paddingLeft = true; // Separate from whatever is on the previous line
+            } else {
+                // Fallback to start of line (indented)
+                if (line < startLine || line > endLine) continue; // Only check bounds if we are placing ON this line
+
+                const lineText = document.getText({
+                    start: { line, character: 0 },
+                    end: { line: line + 1, character: 0 }
+               });
+               const firstNonWhitespace = lineText.search(/\S|$/);
+               hintPos = { line, character: firstNonWhitespace };
+               paddingRight = true;
+            }
+
+            // If using previous line, we might be out of "range" requested by VS Code.
+            // VS Code usually requests visible range.
+            // If line is visible, line-1 might be visible or just above.
+            // It's generally safe to return hints slightly outside range.
+            if (hintPos.line < startLine - 1 || hintPos.line > endLine) continue;
+
+
+            let icon = '🟢';
+            if (method.score >= settings.threshold.error) {
+                icon = '🔴';
+            } else if (method.score >= settings.threshold.warning) {
+                icon = '🟡';
+            }
+
+            result.push({
+                position: hintPos,
+                label: `${icon} Cognitive Complexity: ${method.score}`,
+                kind: InlayHintKind.Type,
+                paddingLeft,
+                paddingRight
+            });
         }
-
-        result.push({
-            position: { line, character: firstNonWhitespace },
-            label: `${icon} Cognitive Complexity: ${method.score}`,
-            kind: InlayHintKind.Type,
-            paddingRight: true
-        });
     }
 
-    for (const [line, details] of hintsByLine) {
-        if (line < startLine || line > endLine) continue;
+    if (settings.showInlayHints.details) {
+        for (const [line, details] of hintsByLine) {
+            if (line < startLine || line > endLine) continue;
 
-        const totalScore = details.reduce((sum, d) => sum + d.score, 0);
+            const totalScore = details.reduce((sum, d) => sum + d.score, 0);
 
-        const messages = details
-            .map(d => d.message)
-            .filter(m => m !== 'nesting');
+            const messages = details
+                .map(d => d.message)
+                .filter(m => m !== 'nesting');
 
-        let uniqueMessages = Array.from(new Set(messages));
-        if (uniqueMessages.length === 0 && totalScore > 0) {
-             uniqueMessages = ['nesting'];
+            let uniqueMessages = Array.from(new Set(messages));
+            if (uniqueMessages.length === 0 && totalScore > 0) {
+                 uniqueMessages = ['nesting'];
+            }
+
+            const label = `(+${totalScore} ${uniqueMessages.join(', ')})`;
+
+            const lineText = document.getText({
+                 start: { line, character: 0 },
+                 end: { line: line + 1, character: 0 }
+            });
+            const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
+
+            result.push({
+                position: { line, character: len },
+                label: ` ${label}`,
+                kind: InlayHintKind.Parameter,
+                paddingLeft: true
+            });
         }
-
-        const label = `(+${totalScore} ${uniqueMessages.join(', ')})`;
-
-        const lineText = document.getText({
-             start: { line, character: 0 },
-             end: { line: line + 1, character: 0 }
-        });
-        const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
-
-        result.push({
-            position: { line, character: len },
-            label: ` ${label}`,
-            kind: InlayHintKind.Parameter,
-            paddingLeft: true
-        });
     }
 
     return result;

@@ -51,6 +51,24 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable CodeLens for cognitive complexity."
+        },
+        "cognitiveComplexity.showDiagnostics": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable diagnostics (warnings/errors) for cognitive complexity."
+        },
+        "cognitiveComplexity.showInlayHints.methodScore": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the method score inlay hint."
+        },
+        "cognitiveComplexity.showInlayHints.details": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable detailed contribution inlay hints."
         }
       }
     }
