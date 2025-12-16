@@ -112,6 +112,8 @@ export function computeInlayHints(
             if (method.score === 0) continue;
 
             const startPos = document.positionAt(method.startIndex);
+            const methodEndPos = document.positionAt(method.endIndex);
+            const lines = methodEndPos.line - startPos.line + 1;
             const line = startPos.line;
 
             // Placement logic:
@@ -195,7 +197,7 @@ export function computeInlayHints(
 
             result.push({
                 position: hintPos,
-                label: `${labelPrefix}${icon} Cognitive Complexity: ${method.score}`,
+                label: `${labelPrefix}${icon} Cognitive Complexity: ${method.score} (${lines} lines)`,
                 kind: InlayHintKind.Type,
                 paddingLeft,
                 paddingRight
@@ -252,6 +254,7 @@ export function computeCodeLenses(
         .map(c => {
         const start = document.positionAt(c.startIndex);
         const end = document.positionAt(c.endIndex);
+        const lines = end.line - start.line + 1;
 
         let icon = '🟢';
         if (c.score >= settings.threshold.error) {
@@ -263,7 +266,7 @@ export function computeCodeLenses(
         return {
             range: { start, end },
             command: {
-                title: `${icon} Cognitive Complexity: ${c.score}`,
+                title: `${icon} Cognitive Complexity: ${c.score} (${lines} lines)`,
                 command: '',
                 arguments: []
             },

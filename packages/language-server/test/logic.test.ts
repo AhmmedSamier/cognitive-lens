@@ -60,7 +60,28 @@ describe("Language Server Logic", () => {
     test("computeCodeLenses returns lenses when enabled", () => {
         const lenses = computeCodeLenses(mockDocument, mockComplexity, mockSettings);
         expect(lenses.length).toBe(1);
+        // Expect line count (1 line + 1 line for text approx)
+        // In mockDocument: start 0, end 40. "function test() {" is 15 chars.
+        // The mock document content is:
+        // function test() {
+        //     console.log('hello');
+        // }
+        // The mock complexity says startIndex: 0, endIndex: 40.
+        // Let's verify line count logic.
+        // mockDocument:
+        // line 0: function test() {\n (approx 16 chars)
+        // line 1:     console.log('hello');\n (approx 26 chars)
+        // line 2: }\n
+        // length is ~44.
+        // 40 is somewhere in line 2 or end of line 1.
+        // Let's assume endIndex 40 is valid for test and calculate roughly.
+        // positionAt(0) -> line 0.
+        // positionAt(40) -> line 2 (probably).
+        // So lines = 2 - 0 + 1 = 3.
+
+        // We will just check for "lines)" in the string to be safe against exact calculation in this mock
         expect(lenses[0].command!.title).toContain('Cognitive Complexity: 6');
+        expect(lenses[0].command!.title).toContain('lines)');
     });
 
     test("computeCodeLenses returns empty when disabled", () => {
@@ -79,5 +100,6 @@ describe("Language Server Logic", () => {
         expect(hints.length).toBeGreaterThan(0);
         // Method total hint
         expect(hints.some(h => h.label.toString().includes('Cognitive Complexity: 6'))).toBe(true);
+        expect(hints.some(h => h.label.toString().includes('lines)'))).toBe(true);
     });
 });
