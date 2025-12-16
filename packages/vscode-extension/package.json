@@ -69,6 +69,12 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable detailed contribution inlay hints."
+        },
+        "cognitiveComplexity.totalScorePrefix": {
+          "scope": "resource",
+          "type": "string",
+          "default": "Cognitive Complexity",
+          "description": "The prefix text to display before the total complexity score."
         }
       }
     }
