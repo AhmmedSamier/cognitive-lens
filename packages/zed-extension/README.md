@@ -25,7 +25,8 @@ Open settings with `cmd-,` (or `ctrl-,` on Linux/Windows) or via the command pal
           "showInlayHints": {
             "methodScore": true,
             "details": true
-          }
+          },
+          "totalScorePrefix": "Cognitive Complexity"
         }
       }
     }
@@ -43,6 +44,7 @@ Open settings with `cmd-,` (or `ctrl-,` on Linux/Windows) or via the command pal
 | `cognitiveComplexity.showDiagnostics` | `boolean` | `true` | Enable or disable diagnostics (warnings/errors). |
 | `cognitiveComplexity.showInlayHints.methodScore` | `boolean` | `true` | Enable or disable the total score inlay hint. |
 | `cognitiveComplexity.showInlayHints.details` | `boolean` | `true` | Enable or disable detailed contribution inlay hints. |
+| `cognitiveComplexity.totalScorePrefix` | `string` | `"Cognitive Complexity"` | The prefix text to display before the total complexity score. |
 
 ## Features
 
