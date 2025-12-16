@@ -15,7 +15,12 @@ const mockSettings: CognitiveComplexitySettings = {
         warning: 5,
         error: 10
     },
-    showCodeLens: true
+    showCodeLens: true,
+    showDiagnostics: true,
+    showInlayHints: {
+        methodScore: true,
+        details: true
+    }
 };
 
 const mockDocument = TextDocument.create('file:///test.ts', 'typescript', 1,
