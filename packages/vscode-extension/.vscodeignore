@@ -1,0 +1,8 @@
+src/
+tsup.config.ts
+node_modules/
+.gitignore
+tree-sitter-c_sharp.wasm
+public/
+bun.lockb
+.DS_Store

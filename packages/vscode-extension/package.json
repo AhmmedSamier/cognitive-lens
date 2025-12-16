@@ -86,11 +86,10 @@
     "copy:wasm": "cp ../../node_modules/web-tree-sitter/tree-sitter.wasm dist/ && cp tree-sitter-c_sharp.wasm dist/",
     "package:vsix": "vsce package --no-dependencies"
   },
-  "dependencies": {
-    "vscode-languageclient": "^9.0.0",
-    "@cognitive-complexity/language-server": "workspace:*"
-  },
   "devDependencies": {
+    "typescript": "^5.0.0",
+    "vscode-languageclient": "^9.0.0",
+    "@cognitive-complexity/language-server": "workspace:*",
     "@types/vscode": "^1.80.0",
     "tsup": "^8.0.0",
     "vsce": "^2.15.0",
