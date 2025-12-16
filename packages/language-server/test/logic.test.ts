@@ -20,7 +20,8 @@ const mockSettings: CognitiveComplexitySettings = {
     showInlayHints: {
         methodScore: true,
         details: true
-    }
+    },
+    totalScorePrefix: 'Cognitive Complexity'
 };
 
 const mockDocument = TextDocument.create('file:///test.ts', 'typescript', 1,
@@ -89,6 +90,13 @@ describe("Language Server Logic", () => {
         expect(lenses[0].command!.title).toContain('lines)');
     });
 
+    test("computeCodeLenses uses custom prefix", () => {
+        const customSettings = { ...mockSettings, totalScorePrefix: 'Complexity' };
+        const lenses = computeCodeLenses(mockDocument, mockComplexity, customSettings);
+        expect(lenses[0].command!.title).toContain('Complexity: 6');
+        expect(lenses[0].command!.title).not.toContain('Cognitive Complexity: 6');
+    });
+
     test("computeCodeLenses returns empty when disabled", () => {
         const disabledSettings = { ...mockSettings, showCodeLens: false };
         const lenses = computeCodeLenses(mockDocument, mockComplexity, disabledSettings);
@@ -106,5 +114,17 @@ describe("Language Server Logic", () => {
         // Method total hint
         expect(hints.some(h => h.label.toString().includes('Cognitive Complexity: 6'))).toBe(true);
         expect(hints.some(h => h.label.toString().includes('lines)'))).toBe(true);
+    });
+
+    test("computeInlayHints uses custom prefix", () => {
+        const range = {
+            start: { line: 0, character: 0 },
+            end: { line: 10, character: 0 }
+        };
+        const customSettings = { ...mockSettings, totalScorePrefix: 'Complexity' };
+        const hints = computeInlayHints(mockDocument, mockComplexity, customSettings, range);
+
+        expect(hints.some(h => h.label.toString().includes('Complexity: 6'))).toBe(true);
+        expect(hints.some(h => h.label.toString().includes('Cognitive Complexity: 6'))).toBe(false);
     });
 });

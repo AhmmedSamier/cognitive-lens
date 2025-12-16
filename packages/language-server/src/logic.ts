@@ -20,6 +20,7 @@ export interface CognitiveComplexitySettings {
         methodScore: boolean;
         details: boolean;
     };
+    totalScorePrefix: string;
 }
 
 export const defaultSettings: CognitiveComplexitySettings = {
@@ -32,7 +33,8 @@ export const defaultSettings: CognitiveComplexitySettings = {
     showInlayHints: {
         methodScore: true,
         details: true
-    }
+    },
+    totalScorePrefix: 'Cognitive Complexity'
 };
 
 export function computeDiagnostics(
@@ -197,7 +199,7 @@ export function computeInlayHints(
 
             result.push({
                 position: hintPos,
-                label: `${labelPrefix}${icon} Cognitive Complexity: ${method.score} (${lines} lines)`,
+                label: `${labelPrefix}${icon} ${settings.totalScorePrefix}: ${method.score} (${lines} lines)`,
                 kind: InlayHintKind.Type,
                 paddingLeft,
                 paddingRight
@@ -266,7 +268,7 @@ export function computeCodeLenses(
         return {
             range: { start, end },
             command: {
-                title: `${icon} Cognitive Complexity: ${c.score} (${lines} lines)`,
+                title: `${icon} ${settings.totalScorePrefix}: ${c.score} (${lines} lines)`,
                 command: '',
                 arguments: []
             },
