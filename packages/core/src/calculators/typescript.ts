@@ -1,40 +1,44 @@
-import * as ts from 'typescript';
+import { Tree, SyntaxNode } from 'web-tree-sitter';
 import { MethodComplexity, ComplexityDetail } from '../types';
 
-export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): MethodComplexity[] {
+export function calculateTypeScriptComplexity(tree: Tree): MethodComplexity[] {
     const methods: MethodComplexity[] = [];
+    const rootNode = tree.rootNode;
     const ancestors: MethodComplexity[] = [];
 
-    function visit(node: ts.Node, parent?: ts.Node) {
-        let isMethodNode = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+    function visit(node: SyntaxNode) {
+        let isMethodNode = isMethod(node);
         let method: MethodComplexity | undefined;
 
         if (isMethodNode) {
-            const complexity = computeComplexity(node as ts.FunctionLikeDeclaration, sourceFile);
+            const complexity = computeComplexity(node);
 
             let name = 'anonymous';
-            if ((node as any).name) {
-                name = (node as any).name.getText(sourceFile);
-            } else if (parent && ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
-                name = parent.name.text;
-            } else if (parent && ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) {
-                name = parent.name.text;
+            if (node.childForFieldName('name')) {
+                name = node.childForFieldName('name')!.text;
+            } else if (node.parent && node.parent.type === 'variable_declarator' && node.parent.childForFieldName('name')) {
+                name = node.parent.childForFieldName('name')!.text;
+            } else if (node.parent && node.parent.type === 'pair' && node.parent.childForFieldName('key')) {
+                name = node.parent.childForFieldName('key')!.text;
+            } else if (node.parent && node.parent.type === 'assignment_expression' && node.parent.childForFieldName('left')) {
+                name = node.parent.childForFieldName('left')!.text;
             }
 
-            // Check if it is a callback (argument to a call)
-            // Or typically any function passed as argument.
-            const isCallback = parent ? (ts.isCallExpression(parent) || ts.isNewExpression(parent)) : false;
+            // Check if it is a callback/argument.
+            let isCallback = false;
+            if (node.parent && node.parent.type === 'arguments') {
+                 isCallback = true;
+            }
 
             method = {
                 name,
                 score: complexity.score,
                 details: complexity.details,
-                startIndex: node.getStart(sourceFile),
-                endIndex: node.getEnd(),
+                startIndex: node.startIndex,
+                endIndex: node.endIndex,
                 isCallback
             };
 
-            // Aggregate score to all ancestors
             for (const ancestor of ancestors) {
                 ancestor.score += method.score;
             }
@@ -43,40 +47,55 @@ export function calculateTypeScriptComplexity(sourceFile: ts.SourceFile): Method
             methods.push(method);
         }
 
-        ts.forEachChild(node, child => visit(child, node));
+        let child = node.firstChild;
+        while (child) {
+            visit(child);
+            child = child.nextSibling;
+        }
 
         if (isMethodNode) {
             ancestors.pop();
         }
     }
 
-    visit(sourceFile);
+    visit(rootNode);
 
     return methods;
 }
 
-function computeComplexity(node: ts.FunctionLikeDeclaration, sourceFile: ts.SourceFile): { score: number, details: ComplexityDetail[] } {
+function isMethod(node: SyntaxNode): boolean {
+    return [
+        'function_declaration',
+        'method_definition',
+        'arrow_function',
+        'function_expression',
+        'generator_function_declaration'
+    ].includes(node.type);
+}
+
+function computeComplexity(node: SyntaxNode): { score: number, details: ComplexityDetail[] } {
     let score = 0;
     const details: ComplexityDetail[] = [];
-    // const sourceFile = node.getSourceFile(); // Removed: Avoid dependency on setParentNodes
 
-    function add(n: ts.Node, amount: number, message: string) {
+    function add(n: SyntaxNode, amount: number, message: string) {
         if (amount === 0) return;
         score += amount;
-        const line = sourceFile.getLineAndCharacterOfPosition(n.getStart(sourceFile)).line;
+        const line = n.startPosition.row;
         details.push({ line, score: amount, message });
     }
 
-    function isLoop(n: ts.Node) {
-        return n.kind === ts.SyntaxKind.ForStatement ||
-               n.kind === ts.SyntaxKind.ForInStatement ||
-               n.kind === ts.SyntaxKind.ForOfStatement ||
-               n.kind === ts.SyntaxKind.WhileStatement ||
-               n.kind === ts.SyntaxKind.DoStatement;
+    function isLoop(n: SyntaxNode) {
+        return [
+            'for_statement',
+            'for_in_statement',
+            'for_of_statement',
+            'while_statement',
+            'do_statement'
+        ].includes(n.type);
     }
 
-    function visit(n: ts.Node, nesting: number, parent?: ts.Node) {
-        if (n !== node && (ts.isFunctionDeclaration(n) || ts.isMethodDeclaration(n) || ts.isArrowFunction(n) || ts.isFunctionExpression(n))) {
+    function visit(n: SyntaxNode, nesting: number) {
+        if (n !== node && isMethod(n)) {
             return;
         }
 
@@ -84,61 +103,109 @@ function computeComplexity(node: ts.FunctionLikeDeclaration, sourceFile: ts.Sour
         let increasesNesting = false;
         let label = '';
 
-        switch (n.kind) {
-            case ts.SyntaxKind.IfStatement:
+        switch (n.type) {
+            case 'if_statement':
                 label = 'if';
                 structural = 1;
                 increasesNesting = true;
-                if (parent && ts.isIfStatement(parent) && parent.elseStatement === n) {
-                    // else if
-                }
                 break;
 
-            case ts.SyntaxKind.SwitchStatement:
+            case 'switch_statement':
                 label = 'switch';
                 structural = 1;
                 increasesNesting = true;
                 break;
 
-            case ts.SyntaxKind.ForStatement:
-            case ts.SyntaxKind.ForInStatement:
-            case ts.SyntaxKind.ForOfStatement:
-            case ts.SyntaxKind.WhileStatement:
-            case ts.SyntaxKind.DoStatement:
-            case ts.SyntaxKind.CatchClause:
-                label = 'catch';
-                if (isLoop(n)) label = 'loop';
+            case 'for_statement':
+            case 'for_in_statement':
+            case 'for_of_statement':
+            case 'while_statement':
+            case 'do_statement':
+                label = 'loop';
                 structural = 1;
                 increasesNesting = true;
                 break;
 
-            case ts.SyntaxKind.ConditionalExpression:
+            case 'catch_clause':
+                label = 'catch';
+                structural = 1;
+                increasesNesting = true;
+                break;
+
+            case 'ternary_expression':
+            case 'conditional_expression':
                 label = 'ternary';
                 structural = 1;
                 increasesNesting = false;
                 break;
 
-            case ts.SyntaxKind.BinaryExpression:
-                const be = n as ts.BinaryExpression;
-                const token = be.operatorToken.kind;
-                if (token === ts.SyntaxKind.AmpersandAmpersandToken || token === ts.SyntaxKind.BarBarToken) {
-                     let left = be.left;
-                     while(ts.isParenthesizedExpression(left)) left = left.expression;
-
-                     if (ts.isBinaryExpression(left) && left.operatorToken.kind === token) {
-                         // Continuation
-                     } else {
-                         structural = 1;
-                         label = token === ts.SyntaxKind.AmpersandAmpersandToken ? '&&' : '||';
-                     }
-                }
+            case 'binary_expression':
                 break;
         }
 
-        if (ts.isIfStatement(n) && n.elseStatement && !ts.isIfStatement(n.elseStatement)) {
-            add(n.elseStatement, 1, 'else');
-            if (nesting > 0) {
-                add(n.elseStatement, nesting, 'nesting');
+        if (n.type === 'binary_expression') {
+            // Find operator by traversing all children (including anonymous)
+            let operator: string | undefined;
+            let child = n.firstChild;
+            while(child) {
+                if (child.type === '&&' || child.type === '||') {
+                    operator = child.type;
+                    break;
+                }
+                child = child.nextSibling;
+            }
+
+            if (operator) {
+                 let left = n.childForFieldName('left');
+                 let isContinuation = false;
+
+                 while (left && left.type === 'parenthesized_expression') {
+                     left = left.childForFieldName('expression');
+                 }
+
+                 if (left && left.type === 'binary_expression') {
+                     // Check left child's operator
+                     let leftOp: string | undefined;
+                     let leftChild = left.firstChild;
+                     while(leftChild) {
+                         if (leftChild.type === '&&' || leftChild.type === '||') {
+                             leftOp = leftChild.type;
+                             break;
+                         }
+                         leftChild = leftChild.nextSibling;
+                     }
+
+                     if (leftOp === operator) {
+                         isContinuation = true;
+                     }
+                 }
+
+                 if (!isContinuation) {
+                     structural = 1;
+                     label = operator;
+                 }
+            }
+        }
+
+        if (n.type === 'else_clause') {
+            let isElseIf = false;
+            let child = n.firstChild;
+            while (child) {
+                if (child.type === 'if_statement') {
+                    isElseIf = true;
+                    break;
+                }
+                child = child.nextSibling;
+            }
+
+            if (!isElseIf) {
+                add(n, 1, 'else');
+                if (nesting > 0) {
+                    add(n, nesting, 'nesting');
+                }
+                increasesNesting = true;
+            } else {
+                increasesNesting = false;
             }
         }
 
@@ -146,13 +213,8 @@ function computeComplexity(node: ts.FunctionLikeDeclaration, sourceFile: ts.Sour
             add(n, structural, label);
 
             if (increasesNesting) {
-                // If it's an 'else if', we don't increase nesting cost for the 'if' itself relative to the parent 'if'
-                // But we still count it as structural.
-                // Logic: else if (parent is if, n is elseStatement of parent)
-                if (!(ts.isIfStatement(n) && parent && ts.isIfStatement(parent) && parent.elseStatement === n)) {
-                    if (nesting > 0) {
-                        add(n, nesting, 'nesting');
-                    }
+                 if (nesting > 0) {
+                    add(n, nesting, 'nesting');
                 }
             }
         }
@@ -162,22 +224,23 @@ function computeComplexity(node: ts.FunctionLikeDeclaration, sourceFile: ts.Sour
             childNesting = nesting + 1;
         }
 
-        ts.forEachChild(n, child => {
-            let nextNesting = childNesting;
+        let child = n.firstChild;
+        while (child) {
+             let nextNesting = childNesting;
 
-            if (ts.isIfStatement(n) && child === n.elseStatement && ts.isIfStatement(child)) {
-                nextNesting = nesting;
-            }
+             if (n.type === 'if_statement' && child.type === 'else_clause') {
+                 nextNesting = nesting;
+             }
 
-            visit(child, nextNesting, n);
-        });
+             visit(child, nextNesting);
+             child = child.nextSibling;
+        }
     }
 
-    if (node.body) {
-        visit(node.body, 0, node);
-    } else {
-        // node.body should be present for Block, but if it's expression body arrow function, it's the expression
-        visit(node.body || node, 0, node);
+    let child = node.firstChild;
+    while (child) {
+        visit(child, 0);
+        child = child.nextSibling;
     }
 
     return { score, details };

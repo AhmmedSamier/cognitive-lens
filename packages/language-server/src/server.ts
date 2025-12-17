@@ -18,7 +18,6 @@ import {
 import {
     TextDocument
 } from 'vscode-languageserver-textdocument';
-import * as ts from 'typescript';
 import { calculateComplexity, MethodComplexity } from '@cognitive-complexity/core';
 import { Parser, Language } from 'web-tree-sitter';
 import * as path from 'path';
@@ -39,6 +38,8 @@ let hasWorkspaceFolderCapability = false;
 let hasDiagnosticRelatedInformationCapability = false;
 
 let csharpParser: Parser | undefined;
+let typescriptParser: Parser | undefined;
+let tsxParser: Parser | undefined;
 let parserInitialized = false;
 let initPromise: Promise<void> | undefined;
 
@@ -61,20 +62,31 @@ async function initParser() {
                 wasmBinary: wasmBuffer
             });
 
+            // Load C#
             csharpParser = new Parser();
-            // Determine path to wasm.
-            // In bundled extension, it should be adjacent to the server file or in a known location.
-            // We will assume it is in the same directory as this script.
             const csharpWasmPath = path.resolve(__dirname, 'tree-sitter-c_sharp.wasm');
             connection.console.log(`Loading C# grammar from ${csharpWasmPath}`);
+            const csharpLang = await Language.load(csharpWasmPath);
+            csharpParser.setLanguage(csharpLang);
 
-            const lang = await Language.load(csharpWasmPath);
-            csharpParser.setLanguage(lang);
+            // Load TypeScript
+            typescriptParser = new Parser();
+            const typescriptWasmPath = path.resolve(__dirname, 'tree-sitter-typescript.wasm');
+            connection.console.log(`Loading TypeScript grammar from ${typescriptWasmPath}`);
+            const typescriptLang = await Language.load(typescriptWasmPath);
+            typescriptParser.setLanguage(typescriptLang);
+
+            // Load TSX
+            tsxParser = new Parser();
+            const tsxWasmPath = path.resolve(__dirname, 'tree-sitter-tsx.wasm');
+            connection.console.log(`Loading TSX grammar from ${tsxWasmPath}`);
+            const tsxLang = await Language.load(tsxWasmPath);
+            tsxParser.setLanguage(tsxLang);
+
             parserInitialized = true;
-            connection.console.log('C# Parser initialized successfully');
+            connection.console.log('Parsers initialized successfully');
         } catch (e) {
-            connection.console.error(`Failed to initialize C# parser: ${e}`);
-            // Log stack trace if available
+            connection.console.error(`Failed to initialize parser: ${e}`);
             if (e instanceof Error && e.stack) {
                 connection.console.error(e.stack);
             }
@@ -169,50 +181,41 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
     }
 
     const promise = (async () => {
+        if (!parserInitialized) {
+             if (initPromise) {
+                 try { await initPromise; } catch(e) { return []; }
+             } else {
+                 await initParser(); // Await initParser
+                 try { await initPromise; } catch(e) { return []; }
+             }
+        }
+
+        if (!parserInitialized) return [];
+
         const text = textDocument.getText();
         let complexities: MethodComplexity[] = [];
+        let tree: any;
 
-        if (textDocument.languageId === 'csharp') {
-            if (!parserInitialized) {
-                // Try to wait for initialization
-                if (initPromise) {
-                    try {
-                        await initPromise;
-                    } catch (e) {
-                        // Already logged
-                        return [];
-                    }
-                } else {
-                    initParser();
-                    try {
-                        await initPromise;
-                    } catch (e) {
-                        return [];
-                    }
-                }
-            }
-
-            if (!parserInitialized || !csharpParser) {
-                return [];
-            }
-
-            try {
-                const tree = csharpParser.parse(text);
+        try {
+            if (textDocument.languageId === 'csharp') {
+                if (!csharpParser) return [];
+                tree = csharpParser.parse(text);
                 complexities = await calculateComplexity(tree, 'csharp');
-                tree.delete(); // Clean up tree
-            } catch (e) {
-                connection.console.error(`Error calculating C# complexity: ${e}`);
-                return [];
+            } else if (textDocument.languageId === 'typescript' || textDocument.languageId === 'javascript') {
+                if (!typescriptParser) return [];
+                tree = typescriptParser.parse(text);
+                complexities = await calculateComplexity(tree, 'typescript');
+            } else if (textDocument.languageId === 'typescriptreact' || textDocument.languageId === 'javascriptreact') {
+                if (!tsxParser) return [];
+                tree = tsxParser.parse(text);
+                complexities = await calculateComplexity(tree, 'typescript');
             }
-        } else {
-            // Default to TypeScript/JavaScript
-            const sourceFile = ts.createSourceFile(
-                textDocument.uri,
-                text,
-                ts.ScriptTarget.Latest,
-                false // setParentNodes = false for performance
-            );
-            complexities = await calculateComplexity(sourceFile, 'typescript');
+        } catch (e) {
+            connection.console.error(`Error calculating complexity: ${e}`);
+        } finally {
+            if (tree) {
+                tree.delete();
+            }
         }
 
         complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
