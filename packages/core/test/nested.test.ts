@@ -1,9 +1,20 @@
-import { expect, test, describe } from "bun:test";
-import * as ts from "typescript";
+import { expect, test, describe, beforeAll } from "bun:test";
 import { calculateComplexity } from "../src/complexity";
+import { Parser, Language } from 'web-tree-sitter';
+import * as path from 'path';
 
-function createSourceFile(code: string) {
-    return ts.createSourceFile("test.ts", code, ts.ScriptTarget.Latest, true);
+let parser: Parser;
+
+beforeAll(async () => {
+    await Parser.init();
+    parser = new Parser();
+    const langPath = path.resolve(__dirname, '../../vscode-extension/public/tree-sitter-typescript.wasm');
+    const lang = await Language.load(langPath);
+    parser.setLanguage(lang);
+});
+
+function createTree(code: string) {
+    return parser.parse(code);
 }
 
 describe("Nested Functions Aggregation", () => {
@@ -16,8 +27,8 @@ describe("Nested Functions Aggregation", () => {
                 }
             }
         }`;
-        const source = createSourceFile(code);
-        const results = await calculateComplexity(source, 'typescript');
+        const tree = createTree(code);
+        const results = await calculateComplexity(tree, 'typescript');
 
         const outer = results.find(r => r.name === 'outer');
         const inner = results.find(r => r.name === 'inner');
@@ -40,8 +51,8 @@ describe("Nested Functions Aggregation", () => {
                 }
             }
         }`;
-        const source = createSourceFile(code);
-        const results = await calculateComplexity(source, 'typescript');
+        const tree = createTree(code);
+        const results = await calculateComplexity(tree, 'typescript');
 
         const A = results.find(r => r.name === 'A');
         const B = results.find(r => r.name === 'B');

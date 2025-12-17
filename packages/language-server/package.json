@@ -5,7 +5,6 @@
   "dependencies": {
     "@cognitive-complexity/core": "workspace:*",
     "tree-sitter-c-sharp": "^0.23.1",
-    "typescript": "^5.0.0",
     "vscode-languageserver": "^9.0.0",
     "vscode-languageserver-textdocument": "^1.0.12",
     "web-tree-sitter": "^0.25.10"
