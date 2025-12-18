@@ -1,236 +1,106 @@
-import { Parser, Tree, SyntaxNode } from 'web-tree-sitter';
-import { MethodComplexity, ComplexityDetail } from '../types';
+import { Tree, SyntaxNode } from 'web-tree-sitter';
+import { MethodComplexity } from '../types';
+import { calculateGenericComplexity, LanguageAdapter, ComplexityNodeType } from './common';
 
-export function calculateCSharpComplexity(tree: Tree): MethodComplexity[] {
-    const methods: MethodComplexity[] = [];
-    const rootNode = tree.rootNode;
-    const ancestors: MethodComplexity[] = [];
-
-    function visit(node: SyntaxNode) {
-        let isMethodNode = isMethod(node);
-        let method: MethodComplexity | undefined;
-
-        if (isMethodNode) {
-            const complexity = computeComplexity(node);
-
-            let name = 'anonymous';
-            if (node.type === 'method_declaration' || node.type === 'local_function_statement') {
-                 const nameNode = node.childForFieldName('name');
-                 if (nameNode) name = nameNode.text;
-            } else if (node.type === 'constructor_declaration') {
-                 const nameNode = node.childForFieldName('name');
-                 if (nameNode) name = nameNode.text;
-            }
-
-            // Check if it is a callback/argument.
-            let isCallback = false;
-            if (node.parent && node.parent.type === 'argument') {
-                isCallback = true;
-            }
-            // Also arrow functions can be in `parenthesized_expression` or other places
-            // But usually arguments are wrapped in `argument`.
-
-            method = {
-                name,
-                score: complexity.score,
-                details: complexity.details,
-                startIndex: node.startIndex,
-                endIndex: node.endIndex,
-                isCallback
-            };
-
-            // Aggregate score to all ancestors (nested functions increase parent complexity)
-            for (const ancestor of ancestors) {
-                ancestor.score += method.score;
-            }
-
-            ancestors.push(method);
-            methods.push(method);
-        }
-
-        let child = node.firstChild;
-        while (child) {
-            visit(child);
-            child = child.nextSibling;
-        }
-
-        if (isMethodNode) {
-            ancestors.pop();
-        }
-    }
-
-    visit(rootNode);
-
-    return methods;
-}
-
-function isMethod(node: SyntaxNode): boolean {
-    return [
-        'method_declaration',
-        'local_function_statement',
-        'lambda_expression',
-        'anonymous_method_expression',
-        'constructor_declaration',
-        'destructor_declaration',
-        'operator_declaration'
-    ].includes(node.type);
-}
-
-function computeComplexity(node: SyntaxNode): { score: number, details: ComplexityDetail[] } {
-    let score = 0;
-    const details: ComplexityDetail[] = [];
-
-    function add(n: SyntaxNode, amount: number, message: string) {
-        if (amount === 0) return;
-        score += amount;
-        const line = n.startPosition.row;
-        details.push({ line, score: amount, message });
-    }
-
-    function isLoop(n: SyntaxNode) {
+class CSharpAdapter implements LanguageAdapter {
+    isMethod(node: SyntaxNode): boolean {
         return [
-            'for_statement',
-            'foreach_statement',
-            'while_statement',
-            'do_statement'
-        ].includes(n.type);
+            'method_declaration',
+            'local_function_statement',
+            'lambda_expression',
+            'anonymous_method_expression',
+            'constructor_declaration',
+            'destructor_declaration',
+            'operator_declaration'
+        ].includes(node.type);
     }
 
-    function visit(n: SyntaxNode, nesting: number) {
-        if (n !== node && isMethod(n)) {
-            return;
+    getMethodName(node: SyntaxNode): string {
+        if (node.type === 'method_declaration' || node.type === 'local_function_statement' || node.type === 'constructor_declaration') {
+             const nameNode = node.childForFieldName('name');
+             if (nameNode) return nameNode.text;
         }
+        return 'anonymous';
+    }
 
-        let structural = 0;
-        let increasesNesting = false;
-        let label = '';
+    isCallback(node: SyntaxNode): boolean {
+        return !!(node.parent && node.parent.type === 'argument');
+    }
 
-        switch (n.type) {
-            case 'if_statement':
-                label = 'if';
-                structural = 1;
-                increasesNesting = true;
-
-                // Check for else
-                const alternative = n.childForFieldName('alternative');
-                if (alternative && alternative.type !== 'if_statement') {
-                    add(alternative, 1, 'else');
-                    if (nesting > 0) {
-                        add(alternative, nesting, 'nesting');
-                    }
-                }
-                break;
-
+    getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined {
+        switch (node.type) {
+            case 'if_statement': return 'IF';
             case 'switch_statement':
-            case 'switch_expression':
-                label = 'switch';
-                structural = 1;
-                increasesNesting = true;
-                break;
-
+            case 'switch_expression': return 'SWITCH';
             case 'for_statement':
             case 'foreach_statement':
             case 'while_statement':
-            case 'do_statement':
-                label = 'loop';
-                structural = 1;
-                increasesNesting = true;
-                break;
-
+            case 'do_statement': return 'LOOP';
             case 'catch_clause':
-            case 'catch_filter_clause':
-                label = 'catch';
-                structural = 1;
-                increasesNesting = true;
-                break;
-
-            case 'conditional_expression':
-                label = 'ternary';
-                structural = 1;
-                increasesNesting = false;
-                break;
-
-            case 'binary_expression':
-                break;
-        }
-
-        if (n.type === 'binary_expression') {
-            const operatorNode = n.children.find(c => c.type === '&&' || c.type === '||');
-            if (operatorNode) {
-                 const op = operatorNode.type;
-                 let left = n.childForFieldName('left');
-                 let isContinuation = false;
-
-                 while (left && left.type === 'parenthesized_expression') {
-                     left = left.childForFieldName('expression');
-                 }
-
-                 if (left && left.type === 'binary_expression') {
-                     const leftOp = left.children.find(c => c.type === '&&' || c.type === '||');
-                     if (leftOp && leftOp.type === op) {
-                         isContinuation = true;
-                     }
-                 }
-
-                 if (!isContinuation) {
-                     structural = 1;
-                     label = op;
-                 }
-            }
-        }
-
-        // Handling for `else_clause` if it appears in AST (backward compatibility or different grammar version)
-        if (n.type === 'else_clause') {
-            let isElseIf = false;
-            if (n.children.some(c => c.type === 'if_statement')) {
-                isElseIf = true;
-            }
-
-            if (!isElseIf) {
-                add(n, 1, 'else');
-                if (nesting > 0) {
-                    add(n, nesting, 'nesting');
+            case 'catch_filter_clause': return 'CATCH';
+            case 'conditional_expression': return 'TERNARY';
+            case 'binary_expression': return 'BINARY';
+            case 'else_clause': return 'ELSE';
+            default:
+                // Check for implicit else (alternative field which is not else_clause)
+                // C# 'if' structure: if (cond) con alternative
+                const alternative = node.parent?.childForFieldName('alternative');
+                if (alternative && node.equals(alternative)) {
+                    // If the alternative is an 'if_statement', it's an "else if", so it will be handled as IF.
+                    // If it is NOT an 'if_statement', it is a pure ELSE branch (e.g. a block).
+                    if (node.type !== 'if_statement') {
+                        return 'ELSE';
+                    }
                 }
+                return undefined;
+        }
+    }
+
+    getBinaryOperator(node: SyntaxNode): string | undefined {
+        const operatorNode = node.children.find(c => c.type === '&&' || c.type === '||');
+        return operatorNode?.type;
+    }
+
+    isBinaryContinuation(node: SyntaxNode): boolean {
+        const op = this.getBinaryOperator(node);
+        if (!op) return false;
+
+        let left = node.childForFieldName('left');
+        while (left && left.type === 'parenthesized_expression') {
+            left = left.childForFieldName('expression');
+        }
+
+        if (left && left.type === 'binary_expression') {
+            const leftOp = this.getBinaryOperator(left);
+            if (leftOp === op) {
+                return true;
             }
         }
+        return false;
+    }
 
-        if (structural > 0) {
-            add(n, structural, label);
-
-            if (increasesNesting) {
-                 if (nesting > 0) {
-                    add(n, nesting, 'nesting');
-                }
-            }
+    isElseIf(node: SyntaxNode): boolean {
+        if (node.type === 'else_clause') {
+            return node.children.some(c => c.type === 'if_statement');
         }
+        // For inferred ELSE (blocks), they don't wrap 'if' in the same way 'else_clause' does.
+        // Even if a block contains an IF, it's nesting, not 'else if' structure.
+        return false;
+    }
 
-        let childNesting = nesting;
-        if (increasesNesting) {
-            childNesting = nesting + 1;
-        }
-
-        let child = n.firstChild;
-        while (child) {
-             let nextNesting = childNesting;
-
-             // Handle `else if` flattening
-             if (n.type === 'if_statement') {
-                 const alternative = n.childForFieldName('alternative');
-                 if (alternative && child.equals(alternative) && child.type === 'if_statement') {
-                     nextNesting = nesting; // Pass original nesting
-                 }
+    shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean {
+        if (parent.type === 'if_statement') {
+             const alternative = parent.childForFieldName('alternative');
+             // Flatten if the child is the 'else' branch.
+             // Whether it is 'else if' or just 'else', it shouldn't inherit the 'if's nesting.
+             if (alternative && child.equals(alternative)) {
+                 return true;
              }
-
-             visit(child, nextNesting);
-             child = child.nextSibling;
         }
+        return false;
     }
+}
 
-    let child = node.firstChild;
-    while (child) {
-        visit(child, 0);
-        child = child.nextSibling;
-    }
-
-    return { score, details };
+export function calculateCSharpComplexity(tree: Tree): MethodComplexity[] {
+    return calculateGenericComplexity(tree, new CSharpAdapter());
 }
