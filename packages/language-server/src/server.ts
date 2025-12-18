@@ -179,7 +179,11 @@ connection.onDidOpenTextDocument(async (params: DidOpenTextDocumentParams) => {
 connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
     // Synchronously update the tree
     if (incrementalParser) {
-        incrementalParser.handleChange(params);
+        try {
+            incrementalParser.handleChange(params);
+        } catch (e) {
+            connection.console.error(`Error in handle change: ${e}`);
+        }
     }
 });
 
@@ -232,11 +236,14 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
             // Retrieve tree from IncrementalParser
             // It should be up-to-date if onDidChangeTextDocument was handled
             let tree = incrementalParser.getTree(textDocument.uri);
+            const treeVersion = incrementalParser.getVersion(textDocument.uri);
 
-            if (!tree) {
+            // Check if tree is missing OR if it's out of sync (version mismatch)
+            // Note: treeVersion might be undefined if tree is missing.
+            if (!tree || (treeVersion !== undefined && treeVersion !== textDocument.version)) {
                 // Try to recover by simulating handleOpen.
-                // This can happen if didOpen was missed or failed (e.g. languageId mismatch previously).
-                connection.console.warn(`Tree not found for ${textDocument.uri}, attempting to recover.`);
+                // This can happen if didOpen was missed/failed OR if didChange wasn't processed correctly.
+                connection.console.warn(`Tree not found or out of sync for ${textDocument.uri} (TreeVer: ${treeVersion}, DocVer: ${textDocument.version}). Recovering...`);
                 await incrementalParser.handleOpen({
                     textDocument: {
                         uri: textDocument.uri,

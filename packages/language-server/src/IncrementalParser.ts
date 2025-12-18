@@ -78,6 +78,9 @@ export class IncrementalParser {
 
         let needsParse = false;
 
+        // Use the new version from the params for the updated document
+        const newVersion = params.textDocument.version;
+
         for (const change of params.contentChanges) {
              if ('range' in change) {
                  needsParse = true;
@@ -93,7 +96,10 @@ export class IncrementalParser {
                  const oldEndPosition = range.end;
 
                  // Create new document for next iteration and for final storage
-                 const newDoc = TextDocument.update(oldDoc, [change], entry.document.version);
+                 // We apply the new version here.
+                 // Note: If there are multiple changes, ideally we'd want intermediate versions or just final?
+                 // TextDocument.update doesn't validate version. Setting final version is fine.
+                 const newDoc = TextDocument.update(oldDoc, [change], newVersion);
 
                  // Calculate newEndPosition using the NEW document
                  const newEndPosition = newDoc.positionAt(newEndIndex);
@@ -110,7 +116,7 @@ export class IncrementalParser {
                  entry.document = newDoc;
              } else {
                  // Full sync
-                 const newDoc = TextDocument.update(entry.document, [change], params.textDocument.version);
+                 const newDoc = TextDocument.update(entry.document, [change], newVersion);
                  entry.document = newDoc;
                  entry.tree.delete();
                  entry.tree = parser.parse(newDoc.getText());
@@ -127,5 +133,9 @@ export class IncrementalParser {
 
     public getTree(uri: string): Tree | undefined {
         return this.cache.get(uri)?.tree;
+    }
+
+    public getVersion(uri: string): number | undefined {
+        return this.cache.get(uri)?.document.version;
     }
 }
