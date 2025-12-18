@@ -76,59 +76,20 @@ export class IncrementalParser {
         const parser = this.getParser(entry.languageId);
         if (!parser) return;
 
-        let needsParse = false;
-
-        // Use the new version from the params for the updated document
         const newVersion = params.textDocument.version;
 
-        for (const change of params.contentChanges) {
-             if ('range' in change) {
-                 needsParse = true;
+        // Perform full document update
+        // We iterate to respect the sequence of changes if there are multiple,
+        // although for full sync we just want the final text.
+        // But TextDocument.update correctly handles array of changes.
 
-                 const { range, text } = change;
-                 const oldDoc = entry.document;
+        const newDoc = TextDocument.update(entry.document, params.contentChanges, newVersion);
+        entry.document = newDoc;
 
-                 const startIndex = oldDoc.offsetAt(range.start);
-                 const oldEndIndex = oldDoc.offsetAt(range.end);
-                 const newEndIndex = startIndex + text.length;
-
-                 const startPosition = range.start;
-                 const oldEndPosition = range.end;
-
-                 // Create new document for next iteration and for final storage
-                 // We apply the new version here.
-                 // Note: If there are multiple changes, ideally we'd want intermediate versions or just final?
-                 // TextDocument.update doesn't validate version. Setting final version is fine.
-                 const newDoc = TextDocument.update(oldDoc, [change], newVersion);
-
-                 // Calculate newEndPosition using the NEW document
-                 const newEndPosition = newDoc.positionAt(newEndIndex);
-
-                 entry.tree.edit({
-                    startIndex,
-                    oldEndIndex,
-                    newEndIndex,
-                    startPosition: { row: startPosition.line, column: startPosition.character },
-                    oldEndPosition: { row: oldEndPosition.line, column: oldEndPosition.character },
-                    newEndPosition: { row: newEndPosition.line, column: newEndPosition.character }
-                 });
-
-                 entry.document = newDoc;
-             } else {
-                 // Full sync
-                 const newDoc = TextDocument.update(entry.document, [change], newVersion);
-                 entry.document = newDoc;
-                 entry.tree.delete();
-                 entry.tree = parser.parse(newDoc.getText());
-                 needsParse = false;
-             }
-        }
-
-        if (needsParse) {
-            const newTree = parser.parse(entry.document.getText(), entry.tree);
-            entry.tree.delete();
-            entry.tree = newTree;
-        }
+        // Force full re-parse to ensure correctness and avoid offset issues with incremental edits.
+        // We delete the old tree to free memory.
+        entry.tree.delete();
+        entry.tree = parser.parse(newDoc.getText());
     }
 
     public getTree(uri: string): Tree | undefined {
