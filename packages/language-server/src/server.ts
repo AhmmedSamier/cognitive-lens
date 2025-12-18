@@ -13,7 +13,10 @@ import {
     InlayHintKind,
     Position,
     Diagnostic,
-    DiagnosticSeverity
+    DiagnosticSeverity,
+    DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams,
+    DidCloseTextDocumentParams
 } from 'vscode-languageserver/node';
 import {
     TextDocument
@@ -29,6 +32,7 @@ import {
     computeInlayHints,
     computeCodeLenses
 } from './logic';
+import { IncrementalParser } from './IncrementalParser';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -43,6 +47,8 @@ let tsxParser: Parser | undefined;
 let parserInitialized = false;
 let initPromise: Promise<void> | undefined;
 
+let incrementalParser: IncrementalParser | undefined;
+
 // Initialize web-tree-sitter
 async function initParser() {
     if (initPromise) return initPromise;
@@ -52,7 +58,6 @@ async function initParser() {
             const treeSitterWasmPath = path.resolve(__dirname, 'tree-sitter.wasm');
             connection.console.log(`Initializing Parser with ${treeSitterWasmPath}`);
 
-            // Read wasm file manually to avoid resolution issues in bundled environment
             if (!fs.existsSync(treeSitterWasmPath)) {
                 throw new Error(`tree-sitter.wasm not found at ${treeSitterWasmPath}`);
             }
@@ -82,6 +87,12 @@ async function initParser() {
             connection.console.log(`Loading TSX grammar from ${tsxWasmPath}`);
             const tsxLang = await Language.load(tsxWasmPath);
             tsxParser.setLanguage(tsxLang);
+
+            incrementalParser = new IncrementalParser({
+                csharp: csharpParser,
+                typescript: typescriptParser,
+                tsx: tsxParser
+            });
 
             parserInitialized = true;
             connection.console.log('Parsers initialized successfully');
@@ -157,6 +168,29 @@ const complexityPromises = new Map<string, { version: number, promise: Promise<M
 const validationTimers = new Map<string, NodeJS.Timeout>();
 const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
 
+// Handle document lifecycle for incremental parsing
+connection.onDidOpenTextDocument(async (params: DidOpenTextDocumentParams) => {
+    if (!parserInitialized) await initParser();
+    if (incrementalParser) {
+        await incrementalParser.handleOpen(params);
+    }
+});
+
+connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
+    // Synchronously update the tree
+    if (incrementalParser) {
+        incrementalParser.handleChange(params);
+    }
+});
+
+connection.onDidCloseTextDocument((params: DidCloseTextDocumentParams) => {
+    if (incrementalParser) {
+        incrementalParser.handleClose(params);
+    }
+    complexityCache.delete(params.textDocument.uri);
+    complexityPromises.delete(params.textDocument.uri);
+});
+
 function validateTextDocumentDebounced(textDocument: TextDocument) {
     const uri = textDocument.uri;
     if (validationTimers.has(uri)) {
@@ -190,37 +224,35 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
              }
         }
 
-        if (!parserInitialized) return [];
+        if (!parserInitialized || !incrementalParser) return [];
 
-        const text = textDocument.getText();
         let complexities: MethodComplexity[] = [];
-        let tree: any;
 
         try {
-            if (textDocument.languageId === 'csharp') {
-                if (!csharpParser) return [];
-                tree = csharpParser.parse(text);
-                complexities = await calculateComplexity(tree, 'csharp');
-            } else if (textDocument.languageId === 'typescript' || textDocument.languageId === 'javascript') {
-                if (!typescriptParser) return [];
-                tree = typescriptParser.parse(text);
-                complexities = await calculateComplexity(tree, 'typescript');
-            } else if (textDocument.languageId === 'typescriptreact' || textDocument.languageId === 'javascriptreact') {
-                if (!tsxParser) return [];
-                tree = tsxParser.parse(text);
-                complexities = await calculateComplexity(tree, 'typescript');
+            // Retrieve tree from IncrementalParser
+            // It should be up-to-date if onDidChangeTextDocument was handled
+            const tree = incrementalParser.getTree(textDocument.uri);
+
+            if (tree) {
+                // Calculate complexity using the cached (and incrementally updated) tree
+                if (textDocument.languageId === 'csharp') {
+                    complexities = await calculateComplexity(tree, 'csharp');
+                } else if (textDocument.languageId === 'typescript' || textDocument.languageId === 'javascript' ||
+                           textDocument.languageId === 'typescriptreact' || textDocument.languageId === 'javascriptreact') {
+                    complexities = await calculateComplexity(tree, 'typescript');
+                }
+            } else {
+                // Fallback: if not in cache (e.g. initial load issue), try to open it manually?
+                // But handleOpen should have been called.
+                // Just log warning
+                // connection.console.warn(`No tree found for ${textDocument.uri}`);
             }
         } catch (e) {
             connection.console.error(`Error calculating complexity: ${e}`);
-        } finally {
-            if (tree) {
-                tree.delete();
-            }
         }
 
         complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
 
-        // Only remove from promises if it's still the current one (handle race conditions)
         const currentPending = complexityPromises.get(textDocument.uri);
         if (currentPending && currentPending.version === textDocument.version) {
             complexityPromises.delete(textDocument.uri);
