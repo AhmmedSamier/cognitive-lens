@@ -1,0 +1,11 @@
+.vs
+node_modules
+dist
+out
+*.vsix
+.DS_Store
+packages/zed-extension/target
+packages/visual-studio-extension/Resources/
+bin/
+obj/
+extension.wasm
