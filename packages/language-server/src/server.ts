@@ -231,21 +231,32 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
         try {
             // Retrieve tree from IncrementalParser
             // It should be up-to-date if onDidChangeTextDocument was handled
-            const tree = incrementalParser.getTree(textDocument.uri);
+            let tree = incrementalParser.getTree(textDocument.uri);
+
+            if (!tree) {
+                // Try to recover by simulating handleOpen.
+                // This can happen if didOpen was missed or failed (e.g. languageId mismatch previously).
+                connection.console.warn(`Tree not found for ${textDocument.uri}, attempting to recover.`);
+                await incrementalParser.handleOpen({
+                    textDocument: {
+                        uri: textDocument.uri,
+                        languageId: textDocument.languageId,
+                        version: textDocument.version,
+                        text: textDocument.getText()
+                    }
+                });
+                tree = incrementalParser.getTree(textDocument.uri);
+            }
 
             if (tree) {
                 // Calculate complexity using the cached (and incrementally updated) tree
-                if (textDocument.languageId === 'csharp') {
+                const languageId = textDocument.languageId.toLowerCase();
+                if (languageId === 'csharp') {
                     complexities = await calculateComplexity(tree, 'csharp');
-                } else if (textDocument.languageId === 'typescript' || textDocument.languageId === 'javascript' ||
-                           textDocument.languageId === 'typescriptreact' || textDocument.languageId === 'javascriptreact') {
+                } else if (languageId === 'typescript' || languageId === 'javascript' ||
+                           languageId === 'typescriptreact' || languageId === 'javascriptreact') {
                     complexities = await calculateComplexity(tree, 'typescript');
                 }
-            } else {
-                // Fallback: if not in cache (e.g. initial load issue), try to open it manually?
-                // But handleOpen should have been called.
-                // Just log warning
-                // connection.console.warn(`No tree found for ${textDocument.uri}`);
             }
         } catch (e) {
             connection.console.error(`Error calculating complexity: ${e}`);

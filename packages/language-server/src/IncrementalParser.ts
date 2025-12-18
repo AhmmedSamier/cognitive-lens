@@ -31,17 +31,18 @@ export class IncrementalParser {
     }
 
     private getParser(languageId: string): Parser | undefined {
-        return this.parsers.get(languageId);
+        return this.parsers.get(languageId.toLowerCase());
     }
 
     public async handleOpen(params: DidOpenTextDocumentParams): Promise<void> {
         const { textDocument } = params;
-        const parser = this.getParser(textDocument.languageId);
+        const languageId = textDocument.languageId.toLowerCase();
+        const parser = this.getParser(languageId);
         if (!parser) return;
 
         const document = TextDocument.create(
             textDocument.uri,
-            textDocument.languageId,
+            languageId,
             textDocument.version,
             textDocument.text
         );
@@ -51,7 +52,7 @@ export class IncrementalParser {
             this.cache.set(textDocument.uri, {
                 document,
                 tree,
-                languageId: textDocument.languageId
+                languageId: languageId
             });
         } catch (e) {
             console.error(`Error parsing ${textDocument.uri}:`, e);
@@ -92,10 +93,6 @@ export class IncrementalParser {
                  const oldEndPosition = range.end;
 
                  // Create new document for next iteration and for final storage
-                 // We MUST update entry.document immediately because the next change in the loop depends on it?
-                 // Wait, LSP says changes are applied sequentially.
-                 // So if Change 2 is relative to Doc 1 (result of Change 1).
-                 // Yes.
                  const newDoc = TextDocument.update(oldDoc, [change], entry.document.version);
 
                  // Calculate newEndPosition using the NEW document
