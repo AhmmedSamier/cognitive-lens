@@ -42,11 +42,11 @@ async function runBenchmark() {
     // Warmup
     parser.parse(baseFunction);
 
-    // Measure Parsing
+    // Measure Parsing (Full)
     const startParse = performance.now();
-    const tree = parser.parse(code);
+    let tree = parser.parse(code);
     const endParse = performance.now();
-    console.log(`Parsing time: ${(endParse - startParse).toFixed(2)} ms`);
+    console.log(`Full Parsing time: ${(endParse - startParse).toFixed(2)} ms`);
 
     // Measure Complexity Calculation
     const startCalc = performance.now();
@@ -55,6 +55,35 @@ async function runBenchmark() {
     console.log(`Complexity calculation time: ${(endCalc - startCalc).toFixed(2)} ms`);
 
     console.log(`Total methods processed: ${results.length}`);
+
+    // Measure Incremental Parsing
+    // Simulate adding a character at the beginning
+    const editStartIndex = 10; // arbitrary
+    const oldEndIndex = 10;
+    const newEndIndex = 11;
+    const startPosition = { row: 0, column: 10 };
+    const oldEndPosition = { row: 0, column: 10 };
+    const newEndPosition = { row: 0, column: 11 };
+
+    const newCode = code.slice(0, 10) + " " + code.slice(10);
+
+    tree.edit({
+        startIndex: editStartIndex,
+        oldEndIndex: oldEndIndex,
+        newEndIndex: newEndIndex,
+        startPosition: startPosition,
+        oldEndPosition: oldEndPosition,
+        newEndPosition: newEndPosition
+    });
+
+    const startIncParse = performance.now();
+    const newTree = parser.parse(newCode, tree);
+    const endIncParse = performance.now();
+    console.log(`Incremental Parsing time: ${(endIncParse - startIncParse).toFixed(2)} ms`);
+
+    // Verify tree is valid
+    const newResults = await calculateComplexity(newTree, 'typescript');
+    console.log(`Methods processed after edit: ${newResults.length}`);
 }
 
 runBenchmark();
