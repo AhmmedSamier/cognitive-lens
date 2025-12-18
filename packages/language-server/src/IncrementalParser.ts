@@ -31,17 +31,18 @@ export class IncrementalParser {
     }
 
     private getParser(languageId: string): Parser | undefined {
-        return this.parsers.get(languageId);
+        return this.parsers.get(languageId.toLowerCase());
     }
 
     public async handleOpen(params: DidOpenTextDocumentParams): Promise<void> {
         const { textDocument } = params;
-        const parser = this.getParser(textDocument.languageId);
+        const languageId = textDocument.languageId.toLowerCase();
+        const parser = this.getParser(languageId);
         if (!parser) return;
 
         const document = TextDocument.create(
             textDocument.uri,
-            textDocument.languageId,
+            languageId,
             textDocument.version,
             textDocument.text
         );
@@ -51,7 +52,7 @@ export class IncrementalParser {
             this.cache.set(textDocument.uri, {
                 document,
                 tree,
-                languageId: textDocument.languageId
+                languageId: languageId
             });
         } catch (e) {
             console.error(`Error parsing ${textDocument.uri}:`, e);
@@ -75,60 +76,27 @@ export class IncrementalParser {
         const parser = this.getParser(entry.languageId);
         if (!parser) return;
 
-        let needsParse = false;
+        const newVersion = params.textDocument.version;
 
-        for (const change of params.contentChanges) {
-             if ('range' in change) {
-                 needsParse = true;
+        // Perform full document update
+        // We iterate to respect the sequence of changes if there are multiple,
+        // although for full sync we just want the final text.
+        // But TextDocument.update correctly handles array of changes.
 
-                 const { range, text } = change;
-                 const oldDoc = entry.document;
+        const newDoc = TextDocument.update(entry.document, params.contentChanges, newVersion);
+        entry.document = newDoc;
 
-                 const startIndex = oldDoc.offsetAt(range.start);
-                 const oldEndIndex = oldDoc.offsetAt(range.end);
-                 const newEndIndex = startIndex + text.length;
-
-                 const startPosition = range.start;
-                 const oldEndPosition = range.end;
-
-                 // Create new document for next iteration and for final storage
-                 // We MUST update entry.document immediately because the next change in the loop depends on it?
-                 // Wait, LSP says changes are applied sequentially.
-                 // So if Change 2 is relative to Doc 1 (result of Change 1).
-                 // Yes.
-                 const newDoc = TextDocument.update(oldDoc, [change], entry.document.version);
-
-                 // Calculate newEndPosition using the NEW document
-                 const newEndPosition = newDoc.positionAt(newEndIndex);
-
-                 entry.tree.edit({
-                    startIndex,
-                    oldEndIndex,
-                    newEndIndex,
-                    startPosition: { row: startPosition.line, column: startPosition.character },
-                    oldEndPosition: { row: oldEndPosition.line, column: oldEndPosition.character },
-                    newEndPosition: { row: newEndPosition.line, column: newEndPosition.character }
-                 });
-
-                 entry.document = newDoc;
-             } else {
-                 // Full sync
-                 const newDoc = TextDocument.update(entry.document, [change], params.textDocument.version);
-                 entry.document = newDoc;
-                 entry.tree.delete();
-                 entry.tree = parser.parse(newDoc.getText());
-                 needsParse = false;
-             }
-        }
-
-        if (needsParse) {
-            const newTree = parser.parse(entry.document.getText(), entry.tree);
-            entry.tree.delete();
-            entry.tree = newTree;
-        }
+        // Force full re-parse to ensure correctness and avoid offset issues with incremental edits.
+        // We delete the old tree to free memory.
+        entry.tree.delete();
+        entry.tree = parser.parse(newDoc.getText());
     }
 
     public getTree(uri: string): Tree | undefined {
         return this.cache.get(uri)?.tree;
+    }
+
+    public getVersion(uri: string): number | undefined {
+        return this.cache.get(uri)?.document.version;
     }
 }
