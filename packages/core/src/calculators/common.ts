@@ -34,6 +34,34 @@ export interface LanguageAdapter {
     shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
 }
 
+export abstract class BaseLanguageAdapter implements LanguageAdapter {
+    abstract isMethod(node: SyntaxNode): boolean;
+    abstract getMethodName(node: SyntaxNode): string;
+    abstract isCallback(node: SyntaxNode): boolean;
+    abstract getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined;
+    abstract getBinaryOperator(node: SyntaxNode): string | undefined;
+    abstract isElseIf(node: SyntaxNode): boolean;
+    abstract shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
+
+    isBinaryContinuation(node: SyntaxNode): boolean {
+        const op = this.getBinaryOperator(node);
+        if (!op) return false;
+
+        let left = node.childForFieldName('left');
+        while (left && left.type === 'parenthesized_expression') {
+            left = left.childForFieldName('expression');
+        }
+
+        if (left && left.type === 'binary_expression') {
+            const leftOp = this.getBinaryOperator(left);
+            if (leftOp === op) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter): MethodComplexity[] {
     const methods: MethodComplexity[] = [];
     // Stack of ancestors (methods) that are currently being visited.
