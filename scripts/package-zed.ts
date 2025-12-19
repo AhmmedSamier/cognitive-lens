@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import AdmZip from 'adm-zip';
 
 const ZED_EXT_DIR = path.resolve(__dirname, '../packages/zed-extension');
 const ZIP_FILE_NAME = 'cognitive-complexity-ls.zip';
@@ -49,12 +50,18 @@ for (const file of filesToZip) {
 }
 
 try {
-    // -j: junk (don't record) directory names
-    const cmd = `zip -j "${ZIP_OUTPUT_PATH}" ${filesToZip.map(f => `"${f}"`).join(' ')}`;
-    console.log(`Executing: ${cmd}`);
-    execSync(cmd, { cwd: ZED_EXT_DIR, stdio: 'inherit' });
-    console.log(`Created ${ZIP_OUTPUT_PATH}`);
+    console.log(`Creating zip archive at ${ZIP_OUTPUT_PATH}...`);
+    const zip = new AdmZip();
+
+    for (const file of filesToZip) {
+        const filePath = path.join(ZED_EXT_DIR, file);
+        zip.addLocalFile(filePath);
+        console.log(`Added: ${file}`);
+    }
+
+    zip.writeZip(ZIP_OUTPUT_PATH);
+    console.log(`Successfully created ${ZIP_OUTPUT_PATH}`);
 } catch (e) {
-    console.error('Failed to zip files. Ensure "zip" is installed.');
+    console.error('Failed to zip files:', e);
     process.exit(1);
 }

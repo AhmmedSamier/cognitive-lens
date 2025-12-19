@@ -10,5 +10,9 @@
     "build:zed": "bun run scripts/build-zed.ts",
     "package:zed": "bun run scripts/package-zed.ts",
     "build:vs": "bun run scripts/build-vs.ts"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "adm-zip": "^0.5.16"
   }
 }
