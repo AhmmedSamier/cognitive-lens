@@ -1,8 +1,8 @@
 import { Tree, SyntaxNode } from 'web-tree-sitter';
 import { MethodComplexity } from '../types';
-import { calculateGenericComplexity, LanguageAdapter, ComplexityNodeType } from './common';
+import { calculateGenericComplexity, BaseLanguageAdapter, ComplexityNodeType } from './common';
 
-class TypeScriptAdapter implements LanguageAdapter {
+class TypeScriptAdapter extends BaseLanguageAdapter {
     isMethod(node: SyntaxNode): boolean {
         return [
             'function_declaration',
@@ -57,24 +57,6 @@ class TypeScriptAdapter implements LanguageAdapter {
             child = child.nextSibling;
         }
         return undefined;
-    }
-
-    isBinaryContinuation(node: SyntaxNode): boolean {
-        const op = this.getBinaryOperator(node);
-        if (!op) return false;
-
-        let left = node.childForFieldName('left');
-        while (left && left.type === 'parenthesized_expression') {
-            left = left.childForFieldName('expression');
-        }
-
-        if (left && left.type === 'binary_expression') {
-            const leftOp = this.getBinaryOperator(left);
-            if (leftOp === op) {
-                return true;
-            }
-        }
-        return false;
     }
 
     isElseIf(node: SyntaxNode): boolean {

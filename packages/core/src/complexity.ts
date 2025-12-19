@@ -5,14 +5,24 @@ import { calculateCSharpComplexity } from './calculators/csharp';
 
 export * from './types';
 
+type ComplexityCalculator = (tree: Tree) => MethodComplexity[];
+
+const calculators: Record<string, ComplexityCalculator> = {
+    'typescript': calculateTypeScriptComplexity,
+    'csharp': calculateCSharpComplexity
+};
+
 export async function calculateComplexity(
     source: Tree,
-    language: 'typescript' | 'csharp'
+    language: string
 ): Promise<MethodComplexity[]> {
-    if (language === 'typescript') {
-        return calculateTypeScriptComplexity(source);
-    } else if (language === 'csharp') {
-        return calculateCSharpComplexity(source);
+    const calculator = calculators[language];
+    if (calculator) {
+        return calculator(source);
     }
     return [];
+}
+
+export function registerCalculator(language: string, calculator: ComplexityCalculator) {
+    calculators[language] = calculator;
 }

@@ -57,10 +57,7 @@ export function computeDiagnostics(
 
             // Try to approximate the method signature line
             if (end.line > start.line) {
-                 const lineText = document.getText({
-                     start: { line: start.line, character: 0 },
-                     end: { line: start.line + 1, character: 0 }
-                 });
+                 const lineText = getLineText(document, start.line);
                  // Use line length to stay within LSP bounds
                  range.end = { line: start.line, character: lineText.length };
             }
@@ -84,6 +81,80 @@ export function computeDiagnostics(
     }
 
     return diagnostics;
+}
+
+// --- Helper Functions for Inlay Hints ---
+
+function getLineText(document: TextDocument, line: number): string {
+    const text = document.getText({
+        start: { line, character: 0 },
+        end: { line: line + 1, character: 0 }
+    });
+    return text.replace(/(\r\n|\n|\r)/gm, "");
+}
+
+function getIndentation(lineText: string): string {
+    const indentEnd = lineText.search(/\S|$/);
+    return lineText.substring(0, indentEnd);
+}
+
+interface MethodHintPosition {
+    position: Position;
+    paddingLeft: boolean;
+    paddingRight: boolean;
+    labelPrefix: string;
+}
+
+function calculateMethodHintPosition(
+    document: TextDocument,
+    line: number,
+    startLine: number,
+    endLine: number
+): MethodHintPosition | null {
+    if (line > 0) {
+        // Prefer placing on previous line
+        const prevLineIndex = line - 1;
+        const prevLineText = getLineText(document, prevLineIndex);
+        const currentLineText = getLineText(document, line);
+        const currentIndentStr = getIndentation(currentLineText);
+
+        if (prevLineText.trim().length === 0) {
+            // Previous line is empty/whitespace: align with current indentation
+            let labelPrefix = "";
+            if (currentIndentStr.startsWith(prevLineText)) {
+                 labelPrefix = currentIndentStr.substring(prevLineText.length);
+            } else if (prevLineText.length < currentIndentStr.length) {
+                 labelPrefix = " ".repeat(currentIndentStr.length - prevLineText.length);
+            }
+
+            return {
+                position: { line: prevLineIndex, character: prevLineText.length },
+                paddingLeft: false,
+                paddingRight: false,
+                labelPrefix
+            };
+        } else {
+            // Previous line has content: place at end
+            return {
+                position: { line: prevLineIndex, character: prevLineText.length },
+                paddingLeft: true,
+                paddingRight: false,
+                labelPrefix: ""
+            };
+        }
+    } else {
+        // Fallback to start of current line
+        if (line < startLine || line > endLine) return null;
+
+        const lineText = getLineText(document, line);
+        const firstNonWhitespace = lineText.search(/\S|$/);
+        return {
+            position: { line, character: firstNonWhitespace },
+            paddingLeft: false,
+            paddingRight: true,
+            labelPrefix: ""
+        };
+    }
 }
 
 export function computeInlayHints(
@@ -118,77 +189,12 @@ export function computeInlayHints(
             const lines = methodEndPos.line - startPos.line + 1;
             const line = startPos.line;
 
-            // Placement logic:
-            // Prefer the end of the previous line to simulate "above".
-            // If line 0, fallback to start of current line.
+            const posInfo = calculateMethodHintPosition(document, line, startLine, endLine);
 
-            let hintPos: Position;
-            let paddingLeft = false;
-            let paddingRight = false;
-            let labelPrefix = "";
+            if (!posInfo) continue;
 
-            if (line > 0) {
-                // Get previous line
-                const prevLineIndex = line - 1;
-
-                const prevLineTextFull = document.getText({
-                    start: { line: prevLineIndex, character: 0 },
-                    end: { line: prevLineIndex + 1, character: 0 }
-                });
-                const prevLineText = prevLineTextFull.replace(/(\r\n|\n|\r)/gm, "");
-
-                // Get current method indentation
-                const currentLineTextFull = document.getText({
-                     start: { line, character: 0 },
-                     end: { line: line + 1, character: 0 }
-                });
-                const currentLineText = currentLineTextFull.replace(/(\r\n|\n|\r)/gm, "");
-                const currentIndentEnd = currentLineText.search(/\S|$/);
-                const currentIndentStr = currentLineText.substring(0, currentIndentEnd);
-
-                if (prevLineText.trim().length === 0) {
-                    // Previous line is empty or whitespace only
-                    // We want to align with currentIndentStr
-
-                    // Logic: Append the difference between existing prevLineText and currentIndentStr
-                    if (currentIndentStr.startsWith(prevLineText)) {
-                         labelPrefix = currentIndentStr.substring(prevLineText.length);
-                    } else {
-                         // If we can't cleanly extend, we can't easily align perfectly if using tabs/spaces mix.
-                         // But we can try to just use space padding or accept best effort.
-                         // If prevLine is empty, this works.
-                         // If prevLine has some other whitespace, we try to append.
-                         if (prevLineText.length < currentIndentStr.length) {
-                             labelPrefix = " ".repeat(currentIndentStr.length - prevLineText.length);
-                         }
-                    }
-
-                    hintPos = { line: prevLineIndex, character: prevLineText.length };
-                    paddingLeft = false; // We handle padding/alignment manually
-                } else {
-                    // Previous line has content
-                    hintPos = { line: prevLineIndex, character: prevLineText.length };
-                    paddingLeft = true; // Separate from content
-                }
-            } else {
-                // Fallback to start of line (indented)
-                if (line < startLine || line > endLine) continue; // Only check bounds if we are placing ON this line
-
-                const lineText = document.getText({
-                    start: { line, character: 0 },
-                    end: { line: line + 1, character: 0 }
-               });
-               const firstNonWhitespace = lineText.search(/\S|$/);
-               hintPos = { line, character: firstNonWhitespace };
-               paddingRight = true;
-            }
-
-            // If using previous line, we might be out of "range" requested by VS Code.
-            // VS Code usually requests visible range.
-            // If line is visible, line-1 might be visible or just above.
-            // It's generally safe to return hints slightly outside range.
-            if (hintPos.line < startLine - 1 || hintPos.line > endLine) continue;
-
+            // Check visibility bounds for previous line placement
+            if (posInfo.position.line < startLine - 1 || posInfo.position.line > endLine) continue;
 
             let icon = '🟢';
             if (method.score >= settings.threshold.error) {
@@ -198,11 +204,11 @@ export function computeInlayHints(
             }
 
             result.push({
-                position: hintPos,
-                label: `${labelPrefix}${icon} ${settings.totalScorePrefix}: ${method.score} (${lines} lines)`,
+                position: posInfo.position,
+                label: `${posInfo.labelPrefix}${icon} ${settings.totalScorePrefix}: ${method.score} (${lines} lines)`,
                 kind: InlayHintKind.Type,
-                paddingLeft,
-                paddingRight
+                paddingLeft: posInfo.paddingLeft,
+                paddingRight: posInfo.paddingRight
             });
         }
     }
@@ -223,15 +229,10 @@ export function computeInlayHints(
             }
 
             const label = `(+${totalScore} ${uniqueMessages.join(', ')})`;
-
-            const lineText = document.getText({
-                 start: { line, character: 0 },
-                 end: { line: line + 1, character: 0 }
-            });
-            const len = lineText.replace(/(\r\n|\n|\r)/gm, "").length;
+            const lineText = getLineText(document, line);
 
             result.push({
-                position: { line, character: len },
+                position: { line, character: lineText.length },
                 label: ` ${label}`,
                 kind: InlayHintKind.Parameter,
                 paddingLeft: true
