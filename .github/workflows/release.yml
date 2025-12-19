@@ -1,0 +1,82 @@
+name: Release Extensions
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux (Zed & VS Code)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      # Zed Extension
+      - name: Build and Package Zed Extension
+        run: bun run package:zed
+
+      # VS Code Extension
+      - name: Package VS Code Extension
+        working-directory: packages/vscode-extension
+        run: bun run package:vsix
+
+      # Release - Upload Linux Artifacts
+      - name: Upload Linux Artifacts to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            packages/zed-extension/cognitive-complexity-ls.zip
+            packages/vscode-extension/*.vsix
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+  build-windows:
+    name: Build Windows (Visual Studio)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: bun install
+
+      # Visual Studio Extension
+      - name: Prepare Visual Studio Extension Assets
+        run: bun run build:vs
+
+      - name: Build Visual Studio Extension
+        run: dotnet build packages/visual-studio-extension/CognitiveComplexity.csproj -c Release
+
+      # Release - Upload Windows Artifacts
+      - name: Upload Windows Artifacts to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            packages/visual-studio-extension/bin/Release/net8.0-windows/CognitiveComplexity.vsix
+          draft: false
+          prerelease: false
+          generate_release_notes: true
