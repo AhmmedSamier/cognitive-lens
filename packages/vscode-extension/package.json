@@ -16,7 +16,9 @@
     "onLanguage:typescriptreact",
     "onLanguage:javascript",
     "onLanguage:javascriptreact",
-    "onLanguage:csharp"
+    "onLanguage:csharp",
+    "onView:cognitiveComplexity.explorer",
+    "onCommand:cognitive-complexity.generateReport"
   ],
   "main": "./dist/extension.js",
   "contributes": {
