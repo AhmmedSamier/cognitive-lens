@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { workspace, ExtensionContext } from 'vscode';
+import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor } from 'vscode';
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -8,6 +8,26 @@ import {
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient;
+
+// SVGs for gutter icons
+const greenIcon = Uri.parse('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjQiIGZpbGw9ImdyZWVuIiAvPjwvc3ZnPg==');
+const yellowIcon = Uri.parse('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjQiIGZpbGw9Im9yYW5nZSIgLz48L3N2Zz4=');
+const redIcon = Uri.parse('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjQiIGZpbGw9InJlZCIgLz48L3N2Zz4=');
+
+let greenDecorationType: TextEditorDecorationType | undefined;
+let yellowDecorationType: TextEditorDecorationType | undefined;
+let redDecorationType: TextEditorDecorationType | undefined;
+
+interface MethodComplexity {
+  name: string;
+  score: number;
+  startIndex: number;
+  endIndex: number;
+  isCallback?: boolean;
+}
+
+// Cache complexities to restore decorations on tab switch
+const complexityCache = new Map<string, MethodComplexity[]>();
 
 export function activate(context: ExtensionContext) {
   const serverModule = context.asAbsolutePath(
@@ -45,10 +65,137 @@ export function activate(context: ExtensionContext) {
     clientOptions
   );
 
-  client.start();
+  // Initialize decoration types
+  createDecorations();
+
+  client.start().then(() => {
+    client.onNotification('cognitive-complexity/fileAnalyzed', (params: { uri: string, complexities: MethodComplexity[] }) => {
+        // Update cache
+        complexityCache.set(params.uri, params.complexities);
+        // Update visible editors
+        updateDecorations(params.uri, params.complexities);
+    });
+  });
+
+  // Handle active editor change (tab switch)
+  window.onDidChangeActiveTextEditor(editor => {
+      if (editor) {
+          const uri = editor.document.uri.toString();
+          const cached = complexityCache.get(uri);
+          if (cached) {
+              updateEditorDecorations(editor, cached);
+          }
+      }
+  }, null, context.subscriptions);
+
+  // Re-create decorations if configuration changes
+  workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('cognitiveComplexity.showGutterIcon') ||
+          e.affectsConfiguration('cognitiveComplexity.threshold')) {
+          createDecorations();
+
+          // Re-apply to all visible editors
+          window.visibleTextEditors.forEach(editor => {
+              const uri = editor.document.uri.toString();
+              const cached = complexityCache.get(uri);
+              if (cached) {
+                  updateEditorDecorations(editor, cached);
+              }
+          });
+      }
+  }, null, context.subscriptions);
+}
+
+function createDecorations() {
+    // Dispose existing
+    if (greenDecorationType) { greenDecorationType.dispose(); greenDecorationType = undefined; }
+    if (yellowDecorationType) { yellowDecorationType.dispose(); yellowDecorationType = undefined; }
+    if (redDecorationType) { redDecorationType.dispose(); redDecorationType = undefined; }
+
+    const config = workspace.getConfiguration('cognitiveComplexity');
+    const showGutter = config.get<boolean>('showGutterIcon', true);
+
+    if (!showGutter) {
+        return;
+    }
+
+    greenDecorationType = window.createTextEditorDecorationType({
+        gutterIconPath: greenIcon,
+        gutterIconSize: 'contain',
+        rangeBehavior: DecorationRangeBehavior.ClosedClosed
+    });
+    yellowDecorationType = window.createTextEditorDecorationType({
+        gutterIconPath: yellowIcon,
+        gutterIconSize: 'contain',
+        rangeBehavior: DecorationRangeBehavior.ClosedClosed
+    });
+    redDecorationType = window.createTextEditorDecorationType({
+        gutterIconPath: redIcon,
+        gutterIconSize: 'contain',
+        rangeBehavior: DecorationRangeBehavior.ClosedClosed
+    });
+}
+
+function updateDecorations(uri: string, complexities: MethodComplexity[]) {
+    // Find all visible editors for this URI (e.g., split view)
+    const editors = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri);
+    for (const editor of editors) {
+        updateEditorDecorations(editor, complexities);
+    }
+}
+
+function updateEditorDecorations(editor: TextEditor, complexities: MethodComplexity[]) {
+    const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
+    if (!config.get<boolean>('showGutterIcon', true)) {
+        // Clear decorations if disabled for this resource
+        if (greenDecorationType) editor.setDecorations(greenDecorationType, []);
+        if (yellowDecorationType) editor.setDecorations(yellowDecorationType, []);
+        if (redDecorationType) editor.setDecorations(redDecorationType, []);
+        return;
+    }
+
+    // Ensure decorations exist (global check, but good to be safe)
+    if (!greenDecorationType) createDecorations();
+    if (!greenDecorationType) return; // Still disabled or failed
+
+    const warningThreshold = config.get<number>('threshold.warning', 15);
+    const errorThreshold = config.get<number>('threshold.error', 25);
+
+    const greenRanges: Range[] = [];
+    const yellowRanges: Range[] = [];
+    const redRanges: Range[] = [];
+
+    for (const method of complexities) {
+        if (method.isCallback) continue;
+
+        const startPos = editor.document.positionAt(method.startIndex);
+        // We only want the gutter icon on the first line of the method
+        const range = new Range(startPos, startPos);
+
+        if (method.score >= errorThreshold) {
+            redRanges.push(range);
+        } else if (method.score >= warningThreshold) {
+            yellowRanges.push(range);
+        } else {
+             if (method.score > 0) {
+                 greenRanges.push(range);
+             }
+        }
+    }
+
+    // Force non-null assertion since we checked earlier
+    editor.setDecorations(greenDecorationType!, greenRanges);
+    editor.setDecorations(yellowDecorationType!, yellowRanges);
+    editor.setDecorations(redDecorationType!, redRanges);
 }
 
 export function deactivate(): Thenable<void> | undefined {
+  if (greenDecorationType) greenDecorationType.dispose();
+  if (yellowDecorationType) yellowDecorationType.dispose();
+  if (redDecorationType) redDecorationType.dispose();
+
+  complexityCache.clear();
+
   if (!client) {
     return undefined;
   }

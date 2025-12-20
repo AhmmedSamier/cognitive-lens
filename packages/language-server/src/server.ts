@@ -309,6 +309,13 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
         }
 
         const complexities = await getComplexity(textDocument);
+
+        // Notify client about analysis for gutter icons etc
+        connection.sendNotification('cognitive-complexity/fileAnalyzed', {
+            uri: textDocument.uri,
+            complexities
+        });
+
         const diagnostics = computeDiagnostics(textDocument, complexities, settings);
 
         connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
