@@ -1,0 +1,17 @@
+.vscode/**
+.vscode-test/**
+src/**
+node_modules/**
+public/**
+.gitignore
+.gitattributes
+bun.lockb
+package-lock.json
+yarn.lock
+tsconfig.json
+tsup.config.ts
+*.wasm
+!dist/**
+!package.json
+!README.md
+!LICENSE.md
