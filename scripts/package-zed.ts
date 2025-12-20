@@ -28,20 +28,7 @@ try {
     process.exit(1);
 }
 
-// 2. Ensure extra files (typescript/tsx) are present in ZED_EXT_DIR
-// The original build-zed.ts might not copy them. Let's verify and copy if needed.
-const VSCODE_DIST_DIR = path.resolve(__dirname, '../packages/vscode-extension/dist');
-
-['tree-sitter-typescript.wasm', 'tree-sitter-tsx.wasm'].forEach(file => {
-    const src = path.join(VSCODE_DIST_DIR, file);
-    const dest = path.join(ZED_EXT_DIR, file);
-    if (fs.existsSync(src) && !fs.existsSync(dest)) {
-        fs.copyFileSync(src, dest);
-        console.log(`Copied ${file} to ${dest} (supplemental)`);
-    }
-});
-
-// Verify files exist
+// 2. Verify files exist
 for (const file of filesToZip) {
     if (!fs.existsSync(path.join(ZED_EXT_DIR, file))) {
         console.error(`File missing: ${file}`);
