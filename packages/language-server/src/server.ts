@@ -21,10 +21,11 @@ import {
 import {
     TextDocument
 } from 'vscode-languageserver-textdocument';
-import { calculateComplexity, MethodComplexity } from '@cognitive-complexity/core';
-import { Parser, Language } from 'web-tree-sitter';
+import { calculateComplexity, MethodComplexity, generateHtmlReport, initParsers, Parsers } from '@cognitive-complexity/core';
+import { Parser } from 'web-tree-sitter';
 import * as path from 'path';
 import * as fs from 'fs';
+import { glob } from 'glob';
 import {
     CognitiveComplexitySettings,
     defaultSettings,
@@ -41,76 +42,42 @@ let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
 let hasDiagnosticRelatedInformationCapability = false;
 
-let csharpParser: Parser | undefined;
-let typescriptParser: Parser | undefined;
-let tsxParser: Parser | undefined;
+let parsers: Parsers | undefined;
 let parserInitialized = false;
-let initPromise: Promise<void> | undefined;
+let initPromise: Promise<Parsers> | undefined;
 
 let incrementalParser: IncrementalParser | undefined;
 
 // Initialize web-tree-sitter
-async function initParser() {
+async function initialize() {
     if (initPromise) return initPromise;
 
-    initPromise = (async () => {
-        try {
-            const treeSitterWasmPath = path.resolve(__dirname, 'tree-sitter.wasm');
-            connection.console.log(`Initializing Parser with ${treeSitterWasmPath}`);
+    // We assume the WASM files are in the same directory as this script (bundled)
+    const wasmPath = __dirname;
 
-            if (!fs.existsSync(treeSitterWasmPath)) {
-                throw new Error(`tree-sitter.wasm not found at ${treeSitterWasmPath}`);
-            }
-            const wasmBuffer = fs.readFileSync(treeSitterWasmPath);
-
-            await Parser.init({
-                wasmBinary: wasmBuffer
-            });
-
-            // Load C#
-            csharpParser = new Parser();
-            const csharpWasmPath = path.resolve(__dirname, 'tree-sitter-c_sharp.wasm');
-            connection.console.log(`Loading C# grammar from ${csharpWasmPath}`);
-            const csharpLang = await Language.load(csharpWasmPath);
-            csharpParser.setLanguage(csharpLang);
-
-            // Load TypeScript
-            typescriptParser = new Parser();
-            const typescriptWasmPath = path.resolve(__dirname, 'tree-sitter-typescript.wasm');
-            connection.console.log(`Loading TypeScript grammar from ${typescriptWasmPath}`);
-            const typescriptLang = await Language.load(typescriptWasmPath);
-            typescriptParser.setLanguage(typescriptLang);
-
-            // Load TSX
-            tsxParser = new Parser();
-            const tsxWasmPath = path.resolve(__dirname, 'tree-sitter-tsx.wasm');
-            connection.console.log(`Loading TSX grammar from ${tsxWasmPath}`);
-            const tsxLang = await Language.load(tsxWasmPath);
-            tsxParser.setLanguage(tsxLang);
-
-            incrementalParser = new IncrementalParser({
-                csharp: csharpParser,
-                typescript: typescriptParser,
-                tsx: tsxParser
-            });
-
-            parserInitialized = true;
-            connection.console.log('Parsers initialized successfully');
-        } catch (e) {
+    initPromise = initParsers({ wasmDirectory: wasmPath })
+        .then(p => {
+             parsers = p;
+             incrementalParser = new IncrementalParser({
+                csharp: p.csharp,
+                typescript: p.typescript,
+                tsx: p.tsx
+             });
+             parserInitialized = true;
+             connection.console.log('Parsers initialized successfully');
+             return p;
+        })
+        .catch(e => {
             connection.console.error(`Failed to initialize parser: ${e}`);
-            if (e instanceof Error && e.stack) {
-                connection.console.error(e.stack);
-            }
             throw e;
-        }
-    })();
+        });
 
     return initPromise;
 }
 
 connection.onInitialize(async (params: InitializeParams) => {
     // Start parser init
-    initParser().catch(e => {
+    initialize().catch(e => {
         // Logged inside
     });
 
@@ -170,7 +137,7 @@ const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
 
 // Handle document lifecycle for incremental parsing
 connection.onDidOpenTextDocument(async (params: DidOpenTextDocumentParams) => {
-    if (!parserInitialized) await initParser();
+    if (!parserInitialized) await initialize();
     if (incrementalParser) {
         await incrementalParser.handleOpen(params);
     }
@@ -223,7 +190,7 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
              if (initPromise) {
                  try { await initPromise; } catch(e) { return []; }
              } else {
-                 await initParser(); // Await initParser
+                 await initialize(); // Await initParser
                  try { await initPromise; } catch(e) { return []; }
              }
         }
@@ -312,6 +279,12 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
         const diagnostics = computeDiagnostics(textDocument, complexities, settings);
 
         connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+
+        // Notify client for side panel update
+        connection.sendNotification('cognitive-complexity/fileAnalyzed', {
+            uri: textDocument.uri,
+            complexities: complexities
+        });
     } catch (e) {
         connection.console.error(`Error in validateTextDocument: ${e}`);
     }
@@ -396,4 +369,57 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
 });
 
 documents.listen(connection);
+
+connection.onRequest('cognitive-complexity/generateReport', async (params: { rootPath: string }) => {
+    connection.console.log(`Generating report for ${params.rootPath}`);
+    if (!parserInitialized) await initialize();
+
+    const rootPath = params.rootPath;
+    const files = await glob('**/*.{ts,tsx,js,jsx,cs}', {
+        cwd: rootPath,
+        ignore: ['node_modules/**', 'dist/**', 'build/**']
+    });
+
+    const reports = [];
+
+    for (const file of files) {
+        try {
+            const filePath = path.join(rootPath, file);
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const ext = path.extname(file).toLowerCase();
+            let language = '';
+            let tree;
+
+            if (ext === '.cs') {
+                language = 'csharp';
+                if (parsers?.csharp) tree = parsers.csharp.parse(content);
+            } else {
+                language = 'typescript';
+                // Use TSX parser for .tsx files if needed, but 'typescript' usually handles standard TS
+                // If it's pure JS/TS, use typescript parser
+                if ((ext === '.tsx' || ext === '.jsx') && parsers?.tsx) {
+                    tree = parsers.tsx.parse(content);
+                } else if (parsers?.typescript) {
+                    tree = parsers.typescript.parse(content);
+                }
+            }
+
+            if (tree) {
+                const complexities = await calculateComplexity(tree, language);
+                if (complexities.length > 0) {
+                    reports.push({
+                        file,
+                        methods: complexities
+                    });
+                }
+                tree.delete();
+            }
+        } catch (e) {
+            connection.console.error(`Error processing ${file}: ${e}`);
+        }
+    }
+
+    return generateHtmlReport(reports);
+});
+
 connection.listen();

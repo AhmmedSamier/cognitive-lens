@@ -20,6 +20,23 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cognitive-complexity",
+          "title": "Complexity",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cognitive-complexity": [
+        {
+          "id": "cognitiveComplexity.explorer",
+          "name": "Complexity Explorer"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
       "title": "Cognitive Complexity",

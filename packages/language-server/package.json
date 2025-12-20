@@ -4,6 +4,7 @@
   "main": "src/server.ts",
   "dependencies": {
     "@cognitive-complexity/core": "workspace:*",
+    "glob": "^10.3.10",
     "tree-sitter-c-sharp": "^0.23.1",
     "vscode-languageserver": "^9.0.0",
     "vscode-languageserver-textdocument": "^1.0.12",
