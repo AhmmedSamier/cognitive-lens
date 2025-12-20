@@ -1,11 +1,13 @@
 import * as path from 'path';
-import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor } from 'vscode';
+import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor, commands, Selection } from 'vscode';
 import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
   TransportKind
 } from 'vscode-languageclient/node';
+import { MethodComplexity } from './types';
+import { ComplexityTreeDataProvider } from './ComplexityTreeDataProvider';
 
 let client: LanguageClient;
 
@@ -18,16 +20,9 @@ let greenDecorationType: TextEditorDecorationType | undefined;
 let yellowDecorationType: TextEditorDecorationType | undefined;
 let redDecorationType: TextEditorDecorationType | undefined;
 
-interface MethodComplexity {
-  name: string;
-  score: number;
-  startIndex: number;
-  endIndex: number;
-  isCallback?: boolean;
-}
-
 // Cache complexities to restore decorations on tab switch
 const complexityCache = new Map<string, MethodComplexity[]>();
+let treeDataProvider: ComplexityTreeDataProvider;
 
 export function activate(context: ExtensionContext) {
   const serverModule = context.asAbsolutePath(
@@ -68,12 +63,36 @@ export function activate(context: ExtensionContext) {
   // Initialize decoration types
   createDecorations();
 
+  // Initialize Tree Data Provider
+  treeDataProvider = new ComplexityTreeDataProvider(complexityCache);
+  window.registerTreeDataProvider('cognitiveComplexityListView', treeDataProvider);
+
+  // Register command for navigation
+  context.subscriptions.push(commands.registerCommand('cognitive-complexity.navigateToMethod', (method: MethodComplexity) => {
+    const editor = window.activeTextEditor;
+    if (editor) {
+        // Verify if the method belongs to the current editor
+        // Ideally we check URI, but the tree view is updated based on active editor, so it should be fine.
+        // However, if user switches tabs quickly, we might want to check if complexityCache matches?
+        // But method object is just data.
+
+        const start = editor.document.positionAt(method.startIndex);
+        const end = editor.document.positionAt(method.endIndex);
+        const range = new Range(start, end);
+
+        editor.selection = new Selection(start, start);
+        editor.revealRange(range, 1); // TextEditorRevealType.InCenter = 1
+    }
+  }));
+
   client.start().then(() => {
     client.onNotification('cognitive-complexity/fileAnalyzed', (params: { uri: string, complexities: MethodComplexity[] }) => {
         // Update cache
         complexityCache.set(params.uri, params.complexities);
         // Update visible editors
         updateDecorations(params.uri, params.complexities);
+        // Refresh tree view
+        treeDataProvider.refresh();
     });
   });
 
@@ -85,6 +104,7 @@ export function activate(context: ExtensionContext) {
           if (cached) {
               updateEditorDecorations(editor, cached);
           }
+          treeDataProvider.refresh();
       }
   }, null, context.subscriptions);
 
@@ -102,6 +122,7 @@ export function activate(context: ExtensionContext) {
                   updateEditorDecorations(editor, cached);
               }
           });
+          treeDataProvider.refresh(); // Threshold changes might affect icon colors
       }
   }, null, context.subscriptions);
 }
