@@ -10,7 +10,13 @@ export async function report(pattern: string, options: { output: string, format:
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     let wasmPath = __dirname;
     if (!fs.existsSync(path.join(wasmPath, 'tree-sitter.wasm'))) {
-         wasmPath = path.resolve(__dirname, '../../packages/vscode-extension/public');
+         // Fallback for dev environment
+         const devPath = path.resolve(__dirname, '../../../../packages/vscode-extension/public');
+         if (fs.existsSync(path.join(devPath, 'tree-sitter.wasm'))) {
+             wasmPath = devPath;
+         } else {
+             wasmPath = path.resolve(__dirname, '../../packages/vscode-extension/public');
+         }
     }
 
     try {

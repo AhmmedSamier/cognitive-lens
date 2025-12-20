@@ -52,21 +52,50 @@ export function activate(context: ExtensionContext) {
   const complexityTreeProvider = new ComplexityTreeProvider();
   vscode.window.registerTreeDataProvider('cognitiveComplexity.explorer', complexityTreeProvider);
 
+  // Cache to store complexities for quick switching
+  const complexityCache = new Map<string, any[]>();
+
   // Listen for notifications from the server
   client.onReady().then(() => {
       client.onNotification('cognitive-complexity/fileAnalyzed', (params) => {
-          if (vscode.window.activeTextEditor?.document.uri.toString() === params.uri) {
-              complexityTreeProvider.refresh(params.complexities);
+          // Normalize URI
+          const paramUri = vscode.Uri.parse(params.uri).toString();
+          complexityCache.set(paramUri, params.complexities);
+
+          const activeEditor = vscode.window.activeTextEditor;
+          if (activeEditor) {
+              const activeUri = activeEditor.document.uri.toString();
+
+              // Normalize comparison
+              if (activeUri === paramUri || decodeURIComponent(activeUri) === decodeURIComponent(paramUri)) {
+                  complexityTreeProvider.refresh(params.complexities);
+              }
           }
       });
   });
 
   // Also update when active editor changes (request refresh)
   vscode.window.onDidChangeActiveTextEditor(editor => {
-      if (editor && client) {
-           // We might want to request the complexity for this file
-           // But since the server analyzes on open, we should wait for the notification.
-           // Alternatively, we can assume the server has it cached.
+      if (editor) {
+          const activeUri = editor.document.uri.toString();
+          // Try exact match or decoded match
+          let cached = complexityCache.get(activeUri);
+          if (!cached) {
+              // Try decoding cache keys to find match
+              const decodedActive = decodeURIComponent(activeUri);
+              for (const [key, value] of complexityCache) {
+                  if (decodeURIComponent(key) === decodedActive) {
+                      cached = value;
+                      break;
+                  }
+              }
+          }
+
+          if (cached) {
+              complexityTreeProvider.refresh(cached);
+          } else {
+              complexityTreeProvider.refresh([]);
+          }
       }
   });
 

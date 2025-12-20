@@ -14,8 +14,16 @@ export async function check(pattern: string, options: { threshold: string, failO
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     let wasmPath = __dirname;
     if (!fs.existsSync(path.join(wasmPath, 'tree-sitter.wasm'))) {
-         // Fallback for dev environment or alternative structure
-         wasmPath = path.resolve(__dirname, '../../packages/vscode-extension/public');
+         // Fallback for dev environment
+         // Try resolving from project root if running from source (packages/cli/src/commands)
+         // Path: ../../../../packages/vscode-extension/public
+         const devPath = path.resolve(__dirname, '../../../../packages/vscode-extension/public');
+         if (fs.existsSync(path.join(devPath, 'tree-sitter.wasm'))) {
+             wasmPath = devPath;
+         } else {
+             // Fallback for previous structure assumption
+             wasmPath = path.resolve(__dirname, '../../packages/vscode-extension/public');
+         }
     }
 
     try {
