@@ -422,4 +422,13 @@ connection.onRequest('cognitive-complexity/generateReport', async (params: { roo
     return generateHtmlReport(reports);
 });
 
+connection.onRequest('cognitive-complexity/getComplexity', async (params: { uri: string }) => {
+    // If we have the document open, return cached complexity
+    const document = documents.get(params.uri);
+    if (document) {
+        return await getComplexity(document);
+    }
+    return [];
+});
+
 connection.listen();

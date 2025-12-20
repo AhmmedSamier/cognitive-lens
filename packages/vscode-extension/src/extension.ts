@@ -76,6 +76,10 @@ export function activate(context: ExtensionContext) {
 
   // Also update when active editor changes (request refresh)
   vscode.window.onDidChangeActiveTextEditor(editor => {
+      updateSidePanel(editor);
+  });
+
+  function updateSidePanel(editor: vscode.TextEditor | undefined) {
       if (editor) {
           const activeUri = editor.document.uri.toString();
           // Try exact match or decoded match
@@ -94,10 +98,34 @@ export function activate(context: ExtensionContext) {
           if (cached) {
               complexityTreeProvider.refresh(cached);
           } else {
-              complexityTreeProvider.refresh([]);
+              // Try fetching from server explicitly
+              if (client) {
+                  client.sendRequest('cognitive-complexity/getComplexity', { uri: activeUri })
+                      .then((complexities: any) => {
+                          if (complexities && Array.isArray(complexities)) {
+                              complexityCache.set(activeUri, complexities);
+                              complexityTreeProvider.refresh(complexities);
+                          } else {
+                              complexityTreeProvider.refresh([]);
+                          }
+                      })
+                      .catch(e => {
+                          complexityTreeProvider.refresh([]);
+                      });
+              } else {
+                  complexityTreeProvider.refresh([]);
+              }
           }
+      } else {
+          complexityTreeProvider.refresh([]);
       }
-  });
+  }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('cognitive-complexity.refreshEntry', () => {
+        updateSidePanel(vscode.window.activeTextEditor);
+    })
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('cognitive-complexity.generateReport', async () => {

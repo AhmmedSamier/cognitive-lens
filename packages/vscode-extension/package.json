@@ -37,6 +37,27 @@
         }
       ]
     },
+    "commands": [
+        {
+            "command": "cognitive-complexity.generateReport",
+            "title": "Generate Project Report",
+            "category": "Cognitive Complexity"
+        },
+        {
+            "command": "cognitive-complexity.refreshEntry",
+            "title": "Refresh",
+            "icon": "$(refresh)"
+        }
+    ],
+    "menus": {
+        "view/title": [
+            {
+                "command": "cognitive-complexity.refreshEntry",
+                "when": "view == cognitiveComplexity.explorer",
+                "group": "navigation"
+            }
+        ]
+    },
     "configuration": {
       "type": "object",
       "title": "Cognitive Complexity",
