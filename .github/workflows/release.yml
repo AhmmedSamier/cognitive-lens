@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Run Tests
+        run: bun test
+
       # Zed Extension
       - name: Build and Package Zed Extension
         run: bun run package:zed
