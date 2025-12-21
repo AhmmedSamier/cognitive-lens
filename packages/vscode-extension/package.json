@@ -33,34 +33,9 @@
     "views": {
       "cognitiveComplexity": [
         {
+          "type": "webview",
           "id": "cognitiveComplexityListView",
           "name": "Methods"
-        }
-      ]
-    },
-    "commands": [
-      {
-        "command": "cognitive-complexity.filterMethods",
-        "title": "Filter Methods",
-        "icon": "$(search)"
-      },
-      {
-        "command": "cognitive-complexity.clearFilter",
-        "title": "Clear Filter",
-        "icon": "$(clear-all)"
-      }
-    ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "cognitive-complexity.filterMethods",
-          "when": "view == cognitiveComplexityListView",
-          "group": "navigation"
-        },
-        {
-          "command": "cognitive-complexity.clearFilter",
-          "when": "view == cognitiveComplexityListView && cognitiveComplexity.isFiltering",
-          "group": "navigation"
         }
       ]
     },

@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor, commands, Selection, TreeView } from 'vscode';
+import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor, commands, Selection } from 'vscode';
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -7,7 +7,7 @@ import {
   TransportKind
 } from 'vscode-languageclient/node';
 import { MethodComplexity } from './types';
-import { ComplexityTreeDataProvider } from './ComplexityTreeDataProvider';
+import { ComplexityWebviewProvider } from './ComplexityWebviewProvider';
 
 let client: LanguageClient;
 
@@ -22,8 +22,7 @@ let redDecorationType: TextEditorDecorationType | undefined;
 
 // Cache complexities to restore decorations on tab switch
 const complexityCache = new Map<string, MethodComplexity[]>();
-let treeDataProvider: ComplexityTreeDataProvider;
-let treeView: TreeView<MethodComplexity>;
+let webviewProvider: ComplexityWebviewProvider;
 
 export function activate(context: ExtensionContext) {
   const serverModule = context.asAbsolutePath(
@@ -64,14 +63,13 @@ export function activate(context: ExtensionContext) {
   // Initialize decoration types
   createDecorations();
 
-  // Initialize Tree Data Provider
-  treeDataProvider = new ComplexityTreeDataProvider(complexityCache);
-  treeView = window.createTreeView('cognitiveComplexityListView', {
-      treeDataProvider: treeDataProvider,
-      showCollapseAll: true
-  });
+  // Initialize Webview Provider
+  webviewProvider = new ComplexityWebviewProvider(context.extensionUri);
+  context.subscriptions.push(
+      window.registerWebviewViewProvider('cognitiveComplexityListView', webviewProvider)
+  );
 
-  // Register command for navigation
+  // Register command for navigation (kept as it might be used by other parts, or legacy usage)
   context.subscriptions.push(commands.registerCommand('cognitive-complexity.navigateToMethod', (method: MethodComplexity) => {
     const editor = window.activeTextEditor;
     if (editor) {
@@ -84,32 +82,19 @@ export function activate(context: ExtensionContext) {
     }
   }));
 
-  // Register commands for filtering
-  context.subscriptions.push(commands.registerCommand('cognitive-complexity.filterMethods', async () => {
-      const query = await window.showInputBox({
-          placeHolder: 'Filter methods by name',
-          prompt: 'Enter search query'
-      });
-
-      if (query !== undefined) {
-          treeDataProvider.setFilter(query);
-          commands.executeCommand('setContext', 'cognitiveComplexity.isFiltering', !!query);
-      }
-  }));
-
-  context.subscriptions.push(commands.registerCommand('cognitive-complexity.clearFilter', () => {
-      treeDataProvider.setFilter('');
-      commands.executeCommand('setContext', 'cognitiveComplexity.isFiltering', false);
-  }));
-
   client.start().then(() => {
     client.onNotification('cognitive-complexity/fileAnalyzed', (params: { uri: string, complexities: MethodComplexity[] }) => {
         // Update cache
         complexityCache.set(params.uri, params.complexities);
         // Update visible editors
         updateDecorations(params.uri, params.complexities);
-        // Refresh tree view
-        treeDataProvider.refresh();
+
+        // Update webview if it's showing the active editor
+        const activeEditor = window.activeTextEditor;
+        if (activeEditor && activeEditor.document.uri.toString() === params.uri) {
+            const config = getWebviewConfig(activeEditor.document.uri);
+            webviewProvider.update(params.complexities, config);
+        }
     });
   });
 
@@ -120,14 +105,18 @@ export function activate(context: ExtensionContext) {
           const cached = complexityCache.get(uri);
           if (cached) {
               updateEditorDecorations(editor, cached);
+              const config = getWebviewConfig(editor.document.uri);
+              webviewProvider.update(cached, config);
+          } else {
+               const config = getWebviewConfig(editor.document.uri);
+              webviewProvider.update([], config);
           }
-          treeDataProvider.refresh();
       }
   }, null, context.subscriptions);
 
   // Handle cursor movement to reveal in tree view
   window.onDidChangeTextEditorSelection(event => {
-      if (event.textEditor && treeView.visible) {
+      if (event.textEditor && webviewProvider.isVisible) { // Only reveal if webview is visible
           const uri = event.textEditor.document.uri.toString();
           const cached = complexityCache.get(uri);
           if (cached) {
@@ -137,8 +126,8 @@ export function activate(context: ExtensionContext) {
               const method = cached.find(m => offset >= m.startIndex && offset <= m.endIndex && !m.isCallback);
 
               if (method) {
-                  // Reveal method in tree view without taking focus and selecting it
-                  treeView.reveal(method, { select: true, focus: false, expand: true });
+                  // Reveal method in webview
+                  webviewProvider.reveal(method);
               }
           }
       }
@@ -158,9 +147,25 @@ export function activate(context: ExtensionContext) {
                   updateEditorDecorations(editor, cached);
               }
           });
-          treeDataProvider.refresh(); // Threshold changes might affect icon colors
+
+          if (window.activeTextEditor) {
+             const uri = window.activeTextEditor.document.uri.toString();
+             const cached = complexityCache.get(uri);
+             const config = getWebviewConfig(window.activeTextEditor.document.uri);
+             if (cached) webviewProvider.update(cached, config);
+          }
       }
   }, null, context.subscriptions);
+}
+
+function getWebviewConfig(uri: Uri) {
+    const config = workspace.getConfiguration('cognitiveComplexity', uri);
+    return {
+        threshold: {
+            warning: config.get<number>('threshold.warning', 15),
+            error: config.get<number>('threshold.error', 25)
+        }
+    };
 }
 
 function createDecorations() {
