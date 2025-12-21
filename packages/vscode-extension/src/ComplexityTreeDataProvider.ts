@@ -4,11 +4,17 @@ import { MethodComplexity } from './types';
 export class ComplexityTreeDataProvider implements vscode.TreeDataProvider<MethodComplexity> {
     private _onDidChangeTreeData: vscode.EventEmitter<MethodComplexity | undefined | null | void> = new vscode.EventEmitter<MethodComplexity | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<MethodComplexity | undefined | null | void> = this._onDidChangeTreeData.event;
+    private filterQuery: string = '';
 
     constructor(private complexityCache: Map<string, MethodComplexity[]>) {}
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
+    }
+
+    setFilter(query: string) {
+        this.filterQuery = query.toLowerCase();
+        this.refresh();
     }
 
     getParent(element: MethodComplexity): vscode.ProviderResult<MethodComplexity> {
@@ -66,6 +72,10 @@ export class ComplexityTreeDataProvider implements vscode.TreeDataProvider<Metho
 
         return complexities
             .filter(c => !c.isCallback)
+            .filter(c => {
+                if (!this.filterQuery) return true;
+                return c.name.toLowerCase().includes(this.filterQuery);
+            })
             .sort((a, b) => a.startIndex - b.startIndex);
     }
 }

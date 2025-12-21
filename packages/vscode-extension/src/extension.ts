@@ -75,11 +75,6 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(commands.registerCommand('cognitive-complexity.navigateToMethod', (method: MethodComplexity) => {
     const editor = window.activeTextEditor;
     if (editor) {
-        // Verify if the method belongs to the current editor
-        // Ideally we check URI, but the tree view is updated based on active editor, so it should be fine.
-        // However, if user switches tabs quickly, we might want to check if complexityCache matches?
-        // But method object is just data.
-
         const start = editor.document.positionAt(method.startIndex);
         const end = editor.document.positionAt(method.endIndex);
         const range = new Range(start, end);
@@ -87,6 +82,24 @@ export function activate(context: ExtensionContext) {
         editor.selection = new Selection(start, start);
         editor.revealRange(range, 1); // TextEditorRevealType.InCenter = 1
     }
+  }));
+
+  // Register commands for filtering
+  context.subscriptions.push(commands.registerCommand('cognitive-complexity.filterMethods', async () => {
+      const query = await window.showInputBox({
+          placeHolder: 'Filter methods by name',
+          prompt: 'Enter search query'
+      });
+
+      if (query !== undefined) {
+          treeDataProvider.setFilter(query);
+          commands.executeCommand('setContext', 'cognitiveComplexity.isFiltering', !!query);
+      }
+  }));
+
+  context.subscriptions.push(commands.registerCommand('cognitive-complexity.clearFilter', () => {
+      treeDataProvider.setFilter('');
+      commands.executeCommand('setContext', 'cognitiveComplexity.isFiltering', false);
   }));
 
   client.start().then(() => {
