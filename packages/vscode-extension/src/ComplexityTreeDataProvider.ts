@@ -11,6 +11,12 @@ export class ComplexityTreeDataProvider implements vscode.TreeDataProvider<Metho
         this._onDidChangeTreeData.fire();
     }
 
+    getParent(element: MethodComplexity): vscode.ProviderResult<MethodComplexity> {
+        // Since we have a flat list of methods, they don't have parents in the tree view context.
+        // However, if we wanted to support hierarchy (e.g. classes), we would implement this.
+        return null;
+    }
+
     getTreeItem(element: MethodComplexity): vscode.TreeItem {
         const treeItem = new vscode.TreeItem(element.name);
 
@@ -18,7 +24,8 @@ export class ComplexityTreeDataProvider implements vscode.TreeDataProvider<Metho
         const warningThreshold = config.get<number>('threshold.warning', 15);
         const errorThreshold = config.get<number>('threshold.error', 25);
 
-        treeItem.description = `${element.score}`;
+        // Add 1 to make it 1-based for display
+        treeItem.description = `Score: ${element.score} (Line: ${element.startLine + 1})`;
 
         if (element.score >= errorThreshold) {
             treeItem.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'));
@@ -56,16 +63,6 @@ export class ComplexityTreeDataProvider implements vscode.TreeDataProvider<Metho
         if (!complexities) {
             return [];
         }
-
-        // Return all methods including 0 score ones? Usually yes for navigation.
-        // But maybe filter out callbacks if they are clutter?
-        // The user said "list of methods".
-        // extension.ts filters callbacks for decorations.
-        // Let's include everything but maybe filter callbacks if they are nameless or small?
-        // The interface has `isCallback`.
-        // extension.ts: `if (method.isCallback) continue;` for gutter icons.
-        // For the list, it might be useful to see them, but if they are anonymous, the name might be empty or "<anonymous>".
-        // Let's filter out isCallback for now to match the "Method" semantic.
 
         return complexities
             .filter(c => !c.isCallback)

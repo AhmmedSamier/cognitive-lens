@@ -3,5 +3,7 @@ export interface MethodComplexity {
   score: number;
   startIndex: number;
   endIndex: number;
+  startLine: number;
+  endLine: number;
   isCallback?: boolean;
 }
