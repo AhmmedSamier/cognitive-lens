@@ -5,6 +5,7 @@
   "version": "1.0.1",
   "publisher": "ASamir",
   "repository":"https://github.com/AhmmedSamier/cognitive-lens",
+  "icon": "resources/icon.png",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -25,7 +26,7 @@
         {
           "id": "cognitiveComplexity",
           "title": "Cognitive Complexity",
-          "icon": "resources/icon.svg"
+          "icon": "resources/icon.png"
         }
       ]
     },
