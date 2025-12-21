@@ -313,7 +313,7 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
 
                             const details = document.createElement('div');
                             details.className = 'method-details';
-                            details.textContent = \`Score: \${method.score} (Line: \${method.startLine + 1})\`;
+                            details.textContent = \`Score: \${method.score} (Line: \${method.startLine + 1}) (\${method.endLine - method.startLine + 1} lines)\`;
 
                             info.appendChild(name);
                             info.appendChild(details);
