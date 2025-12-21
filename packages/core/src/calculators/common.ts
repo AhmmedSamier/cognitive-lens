@@ -82,6 +82,8 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                 details: [],
                 startIndex: node.startIndex,
                 endIndex: node.endIndex,
+                startLine: node.startPosition.row,
+                endLine: node.endPosition.row,
                 isCallback
             };
 

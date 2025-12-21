@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor, commands, Selection } from 'vscode';
+import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor, commands, Selection, TreeView } from 'vscode';
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -23,6 +23,7 @@ let redDecorationType: TextEditorDecorationType | undefined;
 // Cache complexities to restore decorations on tab switch
 const complexityCache = new Map<string, MethodComplexity[]>();
 let treeDataProvider: ComplexityTreeDataProvider;
+let treeView: TreeView<MethodComplexity>;
 
 export function activate(context: ExtensionContext) {
   const serverModule = context.asAbsolutePath(
@@ -65,17 +66,15 @@ export function activate(context: ExtensionContext) {
 
   // Initialize Tree Data Provider
   treeDataProvider = new ComplexityTreeDataProvider(complexityCache);
-  window.registerTreeDataProvider('cognitiveComplexityListView', treeDataProvider);
+  treeView = window.createTreeView('cognitiveComplexityListView', {
+      treeDataProvider: treeDataProvider,
+      showCollapseAll: true
+  });
 
   // Register command for navigation
   context.subscriptions.push(commands.registerCommand('cognitive-complexity.navigateToMethod', (method: MethodComplexity) => {
     const editor = window.activeTextEditor;
     if (editor) {
-        // Verify if the method belongs to the current editor
-        // Ideally we check URI, but the tree view is updated based on active editor, so it should be fine.
-        // However, if user switches tabs quickly, we might want to check if complexityCache matches?
-        // But method object is just data.
-
         const start = editor.document.positionAt(method.startIndex);
         const end = editor.document.positionAt(method.endIndex);
         const range = new Range(start, end);
@@ -83,6 +82,24 @@ export function activate(context: ExtensionContext) {
         editor.selection = new Selection(start, start);
         editor.revealRange(range, 1); // TextEditorRevealType.InCenter = 1
     }
+  }));
+
+  // Register commands for filtering
+  context.subscriptions.push(commands.registerCommand('cognitive-complexity.filterMethods', async () => {
+      const query = await window.showInputBox({
+          placeHolder: 'Filter methods by name',
+          prompt: 'Enter search query'
+      });
+
+      if (query !== undefined) {
+          treeDataProvider.setFilter(query);
+          commands.executeCommand('setContext', 'cognitiveComplexity.isFiltering', !!query);
+      }
+  }));
+
+  context.subscriptions.push(commands.registerCommand('cognitive-complexity.clearFilter', () => {
+      treeDataProvider.setFilter('');
+      commands.executeCommand('setContext', 'cognitiveComplexity.isFiltering', false);
   }));
 
   client.start().then(() => {
@@ -105,6 +122,25 @@ export function activate(context: ExtensionContext) {
               updateEditorDecorations(editor, cached);
           }
           treeDataProvider.refresh();
+      }
+  }, null, context.subscriptions);
+
+  // Handle cursor movement to reveal in tree view
+  window.onDidChangeTextEditorSelection(event => {
+      if (event.textEditor && treeView.visible) {
+          const uri = event.textEditor.document.uri.toString();
+          const cached = complexityCache.get(uri);
+          if (cached) {
+              const position = event.selections[0].active;
+              const offset = event.textEditor.document.offsetAt(position);
+
+              const method = cached.find(m => offset >= m.startIndex && offset <= m.endIndex && !m.isCallback);
+
+              if (method) {
+                  // Reveal method in tree view without taking focus and selecting it
+                  treeView.reveal(method, { select: true, focus: false, expand: true });
+              }
+          }
       }
   }, null, context.subscriptions);
 
