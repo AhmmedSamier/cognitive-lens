@@ -1,11 +1,16 @@
-# Visual Studio Extension
+# Cognitive Lens for Visual Studio
 
-This directory contains the source code for the Cognitive Complexity extension for Visual Studio (the IDE).
+This extension calculates and displays Cognitive Complexity for C# methods in Visual Studio.
+
+## Features
+
+-   **CodeLens**: Displays the total Cognitive Complexity score above each method.
+-   **Inlay Hints**: Displays the complexity contribution of each line (e.g., `(+1 if)`).
+-   **Diagnostics**: Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
 
 ## Prerequisites
 
-* Visual Studio 2017 or later with "Visual Studio extension development" workload installed.
-* [Bun](https://bun.sh/) (to build the language server artifacts).
+*   Visual Studio 2022 (v17.9 or later recommended)
 
 ## Building
 
@@ -30,4 +35,4 @@ This directory contains the source code for the Cognitive Complexity extension f
 1.  Open the solution in Visual Studio.
 2.  Set the project as the startup project.
 3.  Press F5 to launch the experimental instance of Visual Studio.
-4.  Open a TypeScript or C# file to see the extension in action.
+4.  Open a C# file to see the extension in action.
