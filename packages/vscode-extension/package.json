@@ -2,7 +2,7 @@
   "name": "cognitive-lens",
   "displayName": "Cognitive Lens",
   "description": "Shows Cognitive Complexity for TypeScript and C# methods",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "publisher": "ASamir",
   "repository":"https://github.com/AhmmedSamier/cognitive-lens",
   "icon": "resources/icon.png",
@@ -25,7 +25,7 @@
       "activitybar": [
         {
           "id": "cognitiveComplexity",
-          "title": "Cognitive Complexity",
+          "title": "Cognitive Lens",
           "icon": "resources/icon.png"
         }
       ]
@@ -41,7 +41,7 @@
     },
     "configuration": {
       "type": "object",
-      "title": "Cognitive Complexity",
+      "title": "Cognitive Lens",
       "properties": {
         "cognitiveComplexity.trace.server": {
           "scope": "window",

@@ -1,6 +1,12 @@
-# Cognitive Complexity for Zed
+# Cognitive Lens for Zed
 
 This extension provides Cognitive Complexity metrics for TypeScript and C# in Zed, similar to the VS Code extension.
+
+## Features
+
+-   **Inlay Hints**: Shows the cognitive complexity score at the start of methods (mimicking CodeLens).
+-   **Diagnostics**: Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
+-   **Details**: Shows inline hints for complexity increments (e.g., `+1 if`, `+2 nesting`).
 
 ## Configuration
 
@@ -45,13 +51,6 @@ Open settings with `cmd-,` (or `ctrl-,` on Linux/Windows) or via the command pal
 | `cognitiveComplexity.showInlayHints.methodScore` | `boolean` | `true` | Enable or disable the total score inlay hint. |
 | `cognitiveComplexity.showInlayHints.details` | `boolean` | `true` | Enable or disable detailed contribution inlay hints. |
 | `cognitiveComplexity.totalScorePrefix` | `string` | `"Cognitive Complexity"` | The prefix text to display before the total complexity score. |
-
-## Features
-
--   **CodeLens / Inlay Hint**: Shows the cognitive complexity score above or at the start of methods.
-    -   *Note:* Zed does not strictly support CodeLens yet, so the "method score" is shown as an Inlay Hint positioned at the start of the method definition (or previous line) to mimic CodeLens behavior.
--   **Diagnostics**: Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
--   **Details**: Shows inline hints for complexity increments (e.g., `+1 if`, `+2 nesting`).
 
 ## Troubleshooting
 

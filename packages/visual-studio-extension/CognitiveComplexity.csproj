@@ -7,6 +7,11 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <RootNamespace>CognitiveComplexity</RootNamespace>
     <AssemblyName>CognitiveComplexity</AssemblyName>
+    <Version>1.1.0</Version>
+    <Authors>ASamir</Authors>
+    <Product>Cognitive Lens</Product>
+    <Title>Cognitive Lens</Title>
+    <Description>Shows Cognitive Complexity for C# methods</Description>
   </PropertyGroup>
 
   <ItemGroup>
