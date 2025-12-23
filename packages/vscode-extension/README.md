@@ -33,7 +33,7 @@ You can customize the extension behavior in your `settings.json`:
 
 ## Installation
 
-Install via the Visual Studio Code Marketplace: [Cognitive Lens](https://marketplace.visualstudio.com/items?itemName=ASamir.cognitive-lens)
+Install via the Visual Studio Code Marketplace: [Cognitive Lens](https://marketplace.visualstudio.com/items?itemName=AhmedSamir.cognitive-lens)
 
 ## Issues
 
