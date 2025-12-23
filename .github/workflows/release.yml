@@ -21,6 +21,24 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Extract Version from Tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Update Versions
+        run: |
+          # VS Code Extension
+          sed -i 's/"version": "[^"]*"/"version": "${{ env.VERSION }}"/' packages/vscode-extension/package.json
+
+          # Core Package
+          sed -i 's/"version": "[^"]*"/"version": "${{ env.VERSION }}"/' packages/core/package.json
+
+          # Language Server Package
+          sed -i 's/"version": "[^"]*"/"version": "${{ env.VERSION }}"/' packages/language-server/package.json
+
+          # Zed Extension
+          sed -i 's/version = "[^"]*"/version = "${{ env.VERSION }}"/' packages/zed-extension/extension.toml
+
       - name: Install dependencies
         run: bun install
 
@@ -28,18 +46,30 @@ jobs:
       - name: Build and Package Zed Extension
         run: bun run package:zed
 
+      - name: Rename Zed Artifact
+        run: mv packages/zed-extension/cognitive-complexity-ls.zip packages/zed-extension/cognitive-lens-zed-${{ github.ref_name }}.zip
+
       # VS Code Extension
       - name: Package VS Code Extension
         working-directory: packages/vscode-extension
         run: bun run package:vsix
+
+      - name: Rename VS Code Artifact
+        run: |
+          # Find the generated vsix (it contains the version number) and rename it
+          find packages/vscode-extension -name "*.vsix" -exec mv {} packages/vscode-extension/cognitive-lens-vscode-${{ github.ref_name }}.vsix \;
+
+      - name: Publish to VS Code Marketplace
+        working-directory: packages/vscode-extension
+        run: bunx vsce publish --packagePath cognitive-lens-vscode-${{ github.ref_name }}.vsix -p ${{ secrets.VSCE_PAT }}
 
       # Release - Upload Linux Artifacts
       - name: Upload Linux Artifacts to Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            packages/zed-extension/cognitive-complexity-ls.zip
-            packages/vscode-extension/*.vsix
+            packages/zed-extension/cognitive-lens-zed-${{ github.ref_name }}.zip
+            packages/vscode-extension/cognitive-lens-vscode-${{ github.ref_name }}.vsix
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -61,6 +91,23 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Extract Version from Tag
+        id: get_version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Update Versions
+        shell: bash
+        run: |
+          # Visual Studio Extension (.csproj)
+          sed -i "s/<Version>[^<]*<\/Version>/<Version>${{ env.VERSION }}<\/Version>/" packages/visual-studio-extension/CognitiveComplexity.csproj
+
+          # Core Package (needed for build)
+          sed -i 's/"version": "[^"]*"/"version": "${{ env.VERSION }}"/' packages/core/package.json
+
+          # Language Server Package (needed for build)
+          sed -i 's/"version": "[^"]*"/"version": "${{ env.VERSION }}"/' packages/language-server/package.json
+
       - name: Install dependencies
         run: bun install
 
@@ -71,12 +118,17 @@ jobs:
       - name: Build Visual Studio Extension
         run: dotnet build packages/visual-studio-extension/CognitiveComplexity.csproj -c Release
 
+      - name: Rename Visual Studio Artifact
+        shell: bash
+        run: |
+           mv packages/visual-studio-extension/bin/Release/net8.0-windows/CognitiveComplexity.vsix packages/visual-studio-extension/bin/Release/net8.0-windows/cognitive-lens-visualstudio-${{ github.ref_name }}.vsix
+
       # Release - Upload Windows Artifacts
       - name: Upload Windows Artifacts to Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            packages/visual-studio-extension/bin/Release/net8.0-windows/CognitiveComplexity.vsix
+            packages/visual-studio-extension/bin/Release/net8.0-windows/cognitive-lens-visualstudio-${{ github.ref_name }}.vsix
           draft: false
           prerelease: false
           generate_release_notes: true
