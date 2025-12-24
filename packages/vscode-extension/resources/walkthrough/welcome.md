@@ -1,7 +1,5 @@
 # Cognitive Lens
 
-![Cognitive Lens Icon](../../icon.png)
-
 **Cognitive Lens** helps you identify complex methods in your TypeScript and C# code.
 
 ### Features
@@ -20,6 +18,3 @@ Shows complexity contribution of code structures directly in the code.
 Visual traffic light indicators for complexity levels in the editor gutter.
 
 ![Gutter Icons](images/gutters.png)
-
-#### Diagnostics
-Highlights methods exceeding complexity thresholds with warnings or errors.
