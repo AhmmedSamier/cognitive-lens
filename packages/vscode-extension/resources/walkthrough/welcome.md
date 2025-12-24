@@ -1,6 +1,5 @@
-# Cognitive Lens
+# <img src="../icon.png" alt="drawing" width="26"/> Cognitive Lens
 
-![Cognitive Lens Icon](../../icon.png)
 
 **Cognitive Lens** helps you identify complex methods in your TypeScript and C# code.
 
