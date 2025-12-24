@@ -1,6 +1,6 @@
 id = "cognitive-lens"
 name = "Cognitive Lens"
-version = "1.1.0"
+version = "1.2.0"
 schema_version = 1
 authors = ["ASamir"]
 description = "Shows Cognitive Complexity for TypeScript and C# methods"

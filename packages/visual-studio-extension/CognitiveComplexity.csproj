@@ -7,7 +7,7 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <RootNamespace>CognitiveComplexity</RootNamespace>
     <AssemblyName>CognitiveComplexity</AssemblyName>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <Authors>ASamir</Authors>
     <Product>Cognitive Lens</Product>
     <Title>Cognitive Lens</Title>
