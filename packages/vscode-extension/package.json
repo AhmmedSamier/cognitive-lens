@@ -39,6 +39,34 @@
         }
       ]
     },
+    "walkthroughs": [
+      {
+        "id": "cognitiveLens.walkthrough",
+        "title": "Get Started with Cognitive Lens",
+        "description": "Learn how to use and configure Cognitive Lens.",
+        "steps": [
+          {
+            "id": "welcome",
+            "title": "Welcome",
+            "description": "Overview of features.",
+            "media": {
+              "markdown": "resources/walkthrough/welcome.md"
+            },
+            "completionEvents": [
+              "onCommand:cognitiveComplexityListView.focus"
+            ]
+          },
+          {
+            "id": "configuration",
+            "title": "Configuration",
+            "description": "Adjust thresholds and visual options.",
+            "media": {
+              "markdown": "resources/walkthrough/configuration.md"
+            }
+          }
+        ]
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Cognitive Lens",
