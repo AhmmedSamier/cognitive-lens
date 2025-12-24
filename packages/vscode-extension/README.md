@@ -4,11 +4,26 @@ This extension calculates and displays Cognitive Complexity for TypeScript, Java
 
 ## Features
 
--   **CodeLens**: Displays the total Cognitive Complexity score above each method.
--   **Inlay Hints**: Displays the complexity contribution of each line (e.g., `(+1 if)`).
--   **Diagnostics**: Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
--   **Gutter Icons**: Optional traffic light icons in the gutter to indicate complexity status.
--   **Side Panel**: A "Methods" view in the Activity Bar to list all methods and their complexity scores, with search functionality.
+### CodeLens
+Displays the total Cognitive Complexity score above each method.
+
+![CodeLens](resources/walkthrough/images/code-lens.png)
+
+### Inlay Hints
+Displays the complexity contribution of each line (e.g., `(+1 if)`).
+
+![Inlay Hints](resources/walkthrough/images/score-details-per-line.png)
+
+### Gutter Icons
+Optional traffic light icons in the gutter to indicate complexity status.
+
+![Gutter Icons](resources/walkthrough/images/gutters.png)
+
+### Diagnostics
+Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
+
+### Side Panel
+A "Methods" view in the Activity Bar to list all methods and their complexity scores, with search functionality.
 
 ## Configuration
 
