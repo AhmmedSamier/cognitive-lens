@@ -47,7 +47,7 @@ jobs:
         run: bun run package:zed
 
       - name: Rename Zed Artifact
-        run: mv packages/zed-extension/cognitive-lens-zed.zip packages/zed-extension/cognitive-lens-zed-${{ github.ref_name }}.zip
+        run: mv packages/zed-extension/cognitive-lens-ls.zip packages/zed-extension/cognitive-lens-ls-${{ github.ref_name }}.zip
 
       # VS Code Extension
       - name: Package VS Code Extension
@@ -68,7 +68,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            packages/zed-extension/cognitive-lens-zed-${{ github.ref_name }}.zip
+            packages/zed-extension/cognitive-lens-ls-${{ github.ref_name }}.zip
             packages/vscode-extension/cognitive-lens-vscode-${{ github.ref_name }}.vsix
           draft: false
           prerelease: false

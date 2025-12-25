@@ -3,7 +3,7 @@ use std::fs;
 use zed_extension_api::{self as zed, Result};
 
 const SERVER_PATH: &str = "server.js";
-const PACKAGE_NAME: &str = "cognitive-lens-zed";
+const PACKAGE_NAME: &str = "cognitive-lens-ls";
 
 struct CognitiveComplexityExtension {
 }
