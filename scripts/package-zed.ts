@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import AdmZip from 'adm-zip';
 
 const ZED_EXT_DIR = path.resolve(__dirname, '../packages/zed-extension');
-const ZIP_FILE_NAME = 'cognitive-complexity-ls.zip';
+const ZIP_FILE_NAME = 'cognitive-lens-zed.zip';
 const ZIP_OUTPUT_PATH = path.join(ZED_EXT_DIR, ZIP_FILE_NAME);
 
 // These are the files we expect to be present in ZED_EXT_DIR after 'build:zed' is run.
