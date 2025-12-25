@@ -111,21 +111,33 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                         font-size: var(--vscode-font-size);
                         color: var(--vscode-foreground);
                         background-color: var(--vscode-sideBar-background);
-                        overflow: hidden; /* Prevent body scroll, handle in list */
+                        overflow: hidden;
                         display: flex;
                         flex-direction: column;
                         height: 100vh;
                     }
 
-                    .search-container {
-                        padding: 8px 10px;
-                        background-color: var(--vscode-sideBar-background);
-                        border-bottom: 1px solid var(--vscode-panel-border);
+                    .header-container {
                         position: sticky;
                         top: 0;
                         z-index: 10;
-                        flex-shrink: 0;
+                        background-color: var(--vscode-sideBar-background);
+                        border-bottom: 1px solid var(--vscode-panel-border);
                         display: flex;
+                        flex-direction: column;
+                        flex-shrink: 0;
+                    }
+
+                    .search-container {
+                        padding: 8px 10px 4px 10px;
+                        display: flex;
+                        align-items: center;
+                    }
+
+                    .controls-container {
+                        display: flex;
+                        gap: 6px;
+                        padding: 0 10px 8px 10px;
                         align-items: center;
                     }
 
@@ -145,7 +157,6 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                         align-items: center;
                     }
 
-                    /* SVG Icon styling */
                     .search-icon svg {
                         width: 14px;
                         height: 14px;
@@ -157,7 +168,7 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                         background-color: var(--vscode-input-background);
                         color: var(--vscode-input-foreground);
                         border: 1px solid var(--vscode-input-border);
-                        padding: 4px 8px 4px 28px; /* Left padding for icon */
+                        padding: 4px 8px 4px 28px;
                         outline: none;
                         font-family: inherit;
                         font-size: inherit;
@@ -171,6 +182,47 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
 
                     input[type="text"]::placeholder {
                         color: var(--vscode-input-placeholderForeground);
+                    }
+
+                    select {
+                        background-color: var(--vscode-dropdown-background);
+                        color: var(--vscode-dropdown-foreground);
+                        border: 1px solid var(--vscode-dropdown-border);
+                        padding: 2px 4px;
+                        border-radius: 2px;
+                        flex: 1;
+                        outline: none;
+                        font-family: inherit;
+                        font-size: 0.9em;
+                        height: 24px;
+                    }
+
+                    select:focus {
+                        border-color: var(--vscode-focusBorder);
+                    }
+
+                    .sort-btn {
+                        background: var(--vscode-button-secondaryBackground);
+                        color: var(--vscode-button-secondaryForeground);
+                        border: none;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 24px;
+                        height: 24px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border-radius: 2px;
+                    }
+
+                    .sort-btn:hover {
+                        background-color: var(--vscode-button-secondaryHoverBackground);
+                    }
+
+                    .sort-btn svg {
+                        width: 16px;
+                        height: 16px;
+                        fill: currentColor;
                     }
 
                     .method-list {
@@ -196,16 +248,7 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                     .method-item.selected {
                         background-color: var(--vscode-list-activeSelectionBackground);
                         color: var(--vscode-list-activeSelectionForeground);
-                    }
-
-                    /* Flash effect for reveal */
-                    @keyframes flash {
-                        0% { background-color: var(--vscode-list-activeSelectionBackground); }
-                        100% { background-color: transparent; }
-                    }
-
-                    .method-item.flash {
-                        animation: flash 1s ease-out;
+                        border-left-color: var(--vscode-list-activeSelectionForeground);
                     }
 
                     .method-icon {
@@ -241,7 +284,6 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                     .complexity-medium { background-color: var(--vscode-editorWarning-foreground); }
                     .complexity-low { background-color: var(--vscode-testing-iconPassed); }
 
-                    /* Scrollbar styling to match VSCode */
                     ::-webkit-scrollbar {
                         width: 10px;
                         height: 10px;
@@ -258,45 +300,103 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                 </style>
             </head>
             <body>
-                <div class="search-container">
-                    <div class="search-wrapper">
-                        <div class="search-icon">
-                           <svg aria-hidden="true" focusable="false" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M15.7 14.3l-4.2-4.2c-.2-.2-.5-.3-.8-.3.8-1 1.3-2.4 1.3-3.8 0-3.3-2.7-6-6-6S0 2.7 0 6s2.7 6 6 6c1.4 0 2.8-.5 3.8-1.3 0 .3.1.6.3.8l4.2 4.2c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4zM6 10.5c-2.5 0-4.5-2-4.5-4.5s2-4.5 4.5-4.5 4.5 2 4.5 4.5-2 4.5-4.5 4.5z"/></svg>
+                <div class="header-container">
+                    <div class="search-container">
+                        <div class="search-wrapper">
+                            <div class="search-icon">
+                               <svg aria-hidden="true" focusable="false" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M15.7 14.3l-4.2-4.2c-.2-.2-.5-.3-.8-.3.8-1 1.3-2.4 1.3-3.8 0-3.3-2.7-6-6-6S0 2.7 0 6s2.7 6 6 6c1.4 0 2.8-.5 3.8-1.3 0 .3.1.6.3.8l4.2 4.2c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4zM6 10.5c-2.5 0-4.5-2-4.5-4.5s2-4.5 4.5-4.5 4.5 2 4.5 4.5-2 4.5-4.5 4.5z"/></svg>
+                            </div>
+                            <input type="text" id="search-input" placeholder="Search methods..." spellcheck="false">
                         </div>
-                        <input type="text" id="search-input" placeholder="Search methods..." spellcheck="false">
+                    </div>
+                    <div class="controls-container">
+                        <select id="sort-select" title="Sort by">
+                            <option value="line" selected>Line Number</option>
+                            <option value="name">Name</option>
+                            <option value="complexity">Complexity</option>
+                        </select>
+                        <button id="sort-direction-btn" class="sort-btn" title="Toggle Sort Direction">
+                            <svg id="sort-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 10.5L8 6l4.5 4.5H3.5z"/></svg>
+                        </button>
                     </div>
                 </div>
-                <div id="method-list" class="method-list">
-                    <!-- Items will be injected here -->
-                </div>
+                <div id="method-list" class="method-list"></div>
 
                 <script nonce="${nonce}">
                     const vscode = acquireVsCodeApi();
                     const listContainer = document.getElementById('method-list');
                     const searchInput = document.getElementById('search-input');
+                    const sortSelect = document.getElementById('sort-select');
+                    const sortDirectionBtn = document.getElementById('sort-direction-btn');
+                    const sortIcon = document.getElementById('sort-icon');
 
                     let allMethods = [];
                     let config = { threshold: { warning: 15, error: 25 } };
+                    let currentSort = 'line';
+                    let isAscending = true;
+                    let selectedMethodStartIndex = null;
 
-                    // Render the list based on current methods and filter
+                    function updateSortIcon() {
+                        if (isAscending) {
+                             // Up arrow
+                             sortIcon.innerHTML = '<path d="M3.5 10.5L8 6l4.5 4.5H3.5z"/>';
+                        } else {
+                             // Down arrow
+                             sortIcon.innerHTML = '<path d="M3.5 5.5L8 10l4.5-4.5H3.5z"/>';
+                        }
+                    }
+
+                    function sortData() {
+                         allMethods.sort((a, b) => {
+                            let valA, valB;
+                            switch (currentSort) {
+                                case 'name':
+                                    valA = a.name.toLowerCase();
+                                    valB = b.name.toLowerCase();
+                                    break;
+                                case 'complexity':
+                                    valA = a.score;
+                                    valB = b.score;
+                                    break;
+                                case 'line':
+                                default:
+                                    valA = a.startLine;
+                                    valB = b.startLine;
+                                    break;
+                            }
+
+                            if (valA < valB) return isAscending ? -1 : 1;
+                            if (valA > valB) return isAscending ? 1 : -1;
+                            return 0;
+                        });
+                    }
+
                     function render(filter = '') {
                         listContainer.innerHTML = '';
                         const lowerFilter = filter.toLowerCase();
 
+                        // Sort before rendering
+                        sortData();
+
                         allMethods.forEach(method => {
-                            if (method.isCallback) return; // Skip callbacks as per requirement
+                            if (method.isCallback) return;
                             if (filter && !method.name.toLowerCase().includes(lowerFilter)) {
                                 return;
                             }
 
                             const el = document.createElement('div');
                             el.className = 'method-item';
-                            el.id = 'method-' + method.startIndex; // ID for scrolling
+                            if (method.startIndex === selectedMethodStartIndex) {
+                                el.classList.add('selected');
+                            }
+                            el.id = 'method-' + method.startIndex;
+
                             el.onclick = () => {
+                                selectedMethodStartIndex = method.startIndex;
+                                render(searchInput.value); // Re-render to update selection visual
                                 vscode.postMessage({ type: 'jump', value: method });
                             };
 
-                            // Determine color class based on config
                             let colorClass = 'complexity-low';
                             if (method.score >= config.threshold.error) colorClass = 'complexity-high';
                             else if (method.score >= config.threshold.warning) colorClass = 'complexity-medium';
@@ -325,7 +425,6 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                         });
                     }
 
-                    // Handle incoming messages
                     window.addEventListener('message', event => {
                         const message = event.data;
                         switch (message.type) {
@@ -338,24 +437,32 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                                 break;
                             case 'reveal':
                                 const methodToReveal = message.body;
+                                selectedMethodStartIndex = methodToReveal.startIndex;
+                                render(searchInput.value);
                                 const el = document.getElementById('method-' + methodToReveal.startIndex);
                                 if (el) {
                                     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    el.classList.add('flash');
-                                    setTimeout(() => el.classList.remove('flash'), 1000);
                                 }
                                 break;
                         }
                     });
 
-                    // Search filtering
                     searchInput.addEventListener('input', (e) => {
                         render(e.target.value);
                     });
 
-                    // Signal readiness
-                    vscode.postMessage({ type: 'ready' });
+                    sortSelect.addEventListener('change', (e) => {
+                        currentSort = e.target.value;
+                        render(searchInput.value);
+                    });
 
+                    sortDirectionBtn.addEventListener('click', () => {
+                        isAscending = !isAscending;
+                        updateSortIcon();
+                        render(searchInput.value);
+                    });
+
+                    vscode.postMessage({ type: 'ready' });
                 </script>
             </body>
             </html>`;
