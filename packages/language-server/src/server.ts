@@ -402,5 +402,51 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
     }
 });
 
+// Handler for ad-hoc analysis (e.g., for Git HEAD comparison)
+connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: string, languageId: string }): Promise<MethodComplexity[]> => {
+    if (!parserInitialized) {
+        if (initPromise) {
+            try { await initPromise; } catch(e) { return []; }
+        } else {
+             await initParser();
+             try { await initPromise; } catch(e) { return []; }
+        }
+    }
+
+    if (!parserInitialized) return [];
+
+    let parser: Parser | undefined;
+    const languageId = params.languageId.toLowerCase();
+
+    if (languageId === 'csharp') {
+        parser = csharpParser;
+    } else if (['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(languageId)) {
+        parser = typescriptParser;
+    }
+
+    if (!parser) return [];
+
+    let tree: any;
+    try {
+        tree = parser.parse(params.text);
+        let complexities: MethodComplexity[] = [];
+
+        if (languageId === 'csharp') {
+            complexities = await calculateComplexity(tree, 'csharp');
+        } else {
+            complexities = await calculateComplexity(tree, 'typescript');
+        }
+
+        return complexities;
+    } catch (e) {
+        connection.console.error(`Error in analyzeText: ${e}`);
+        return [];
+    } finally {
+        if (tree) {
+            tree.delete();
+        }
+    }
+});
+
 documents.listen(connection);
 connection.listen();
