@@ -3,7 +3,7 @@ use std::fs;
 use zed_extension_api::{self as zed, Result};
 
 const SERVER_PATH: &str = "server.js";
-const PACKAGE_NAME: &str = "cognitive-complexity-ls";
+const PACKAGE_NAME: &str = "cognitive-lens-ls";
 
 struct CognitiveComplexityExtension {
 }
@@ -53,7 +53,7 @@ impl zed::Extension for CognitiveComplexityExtension {
             },
         )?;
 
-        let asset_name = format!("{}.zip", PACKAGE_NAME);
+        let asset_name = format!("{}-{}.zip", PACKAGE_NAME, release.version);
         let asset = release
             .assets
             .iter()
