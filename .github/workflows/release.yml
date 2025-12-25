@@ -63,6 +63,10 @@ jobs:
         working-directory: packages/vscode-extension
         run: bunx vsce publish --packagePath cognitive-lens-vscode-${{ github.ref_name }}.vsix -p ${{ secrets.VSCE_PAT }}
 
+      - name: Publish to Open VSX Registry
+        working-directory: packages/vscode-extension
+        run: bunx ovsx publish cognitive-lens-vscode-${{ github.ref_name }}.vsix -p ${{ secrets.OVSX_PAT }}
+
       # Release - Upload Linux Artifacts
       - name: Upload Linux Artifacts to Release
         uses: softprops/action-gh-release@v1
