@@ -8,8 +8,10 @@ import {
 } from 'vscode-languageclient/node';
 import { MethodComplexity } from './types';
 import { ComplexityWebviewProvider } from './ComplexityWebviewProvider';
+import { GitService } from './gitService';
 
 let client: LanguageClient;
+const gitService = new GitService();
 
 // SVGs for gutter icons
 const greenIcon = Uri.parse('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjQiIGZpbGw9ImdyZWVuIiAvPjwvc3ZnPg==');
@@ -22,6 +24,9 @@ let redDecorationType: TextEditorDecorationType | undefined;
 
 // Cache complexities to restore decorations on tab switch
 const complexityCache = new Map<string, MethodComplexity[]>();
+// Cache base complexities (from Git HEAD) to avoid repeated calculations
+const baseComplexityCache = new Map<string, MethodComplexity[]>();
+
 let webviewProvider: ComplexityWebviewProvider;
 
 export function activate(context: ExtensionContext) {
@@ -83,7 +88,7 @@ export function activate(context: ExtensionContext) {
   }));
 
   client.start().then(() => {
-    client.onNotification('cognitive-complexity/fileAnalyzed', (params: { uri: string, complexities: MethodComplexity[] }) => {
+    client.onNotification('cognitive-complexity/fileAnalyzed', async (params: { uri: string, complexities: MethodComplexity[] }) => {
         // Update cache
         complexityCache.set(params.uri, params.complexities);
         // Update visible editors
@@ -93,6 +98,23 @@ export function activate(context: ExtensionContext) {
         const activeEditor = window.activeTextEditor;
         if (activeEditor && activeEditor.document.uri.toString() === params.uri) {
             const config = getWebviewConfig(activeEditor.document.uri);
+
+            // Calculate delta
+            const baseComplexities = baseComplexityCache.get(params.uri);
+            if (baseComplexities) {
+                 params.complexities.forEach(current => {
+                    const base = baseComplexities.find(b => b.name === current.name);
+                    if (base) {
+                        current.complexityDelta = current.score - base.score;
+                    }
+                });
+            } else {
+                // Trigger background fetch if not in cache (optional, or rely on tab switch/open)
+                // For MVP, we can trigger it here if missing, but just ONCE per session is handled by the initial check logic or lazy loading.
+                // To keep it simple and performant: We won't block here. We'll trigger an update.
+                updateBaseComplexity(activeEditor);
+            }
+
             webviewProvider.update(params.complexities, config);
         }
     });
@@ -103,9 +125,25 @@ export function activate(context: ExtensionContext) {
       if (editor) {
           const uri = editor.document.uri.toString();
           const cached = complexityCache.get(uri);
+
+          // Trigger base complexity fetch
+          updateBaseComplexity(editor);
+
           if (cached) {
               updateEditorDecorations(editor, cached);
               const config = getWebviewConfig(editor.document.uri);
+
+              // Apply delta if available
+              const baseComplexities = baseComplexityCache.get(uri);
+              if (baseComplexities) {
+                  cached.forEach(current => {
+                      const base = baseComplexities.find(b => b.name === current.name);
+                      if (base) {
+                          current.complexityDelta = current.score - base.score;
+                      }
+                  });
+              }
+
               webviewProvider.update(cached, config);
           } else {
                const config = getWebviewConfig(editor.document.uri);
@@ -203,6 +241,47 @@ function updateDecorations(uri: string, complexities: MethodComplexity[]) {
     const editors = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri);
     for (const editor of editors) {
         updateEditorDecorations(editor, complexities);
+    }
+}
+
+async function updateBaseComplexity(editor: TextEditor) {
+    const uri = editor.document.uri.toString();
+    if (baseComplexityCache.has(uri)) return;
+
+    try {
+        const fsPath = editor.document.uri.fsPath;
+        const baseContent = await gitService.getGitHeadContent(fsPath);
+
+        if (baseContent) {
+            const baseComplexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeText', {
+                text: baseContent,
+                languageId: editor.document.languageId
+            });
+            baseComplexityCache.set(uri, baseComplexities);
+
+            // If the editor is still active, refresh the view
+             if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri) {
+                const cached = complexityCache.get(uri);
+                if (cached) {
+                    const config = getWebviewConfig(editor.document.uri);
+                    cached.forEach(current => {
+                        const base = baseComplexities.find(b => b.name === current.name);
+                        if (base) {
+                            current.complexityDelta = current.score - base.score;
+                        }
+                    });
+                    webviewProvider.update(cached, config);
+                }
+             }
+        } else {
+            // Mark as empty to avoid retrying endlessly? Or just leave it.
+            // For now, if null, we won't cache anything, so it might retry on next focus.
+            // Better to cache empty list or a specific marker to indicate "no base version".
+            baseComplexityCache.set(uri, []);
+        }
+    } catch (e) {
+        console.error('Failed to update base complexity', e);
+        baseComplexityCache.set(uri, []); // Prevent endless retries
     }
 }
 

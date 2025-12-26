@@ -6,4 +6,5 @@ export interface MethodComplexity {
   startLine: number;
   endLine: number;
   isCallback?: boolean;
+  complexityDelta?: number;
 }

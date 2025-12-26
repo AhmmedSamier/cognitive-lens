@@ -313,7 +313,15 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
 
                             const details = document.createElement('div');
                             details.className = 'method-details';
-                            details.textContent = \`Score: \${method.score} (Line: \${method.startLine + 1}) (\${method.endLine - method.startLine + 1} lines)\`;
+
+                            let deltaHtml = '';
+                            if (method.complexityDelta !== undefined && method.complexityDelta !== 0) {
+                                const sign = method.complexityDelta > 0 ? '+' : '';
+                                const deltaColor = method.complexityDelta > 0 ? 'var(--vscode-errorForeground)' : 'var(--vscode-testing-iconPassed)';
+                                deltaHtml = \` <span style="color: \${deltaColor}; font-weight: bold;">(\${sign}\${method.complexityDelta})</span>\`;
+                            }
+
+                            details.innerHTML = \`Score: \${method.score} \${deltaHtml} (Line: \${method.startLine + 1}) (\${method.endLine - method.startLine + 1} lines)\`;
 
                             info.appendChild(name);
                             info.appendChild(details);
