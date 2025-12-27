@@ -150,6 +150,16 @@ export function activate(context: ExtensionContext) {
                const config = getWebviewConfig(editor.document.uri);
               webviewProvider.update([], config);
           }
+      } else {
+          // No active editor, clear the view
+          // We can use a default config here since we have no resource to check against
+          const defaultConfig = {
+              threshold: {
+                  warning: 15,
+                  error: 25
+              }
+          };
+          webviewProvider.update([], defaultConfig);
       }
   }, null, context.subscriptions);
 
