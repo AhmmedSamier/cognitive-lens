@@ -6,6 +6,7 @@ import {
   ServerOptions,
   TransportKind
 } from 'vscode-languageclient/node';
+import { TextDecoder } from 'util';
 import { MethodComplexity } from './types';
 import { ComplexityWebviewProvider } from './ComplexityWebviewProvider';
 import { GitService } from './gitService';
@@ -152,6 +153,13 @@ export function activate(context: ExtensionContext) {
       }
   }, null, context.subscriptions);
 
+  // Handle file close to clear cache
+  workspace.onDidCloseTextDocument(doc => {
+      const uri = doc.uri.toString();
+      complexityCache.delete(uri);
+      baseComplexityCache.delete(uri);
+  }, null, context.subscriptions);
+
   // Handle cursor movement to reveal in tree view
   window.onDidChangeTextEditorSelection(event => {
       if (event.textEditor && webviewProvider.isVisible) { // Only reveal if webview is visible
@@ -250,9 +258,24 @@ async function updateBaseComplexity(editor: TextEditor) {
 
     try {
         const fsPath = editor.document.uri.fsPath;
-        const baseContent = await gitService.getGitHeadContent(fsPath);
+        const baseContentBuffer = await gitService.getGitHeadContent(fsPath);
 
-        if (baseContent) {
+        if (baseContentBuffer) {
+            // Get encoding from settings or default to utf8
+            const config = workspace.getConfiguration('files', editor.document.uri);
+            const encoding = config.get<string>('encoding', 'utf8');
+
+            let baseContent = '';
+            try {
+                // Map common VS Code encoding names to Node.js/TextDecoder supported ones if necessary
+                // TextDecoder supports utf-8, utf-16le, etc.
+                const decoder = new TextDecoder(encoding);
+                baseContent = decoder.decode(baseContentBuffer);
+            } catch (e) {
+                // Fallback to utf-8
+                baseContent = baseContentBuffer.toString('utf8');
+            }
+
             const baseComplexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeText', {
                 text: baseContent,
                 languageId: editor.document.languageId
@@ -336,6 +359,7 @@ export function deactivate(): Thenable<void> | undefined {
   if (redDecorationType) redDecorationType.dispose();
 
   complexityCache.clear();
+  baseComplexityCache.clear();
 
   if (!client) {
     return undefined;
