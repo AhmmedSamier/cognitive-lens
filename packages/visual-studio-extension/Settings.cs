@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.Extensibility.Settings;
 
 namespace CognitiveComplexity
 {
+#pragma warning disable VSEXTPREVIEW_SETTINGS
     [VisualStudioContribution]
     public static class CognitiveComplexitySettings
     {
