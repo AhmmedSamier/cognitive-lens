@@ -37,6 +37,63 @@ export const defaultSettings: CognitiveComplexitySettings = {
     totalScorePrefix: 'Cognitive Complexity'
 };
 
+export function normalizeSettings(input: any): CognitiveComplexitySettings {
+    if (!input) return defaultSettings;
+
+    // Start with a deep copy of defaults to ensure we don't mutate them
+    // and that we have all required fields.
+    const settings: CognitiveComplexitySettings = JSON.parse(JSON.stringify(defaultSettings));
+
+    // First, if input has top-level keys that match our interface, copy them.
+    // This handles the VS Code case where we get a nested object.
+    if (typeof input === 'object') {
+        if (input.threshold) {
+            if (typeof input.threshold.warning === 'number') settings.threshold.warning = input.threshold.warning;
+            if (typeof input.threshold.error === 'number') settings.threshold.error = input.threshold.error;
+        }
+        if (typeof input.showCodeLens === 'boolean') settings.showCodeLens = input.showCodeLens;
+        if (typeof input.showDiagnostics === 'boolean') settings.showDiagnostics = input.showDiagnostics;
+        if (input.showInlayHints) {
+            if (typeof input.showInlayHints.methodScore === 'boolean') settings.showInlayHints.methodScore = input.showInlayHints.methodScore;
+            if (typeof input.showInlayHints.details === 'boolean') settings.showInlayHints.details = input.showInlayHints.details;
+        }
+        if (typeof input.totalScorePrefix === 'string') settings.totalScorePrefix = input.totalScorePrefix;
+
+        // Second, scan for flat dot-notation keys.
+        // This handles the Visual Studio case or flat JSON configs.
+        // We look for keys starting with 'cognitiveComplexity.' or just matching our structure.
+        // The LSP section passed might be just the object under 'cognitiveComplexity',
+        // so we check for keys like 'threshold.warning'.
+        Object.keys(input).forEach(key => {
+            // Remove 'cognitiveComplexity.' prefix if present (though usually the section requested has stripped it)
+            const cleanKey = key.replace(/^cognitiveComplexity\./, '');
+
+            // Allow-list of known flat keys to map
+            if (cleanKey === 'threshold.warning') settings.threshold.warning = Number(input[key]);
+            if (cleanKey === 'threshold.error') settings.threshold.error = Number(input[key]);
+            if (cleanKey === 'showCodeLens') {
+                if (typeof input[key] === 'string') settings.showCodeLens = input[key] === 'true';
+                else settings.showCodeLens = Boolean(input[key]);
+            }
+            if (cleanKey === 'showDiagnostics') {
+                if (typeof input[key] === 'string') settings.showDiagnostics = input[key] === 'true';
+                else settings.showDiagnostics = Boolean(input[key]);
+            }
+            if (cleanKey === 'showInlayHints.methodScore') {
+                if (typeof input[key] === 'string') settings.showInlayHints.methodScore = input[key] === 'true';
+                else settings.showInlayHints.methodScore = Boolean(input[key]);
+            }
+            if (cleanKey === 'showInlayHints.details') {
+                 if (typeof input[key] === 'string') settings.showInlayHints.details = input[key] === 'true';
+                else settings.showInlayHints.details = Boolean(input[key]);
+            }
+            if (cleanKey === 'totalScorePrefix') settings.totalScorePrefix = String(input[key]);
+        });
+    }
+
+    return settings;
+}
+
 export function computeDiagnostics(
     document: TextDocument,
     complexities: MethodComplexity[],
