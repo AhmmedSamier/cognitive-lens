@@ -10,7 +10,9 @@ const VS_RESOURCES_DIR = path.join(VS_EXT_DIR, 'Resources');
 const filesToCopy = [
     'server.js',
     'tree-sitter.wasm',
-    'tree-sitter-c_sharp.wasm'
+    'tree-sitter-c_sharp.wasm',
+    'tree-sitter-typescript.wasm',
+    'tree-sitter-tsx.wasm'
 ];
 
 console.log('Building Visual Studio extension artifacts...');
