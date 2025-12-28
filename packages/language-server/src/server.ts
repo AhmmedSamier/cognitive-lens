@@ -25,6 +25,7 @@ import { calculateComplexity, MethodComplexity } from '@cognitive-complexity/cor
 import { Parser, Language } from 'web-tree-sitter';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 import {
     CognitiveComplexitySettings,
     defaultSettings,
@@ -410,8 +411,7 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
     }
 });
 
-// Handler for ad-hoc analysis (e.g., for Git HEAD comparison)
-connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: string, languageId: string }): Promise<MethodComplexity[]> => {
+async function analyzeContent(text: string, languageId: string): Promise<MethodComplexity[]> {
     if (!parserInitialized) {
         if (initPromise) {
             try { await initPromise; } catch(e) { return []; }
@@ -424,11 +424,11 @@ connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: 
     if (!parserInitialized) return [];
 
     let parser: Parser | undefined;
-    const languageId = params.languageId.toLowerCase();
+    const normalizedLangId = languageId.toLowerCase();
 
-    if (languageId === 'csharp') {
+    if (normalizedLangId === 'csharp') {
         parser = csharpParser;
-    } else if (['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(languageId)) {
+    } else if (['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(normalizedLangId)) {
         parser = typescriptParser;
     }
 
@@ -436,10 +436,10 @@ connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: 
 
     let tree: any;
     try {
-        tree = parser.parse(params.text);
+        tree = parser.parse(text);
         let complexities: MethodComplexity[] = [];
 
-        if (languageId === 'csharp') {
+        if (normalizedLangId === 'csharp') {
             complexities = await calculateComplexity(tree, 'csharp');
         } else {
             complexities = await calculateComplexity(tree, 'typescript');
@@ -447,12 +447,44 @@ connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: 
 
         return complexities;
     } catch (e) {
-        connection.console.error(`Error in analyzeText: ${e}`);
+        connection.console.error(`Error in analyzeContent: ${e}`);
         return [];
     } finally {
         if (tree) {
             tree.delete();
         }
+    }
+}
+
+// Handler for ad-hoc analysis (e.g., for Git HEAD comparison)
+connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: string, languageId: string }): Promise<MethodComplexity[]> => {
+    return analyzeContent(params.text, params.languageId);
+});
+
+// Handler for file-based analysis (e.g., project report)
+connection.onRequest('cognitive-complexity/analyzeFile', async (params: { uri: string, languageId: string }): Promise<MethodComplexity[]> => {
+    try {
+        // Check if document is already open/managed
+        const document = documents.get(params.uri);
+        if (document) {
+            return analyzeContent(document.getText(), params.languageId);
+        }
+
+        // If not managed, read from disk
+        // Note: This assumes file scheme.
+        if (params.uri.startsWith('file://')) {
+            const fsPath = fileURLToPath(params.uri);
+            if (fs.existsSync(fsPath)) {
+                const text = fs.readFileSync(fsPath, 'utf-8');
+                return analyzeContent(text, params.languageId);
+            }
+        }
+
+        connection.console.warn(`Could not resolve content for analyzeFile: ${params.uri}`);
+        return [];
+    } catch (e) {
+        connection.console.error(`Error in analyzeFile: ${e}`);
+        return [];
     }
 });
 

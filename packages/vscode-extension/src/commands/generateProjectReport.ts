@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { TextDecoder } from 'util';
 import { LanguageClient } from 'vscode-languageclient/node';
 import { ProjectAnalysisResult, generateHtmlReport } from '@cognitive-complexity/core';
 import { MethodComplexity } from '../types';
@@ -24,8 +23,6 @@ export async function generateProjectReport(client: LanguageClient) {
         totalScore: 0
     };
 
-    const decoder = new TextDecoder('utf-8');
-
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Generating Cognitive Complexity Report",
@@ -40,10 +37,6 @@ export async function generateProjectReport(client: LanguageClient) {
             progress.report({ message: `Analyzing ${path.basename(file.fsPath)}...`, increment: (1 / total) * 100 });
 
             try {
-                // Read file content using fs to avoid loading full TextDocument
-                const content = await vscode.workspace.fs.readFile(file);
-                const text = decoder.decode(content);
-
                 // Determine language ID based on extension
                 let languageId = 'typescript'; // Default fallback
                 const ext = path.extname(file.fsPath).toLowerCase();
@@ -52,9 +45,9 @@ export async function generateProjectReport(client: LanguageClient) {
                 else if (ext === '.jsx') languageId = 'javascriptreact';
                 else if (ext === '.tsx') languageId = 'typescriptreact';
 
-                // Use the Language Server to analyze the text
-                const complexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeText', {
-                    text: text,
+                // Send URI to language server to handle file reading and analysis
+                const complexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeFile', {
+                    uri: file.toString(),
                     languageId: languageId
                 });
 
