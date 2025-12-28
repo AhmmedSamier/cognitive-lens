@@ -193,6 +193,14 @@ connection.onDidCloseTextDocument((params: DidCloseTextDocumentParams) => {
     }
     complexityCache.delete(params.textDocument.uri);
     complexityPromises.delete(params.textDocument.uri);
+    settingsCache.delete(params.textDocument.uri);
+
+    // Clear any pending validation to avoid resurrection
+    const timer = validationTimers.get(params.textDocument.uri);
+    if (timer) {
+        clearTimeout(timer);
+        validationTimers.delete(params.textDocument.uri);
+    }
 });
 
 function validateTextDocumentDebounced(textDocument: TextDocument) {

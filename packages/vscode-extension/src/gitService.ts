@@ -9,7 +9,7 @@ export class GitService {
      * Retrieves the content of the file at HEAD for the given file path.
      * Returns null if the file is not tracked or git fails.
      */
-    public async getGitHeadContent(filePath: string): Promise<string | null> {
+    public async getGitHeadContent(filePath: string): Promise<Buffer | null> {
         if (!fs.existsSync(filePath)) return null;
 
         const fileDir = path.dirname(filePath);
@@ -22,8 +22,9 @@ export class GitService {
             const relativePath = path.relative(repoRoot, filePath).replace(/\\/g, '/');
 
             // Check if file is tracked
-            const isTracked = await this.execGit(['ls-files', '--error-unmatch', relativePath], repoRoot);
-            if (!isTracked) return null;
+            // ls-files output is ASCII/UTF-8 usually, so we can check it
+            const isTrackedBuffer = await this.execGit(['ls-files', '--error-unmatch', relativePath], repoRoot);
+            if (!isTrackedBuffer) return null;
 
             // Fetch content from HEAD
             // Note: 'git show HEAD:path/to/file' works from the repo root
@@ -39,10 +40,13 @@ export class GitService {
         if (this.repoRoots.has(dir)) return this.repoRoots.get(dir)!;
 
         try {
-            const root = (await this.execGit(['rev-parse', '--show-toplevel'], dir))?.trim();
-            if (root) {
-                this.repoRoots.set(dir, root);
-                return root;
+            const rootBuffer = await this.execGit(['rev-parse', '--show-toplevel'], dir);
+            if (rootBuffer) {
+                const root = rootBuffer.toString().trim();
+                if (root) {
+                    this.repoRoots.set(dir, root);
+                    return root;
+                }
             }
         } catch (e) {
             // Not a git repo
@@ -50,16 +54,16 @@ export class GitService {
         return null;
     }
 
-    private execGit(args: string[], cwd: string): Promise<string | null> {
+    private execGit(args: string[], cwd: string): Promise<Buffer | null> {
         return new Promise((resolve, reject) => {
             // Use spawn for safety against shell injection
             const child = cp.spawn('git', args, { cwd });
 
-            let stdout = '';
+            const chunks: Buffer[] = [];
             let stderr = '';
 
             child.stdout.on('data', (data) => {
-                stdout += data.toString();
+                chunks.push(Buffer.from(data));
             });
 
             child.stderr.on('data', (data) => {
@@ -68,7 +72,7 @@ export class GitService {
 
             child.on('close', (code) => {
                 if (code === 0) {
-                    resolve(stdout);
+                    resolve(Buffer.concat(chunks));
                 } else {
                     // git ls-files returns 1 if not found, which is expected
                     // reject(new Error(stderr));
