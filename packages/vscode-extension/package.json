@@ -30,6 +30,13 @@
         }
       ]
     },
+    "commands": [
+      {
+        "command": "cognitive-complexity.generateReport",
+        "title": "Generate Project Report",
+        "category": "Cognitive Complexity"
+      }
+    ],
     "views": {
       "cognitiveComplexity": [
         {
