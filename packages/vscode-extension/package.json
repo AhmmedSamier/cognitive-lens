@@ -34,9 +34,19 @@
       {
         "command": "cognitive-complexity.generateReport",
         "title": "Generate Project Report",
-        "category": "Cognitive Complexity"
+        "category": "Cognitive Complexity",
+        "icon": "$(graph)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "cognitive-complexity.generateReport",
+          "when": "view == cognitiveComplexityListView",
+          "group": "navigation"
+        }
+      ]
+    },
     "views": {
       "cognitiveComplexity": [
         {
