@@ -42,22 +42,27 @@ export class GitService {
     public async filterIgnored(filePaths: string[]): Promise<string[]> {
         if (filePaths.length === 0) return [];
 
-        // Group files by their repo root
-        const filesByRoot = new Map<string, string[]>();
         const validFiles: string[] = [];
         const filesNotInGit: string[] = [];
+        const filesByRoot = new Map<string, string[]>();
 
-        // Optimization: Cache directory -> root lookups locally for this batch
-        const dirRoots = new Map<string, string | null>();
+        // Optimization: Find the common repo root(s) first
+        // Most projects have one root. We can check the first file and then assume others are in it.
+        // If not, we fall back to checking.
+
+        let lastDir = "";
+        let lastRoot: string | null = null;
 
         for (const filePath of filePaths) {
             const dir = path.dirname(filePath);
             let root: string | null = null;
-            if (dirRoots.has(dir)) {
-                root = dirRoots.get(dir)!;
+
+            if (dir === lastDir) {
+                root = lastRoot;
             } else {
                 root = await this.getRepoRoot(dir);
-                dirRoots.set(dir, root);
+                lastDir = dir;
+                lastRoot = root;
             }
 
             if (root) {
@@ -68,26 +73,19 @@ export class GitService {
                 }
                 list.push(filePath);
             } else {
-                // Not in a git repo, so not ignored by git
                 filesNotInGit.push(filePath);
             }
         }
 
-        // Add files not in git directly to result
         validFiles.push(...filesNotInGit);
 
-        // Check ignored status for each repo
         for (const [root, files] of filesByRoot) {
-            // Normalize to forward slashes for git
-            const relativePaths = files.map(f => path.relative(root, f).replace(/\\/g, '/'));
-
-            // Use -z for null-terminated input/output to handle spaces/special chars safely
+            const relativePaths = files.map(f => path.relative(root, f).split(path.sep).join('/'));
             const input = relativePaths.join('\0');
 
             const ignoredSet = new Set<string>();
             try {
-                // git check-ignore -z --stdin
-                // Outputs paths that ARE ignored, null-terminated
+                // git check-ignore returns 0 if any paths are ignored, 1 if none are.
                 const outputBuffer = await this.execGit(['check-ignore', '-z', '--stdin'], root, input);
 
                 if (outputBuffer) {
@@ -99,7 +97,6 @@ export class GitService {
                             start = i + 1;
                         }
                     }
-                    // Handle potential last segment if no trailing \0 (though git -z usually adds it)
                     if (start < outputBuffer.length) {
                         const pathStr = outputBuffer.subarray(start).toString('utf8');
                         ignoredSet.add(pathStr);
@@ -107,14 +104,10 @@ export class GitService {
                 }
             } catch (e) {
                 console.error("Git check-ignore failed", e);
-                // If failed, assume not ignored? Or fail safe?
-                // Usually failure here means git error, so maybe we shouldn't filter.
             }
 
-            // If a file is NOT in the ignored set, it is valid
             for (let i = 0; i < files.length; i++) {
-                const rel = relativePaths[i];
-                if (!ignoredSet.has(rel)) {
+                if (!ignoredSet.has(relativePaths[i])) {
                     validFiles.push(files[i]);
                 }
             }
@@ -124,15 +117,25 @@ export class GitService {
     }
 
     private async getRepoRoot(dir: string): Promise<string | null> {
-        // Cache repo roots to avoid repeated calls
-        if (this.repoRoots.has(dir)) return this.repoRoots.get(dir)!;
+        // Normalize dir for caching
+        const normalizedDir = path.normalize(dir).toLowerCase();
+
+        // Check cache first
+        if (this.repoRoots.has(normalizedDir)) return this.repoRoots.get(normalizedDir)!;
+
+        // Special case: check if any parent directory is already known to be a repo root
+        for (const [cachedDir, root] of this.repoRoots.entries()) {
+            if (normalizedDir.startsWith(cachedDir + path.sep) || normalizedDir === cachedDir) {
+                return root;
+            }
+        }
 
         try {
             const rootBuffer = await this.execGit(['rev-parse', '--show-toplevel'], dir);
             if (rootBuffer) {
-                const root = rootBuffer.toString().trim();
+                const root = path.normalize(rootBuffer.toString().trim());
                 if (root) {
-                    this.repoRoots.set(dir, root);
+                    this.repoRoots.set(root.toLowerCase(), root);
                     return root;
                 }
             }

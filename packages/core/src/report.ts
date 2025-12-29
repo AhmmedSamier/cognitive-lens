@@ -62,7 +62,7 @@ function buildFileTree(files: FileAnalysisResult[]): TreeNode {
             type: 'file',
             score: file.totalScore,
             children: new Map(),
-            methods: file.methods
+            methods: file.methods.filter(m => !m.isCallback)
         });
     }
 

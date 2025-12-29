@@ -1,10 +1,10 @@
 import * as path from 'path';
 import { workspace, ExtensionContext, window, Range, Uri, TextEditorDecorationType, DecorationRangeBehavior, TextEditor, commands, Selection } from 'vscode';
 import {
-  LanguageClient,
-  LanguageClientOptions,
-  ServerOptions,
-  TransportKind
+    LanguageClient,
+    LanguageClientOptions,
+    ServerOptions,
+    TransportKind
 } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
 import { MethodComplexity } from './types';
@@ -32,196 +32,196 @@ const baseComplexityCache = new Map<string, MethodComplexity[]>();
 let webviewProvider: ComplexityWebviewProvider;
 
 export function activate(context: ExtensionContext) {
-  const serverModule = context.asAbsolutePath(
-    path.join('dist', 'server.js')
-  );
+    const serverModule = context.asAbsolutePath(
+        path.join('dist', 'server.js')
+    );
 
-  const debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
+    const debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
 
-  const serverOptions: ServerOptions = {
-    run: { module: serverModule, transport: TransportKind.ipc },
-    debug: {
-      module: serverModule,
-      transport: TransportKind.ipc,
-      options: debugOptions
-    }
-  };
-
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [
-        { scheme: 'file', language: 'typescript' },
-        { scheme: 'file', language: 'typescriptreact' },
-        { scheme: 'file', language: 'javascript' },
-        { scheme: 'file', language: 'javascriptreact' },
-        { scheme: 'file', language: 'csharp' }
-    ],
-    synchronize: {
-      fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-    }
-  };
-
-  client = new LanguageClient(
-    'cognitiveComplexity',
-    'Cognitive Complexity',
-    serverOptions,
-    clientOptions
-  );
-
-  // Initialize decoration types
-  createDecorations();
-
-  // Initialize Webview Provider
-  webviewProvider = new ComplexityWebviewProvider(context.extensionUri);
-  context.subscriptions.push(
-      window.registerWebviewViewProvider('cognitiveComplexityListView', webviewProvider)
-  );
-
-  // Register command for report generation
-  context.subscriptions.push(commands.registerCommand('cognitive-complexity.generateReport', async () => {
-      if (client) {
-          await generateProjectReport(client);
-      } else {
-          window.showErrorMessage('Cognitive Complexity Language Server is not ready.');
-      }
-  }));
-
-  // Register command for navigation (kept as it might be used by other parts, or legacy usage)
-  context.subscriptions.push(commands.registerCommand('cognitive-complexity.navigateToMethod', (method: MethodComplexity) => {
-    const editor = window.activeTextEditor;
-    if (editor) {
-        const start = editor.document.positionAt(method.startIndex);
-        const end = editor.document.positionAt(method.endIndex);
-        const range = new Range(start, end);
-
-        editor.selection = new Selection(start, start);
-        editor.revealRange(range, 1); // TextEditorRevealType.InCenter = 1
-    }
-  }));
-
-  client.start().then(() => {
-    client.onNotification('cognitive-complexity/fileAnalyzed', async (params: { uri: string, complexities: MethodComplexity[] }) => {
-        // Update cache
-        complexityCache.set(params.uri, params.complexities);
-        // Update visible editors
-        updateDecorations(params.uri, params.complexities);
-
-        // Update webview if it's showing the active editor
-        const activeEditor = window.activeTextEditor;
-        if (activeEditor && activeEditor.document.uri.toString() === params.uri) {
-            const config = getWebviewConfig(activeEditor.document.uri);
-
-            // Calculate delta
-            const baseComplexities = baseComplexityCache.get(params.uri);
-            if (baseComplexities) {
-                 params.complexities.forEach(current => {
-                    const base = baseComplexities.find(b => b.name === current.name);
-                    if (base) {
-                        current.complexityDelta = current.score - base.score;
-                    }
-                });
-            } else {
-                // Trigger background fetch if not in cache (optional, or rely on tab switch/open)
-                // For MVP, we can trigger it here if missing, but just ONCE per session is handled by the initial check logic or lazy loading.
-                // To keep it simple and performant: We won't block here. We'll trigger an update.
-                updateBaseComplexity(activeEditor);
-            }
-
-            webviewProvider.update(params.complexities, config);
+    const serverOptions: ServerOptions = {
+        run: { module: serverModule, transport: TransportKind.ipc },
+        debug: {
+            module: serverModule,
+            transport: TransportKind.ipc,
+            options: debugOptions
         }
+    };
+
+    const clientOptions: LanguageClientOptions = {
+        documentSelector: [
+            { scheme: 'file', language: 'typescript' },
+            { scheme: 'file', language: 'typescriptreact' },
+            { scheme: 'file', language: 'javascript' },
+            { scheme: 'file', language: 'javascriptreact' },
+            { scheme: 'file', language: 'csharp' }
+        ],
+        synchronize: {
+            fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
+        }
+    };
+
+    client = new LanguageClient(
+        'cognitiveComplexity',
+        'Cognitive Complexity',
+        serverOptions,
+        clientOptions
+    );
+
+    // Initialize decoration types
+    createDecorations();
+
+    // Initialize Webview Provider
+    webviewProvider = new ComplexityWebviewProvider(context.extensionUri);
+    context.subscriptions.push(
+        window.registerWebviewViewProvider('cognitiveComplexityListView', webviewProvider)
+    );
+
+    // Register command for report generation
+    context.subscriptions.push(commands.registerCommand('cognitive-complexity.generateReport', async () => {
+        if (client) {
+            await generateProjectReport(client);
+        } else {
+            window.showErrorMessage('Cognitive Complexity Language Server is not ready.');
+        }
+    }));
+
+    // Register command for navigation (kept as it might be used by other parts, or legacy usage)
+    context.subscriptions.push(commands.registerCommand('cognitive-complexity.navigateToMethod', (method: MethodComplexity) => {
+        const editor = window.activeTextEditor;
+        if (editor) {
+            const start = editor.document.positionAt(method.startIndex);
+            const end = editor.document.positionAt(method.endIndex);
+            const range = new Range(start, end);
+
+            editor.selection = new Selection(start, start);
+            editor.revealRange(range, 1); // TextEditorRevealType.InCenter = 1
+        }
+    }));
+
+    client.start().then(() => {
+        client.onNotification('cognitive-complexity/fileAnalyzed', async (params: { uri: string, complexities: MethodComplexity[] }) => {
+            // Update cache
+            complexityCache.set(params.uri, params.complexities);
+            // Update visible editors
+            updateDecorations(params.uri, params.complexities);
+
+            // Update webview if it's showing the active editor
+            const activeEditor = window.activeTextEditor;
+            if (activeEditor && activeEditor.document.uri.toString() === params.uri) {
+                const config = getWebviewConfig(activeEditor.document.uri);
+
+                // Calculate delta
+                const baseComplexities = baseComplexityCache.get(params.uri);
+                if (baseComplexities) {
+                    params.complexities.forEach(current => {
+                        const base = baseComplexities.find(b => b.name === current.name);
+                        if (base) {
+                            current.complexityDelta = current.score - base.score;
+                        }
+                    });
+                } else {
+                    // Trigger background fetch if not in cache (optional, or rely on tab switch/open)
+                    // For MVP, we can trigger it here if missing, but just ONCE per session is handled by the initial check logic or lazy loading.
+                    // To keep it simple and performant: We won't block here. We'll trigger an update.
+                    updateBaseComplexity(activeEditor);
+                }
+
+                webviewProvider.update(params.complexities, config);
+            }
+        });
     });
-  });
 
-  // Handle active editor change (tab switch)
-  window.onDidChangeActiveTextEditor(editor => {
-      if (editor) {
-          const uri = editor.document.uri.toString();
-          const cached = complexityCache.get(uri);
+    // Handle active editor change (tab switch)
+    window.onDidChangeActiveTextEditor(editor => {
+        if (editor) {
+            const uri = editor.document.uri.toString();
+            const cached = complexityCache.get(uri);
 
-          // Trigger base complexity fetch
-          updateBaseComplexity(editor);
+            // Trigger base complexity fetch
+            updateBaseComplexity(editor);
 
-          if (cached) {
-              updateEditorDecorations(editor, cached);
-              const config = getWebviewConfig(editor.document.uri);
+            if (cached) {
+                updateEditorDecorations(editor, cached);
+                const config = getWebviewConfig(editor.document.uri);
 
-              // Apply delta if available
-              const baseComplexities = baseComplexityCache.get(uri);
-              if (baseComplexities) {
-                  cached.forEach(current => {
-                      const base = baseComplexities.find(b => b.name === current.name);
-                      if (base) {
-                          current.complexityDelta = current.score - base.score;
-                      }
-                  });
-              }
+                // Apply delta if available
+                const baseComplexities = baseComplexityCache.get(uri);
+                if (baseComplexities) {
+                    cached.forEach(current => {
+                        const base = baseComplexities.find(b => b.name === current.name);
+                        if (base) {
+                            current.complexityDelta = current.score - base.score;
+                        }
+                    });
+                }
 
-              webviewProvider.update(cached, config);
-          } else {
-               const config = getWebviewConfig(editor.document.uri);
-              webviewProvider.update([], config);
-          }
-      } else {
-          // No active editor, clear the view
-          // We can use a default config here since we have no resource to check against
-          const defaultConfig = {
-              threshold: {
-                  warning: 15,
-                  error: 25
-              }
-          };
-          webviewProvider.update([], defaultConfig);
-      }
-  }, null, context.subscriptions);
+                webviewProvider.update(cached, config);
+            } else {
+                const config = getWebviewConfig(editor.document.uri);
+                webviewProvider.update([], config);
+            }
+        } else {
+            // No active editor, clear the view
+            // We can use a default config here since we have no resource to check against
+            const defaultConfig = {
+                threshold: {
+                    warning: 15,
+                    error: 25
+                }
+            };
+            webviewProvider.update([], defaultConfig);
+        }
+    }, null, context.subscriptions);
 
-  // Handle file close to clear cache
-  workspace.onDidCloseTextDocument(doc => {
-      const uri = doc.uri.toString();
-      complexityCache.delete(uri);
-      baseComplexityCache.delete(uri);
-  }, null, context.subscriptions);
+    // Handle file close to clear cache
+    workspace.onDidCloseTextDocument(doc => {
+        const uri = doc.uri.toString();
+        complexityCache.delete(uri);
+        baseComplexityCache.delete(uri);
+    }, null, context.subscriptions);
 
-  // Handle cursor movement to reveal in tree view
-  window.onDidChangeTextEditorSelection(event => {
-      if (event.textEditor && webviewProvider.isVisible) { // Only reveal if webview is visible
-          const uri = event.textEditor.document.uri.toString();
-          const cached = complexityCache.get(uri);
-          if (cached) {
-              const position = event.selections[0].active;
-              const offset = event.textEditor.document.offsetAt(position);
+    // Handle cursor movement to reveal in tree view
+    window.onDidChangeTextEditorSelection(event => {
+        if (event.textEditor && webviewProvider.isVisible) { // Only reveal if webview is visible
+            const uri = event.textEditor.document.uri.toString();
+            const cached = complexityCache.get(uri);
+            if (cached) {
+                const position = event.selections[0].active;
+                const offset = event.textEditor.document.offsetAt(position);
 
-              const method = cached.find(m => offset >= m.startIndex && offset <= m.endIndex && !m.isCallback);
+                const method = cached.find(m => offset >= m.startIndex && offset <= m.endIndex && !m.isCallback);
 
-              if (method) {
-                  // Reveal method in webview
-                  webviewProvider.reveal(method);
-              }
-          }
-      }
-  }, null, context.subscriptions);
+                if (method) {
+                    // Reveal method in webview
+                    webviewProvider.reveal(method);
+                }
+            }
+        }
+    }, null, context.subscriptions);
 
-  // Re-create decorations if configuration changes
-  workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration('cognitiveComplexity.showGutterIcon') ||
-          e.affectsConfiguration('cognitiveComplexity.threshold')) {
-          createDecorations();
+    // Re-create decorations if configuration changes
+    workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('cognitiveComplexity.showGutterIcon') ||
+            e.affectsConfiguration('cognitiveComplexity.threshold')) {
+            createDecorations();
 
-          // Re-apply to all visible editors
-          window.visibleTextEditors.forEach(editor => {
-              const uri = editor.document.uri.toString();
-              const cached = complexityCache.get(uri);
-              if (cached) {
-                  updateEditorDecorations(editor, cached);
-              }
-          });
+            // Re-apply to all visible editors
+            window.visibleTextEditors.forEach(editor => {
+                const uri = editor.document.uri.toString();
+                const cached = complexityCache.get(uri);
+                if (cached) {
+                    updateEditorDecorations(editor, cached);
+                }
+            });
 
-          if (window.activeTextEditor) {
-             const uri = window.activeTextEditor.document.uri.toString();
-             const cached = complexityCache.get(uri);
-             const config = getWebviewConfig(window.activeTextEditor.document.uri);
-             if (cached) webviewProvider.update(cached, config);
-          }
-      }
-  }, null, context.subscriptions);
+            if (window.activeTextEditor) {
+                const uri = window.activeTextEditor.document.uri.toString();
+                const cached = complexityCache.get(uri);
+                const config = getWebviewConfig(window.activeTextEditor.document.uri);
+                if (cached) webviewProvider.update(cached, config);
+            }
+        }
+    }, null, context.subscriptions);
 }
 
 function getWebviewConfig(uri: Uri) {
@@ -303,7 +303,7 @@ async function updateBaseComplexity(editor: TextEditor) {
             baseComplexityCache.set(uri, baseComplexities);
 
             // If the editor is still active, refresh the view
-             if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri) {
+            if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri) {
                 const cached = complexityCache.get(uri);
                 if (cached) {
                     const config = getWebviewConfig(editor.document.uri);
@@ -315,7 +315,7 @@ async function updateBaseComplexity(editor: TextEditor) {
                     });
                     webviewProvider.update(cached, config);
                 }
-             }
+            }
         } else {
             // Mark as empty to avoid retrying endlessly? Or just leave it.
             // For now, if null, we won't cache anything, so it might retry on next focus.
@@ -361,9 +361,9 @@ function updateEditorDecorations(editor: TextEditor, complexities: MethodComplex
         } else if (method.score >= warningThreshold) {
             yellowRanges.push(range);
         } else {
-             if (method.score > 0) {
-                 greenRanges.push(range);
-             }
+            if (method.score > 0) {
+                greenRanges.push(range);
+            }
         }
     }
 
@@ -374,15 +374,15 @@ function updateEditorDecorations(editor: TextEditor, complexities: MethodComplex
 }
 
 export function deactivate(): Thenable<void> | undefined {
-  if (greenDecorationType) greenDecorationType.dispose();
-  if (yellowDecorationType) yellowDecorationType.dispose();
-  if (redDecorationType) redDecorationType.dispose();
+    if (greenDecorationType) greenDecorationType.dispose();
+    if (yellowDecorationType) yellowDecorationType.dispose();
+    if (redDecorationType) redDecorationType.dispose();
 
-  complexityCache.clear();
-  baseComplexityCache.clear();
+    complexityCache.clear();
+    baseComplexityCache.clear();
 
-  if (!client) {
-    return undefined;
-  }
-  return client.stop();
+    if (!client) {
+        return undefined;
+    }
+    return client.stop();
 }

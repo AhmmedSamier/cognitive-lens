@@ -229,12 +229,12 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
 
     const promise = (async () => {
         if (!parserInitialized) {
-             if (initPromise) {
-                 try { await initPromise; } catch(e) { return []; }
-             } else {
-                 await initParser(); // Await initParser
-                 try { await initPromise; } catch(e) { return []; }
-             }
+            if (initPromise) {
+                try { await initPromise; } catch (e) { return []; }
+            } else {
+                await initParser(); // Await initParser
+                try { await initPromise; } catch (e) { return []; }
+            }
         }
 
         if (!parserInitialized || !incrementalParser) return [];
@@ -270,7 +270,7 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
                 if (languageId === 'csharp') {
                     complexities = await calculateComplexity(tree, 'csharp');
                 } else if (languageId === 'typescript' || languageId === 'javascript' ||
-                           languageId === 'typescriptreact' || languageId === 'javascriptreact') {
+                    languageId === 'typescriptreact' || languageId === 'javascriptreact') {
                     complexities = await calculateComplexity(tree, 'typescript');
                 }
             }
@@ -400,8 +400,8 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
                 settings = defaultSettings;
             }
         } catch (e) {
-             connection.console.warn(`Failed to get settings for inlay hints, using defaults: ${e}`);
-             settings = defaultSettings;
+            connection.console.warn(`Failed to get settings for inlay hints, using defaults: ${e}`);
+            settings = defaultSettings;
         }
 
         return computeInlayHints(document, complexities, settings, params.range);
@@ -414,10 +414,10 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
 async function analyzeContent(text: string, languageId: string): Promise<MethodComplexity[]> {
     if (!parserInitialized) {
         if (initPromise) {
-            try { await initPromise; } catch(e) { return []; }
+            try { await initPromise; } catch (e) { return []; }
         } else {
-             await initParser();
-             try { await initPromise; } catch(e) { return []; }
+            await initParser();
+            try { await initPromise; } catch (e) { return []; }
         }
     }
 
@@ -428,8 +428,10 @@ async function analyzeContent(text: string, languageId: string): Promise<MethodC
 
     if (normalizedLangId === 'csharp') {
         parser = csharpParser;
-    } else if (['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(normalizedLangId)) {
+    } else if (['typescript', 'javascript'].includes(normalizedLangId)) {
         parser = typescriptParser;
+    } else if (['typescriptreact', 'javascriptreact'].includes(normalizedLangId)) {
+        parser = tsxParser;
     }
 
     if (!parser) return [];
