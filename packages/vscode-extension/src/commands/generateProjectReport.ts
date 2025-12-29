@@ -3,6 +3,7 @@ import * as path from 'path';
 import { LanguageClient } from 'vscode-languageclient/node';
 import { ProjectAnalysisResult, generateHtmlReport } from '@cognitive-complexity/core';
 import { MethodComplexity } from '../types';
+import { GitService } from '../gitService';
 
 export async function generateProjectReport(client: LanguageClient) {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -13,9 +14,21 @@ export async function generateProjectReport(client: LanguageClient) {
 
     // Limit to likely source files to avoid huge scans
     // Passing undefined for exclude allows VS Code to respect .gitignore and files.exclude settings
-    const files = await vscode.workspace.findFiles('**/*.{ts,tsx,js,jsx,cs}', undefined);
+    let files = await vscode.workspace.findFiles('**/*.{ts,tsx,js,jsx,cs}', undefined);
     if (files.length === 0) {
         vscode.window.showInformationMessage('No supported files found in workspace');
+        return;
+    }
+
+    // Filter out files ignored by .gitignore using GitService
+    // This is necessary because findFiles sometimes includes ignored files depending on user settings
+    const gitService = new GitService();
+    const filePaths = files.map(f => f.fsPath);
+    const validPaths = new Set(await gitService.filterIgnored(filePaths));
+    files = files.filter(f => validPaths.has(f.fsPath));
+
+    if (files.length === 0) {
+        vscode.window.showInformationMessage('No source files found (all were ignored).');
         return;
     }
 
