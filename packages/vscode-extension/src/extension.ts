@@ -10,6 +10,7 @@ import { TextDecoder } from 'util';
 import { MethodComplexity } from './types';
 import { ComplexityWebviewProvider } from './ComplexityWebviewProvider';
 import { GitService } from './gitService';
+import { generateProjectReport } from './commands/generateProjectReport';
 
 let client: LanguageClient;
 const gitService = new GitService();
@@ -74,6 +75,15 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(
       window.registerWebviewViewProvider('cognitiveComplexityListView', webviewProvider)
   );
+
+  // Register command for report generation
+  context.subscriptions.push(commands.registerCommand('cognitive-complexity.generateReport', async () => {
+      if (client) {
+          await generateProjectReport(client);
+      } else {
+          window.showErrorMessage('Cognitive Complexity Language Server is not ready.');
+      }
+  }));
 
   // Register command for navigation (kept as it might be used by other parts, or legacy usage)
   context.subscriptions.push(commands.registerCommand('cognitive-complexity.navigateToMethod', (method: MethodComplexity) => {
