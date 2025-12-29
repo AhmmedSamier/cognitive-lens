@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { LanguageClient } from 'vscode-languageclient/node';
 import { ProjectAnalysisResult, generateHtmlReport } from '@cognitive-complexity/core';
 import { MethodComplexity } from '../types';
@@ -92,16 +93,19 @@ export async function generateProjectReport(client: LanguageClient) {
     // Generate HTML
     const html = generateHtmlReport(reportData);
 
-    // Show in Webview
-    const panel = vscode.window.createWebviewPanel(
-        'cognitiveComplexityReport',
-        'Cognitive Complexity Report',
-        vscode.ViewColumn.One,
-        {
-            enableScripts: true,
-            localResourceRoots: []
-        }
-    );
+    // Save to file
+    const reportPath = path.join(folder.uri.fsPath, 'cognitive-complexity-report.html');
+    try {
+        await fs.promises.writeFile(reportPath, html, 'utf8');
+        const selection = await vscode.window.showInformationMessage(
+            `Report saved to ${path.basename(reportPath)}`,
+            'Open in Browser'
+        );
 
-    panel.webview.html = html;
+        if (selection === 'Open in Browser') {
+            await vscode.env.openExternal(vscode.Uri.file(reportPath));
+        }
+    } catch (e) {
+        vscode.window.showErrorMessage(`Failed to save report: ${e}`);
+    }
 }
