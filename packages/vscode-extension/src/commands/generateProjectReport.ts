@@ -12,7 +12,8 @@ export async function generateProjectReport(client: LanguageClient) {
     }
 
     // Limit to likely source files to avoid huge scans
-    const files = await vscode.workspace.findFiles('**/*.{ts,tsx,js,jsx,cs}', '**/node_modules/**');
+    // Passing undefined for exclude allows VS Code to respect .gitignore and files.exclude settings
+    const files = await vscode.workspace.findFiles('**/*.{ts,tsx,js,jsx,cs}', undefined);
     if (files.length === 0) {
         vscode.window.showInformationMessage('No supported files found in workspace');
         return;
@@ -33,6 +34,9 @@ export async function generateProjectReport(client: LanguageClient) {
 
         for (const file of files) {
             if (token.isCancellationRequested) break;
+
+            // Explicitly skip node_modules just in case it's not in .gitignore
+            if (file.fsPath.includes('node_modules')) continue;
 
             progress.report({ message: `Analyzing ${path.basename(file.fsPath)}...`, increment: (1 / total) * 100 });
 
