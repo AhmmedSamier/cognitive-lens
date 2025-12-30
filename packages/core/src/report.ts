@@ -313,6 +313,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                         :key="child.id"
                         :node="child"
                         :depth="0"
+                        :version="treeVersion"
                         :active-id="activeNodeId"
                         @select="selectNode"
                     ></tree-node>
@@ -342,7 +343,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                         </div>
 
                         <!-- Syntax Highlighted Code -->
-                        <pre :class="'language-' + currentLanguage"><code v-html="highlightedCode"></code></pre>
+                        <pre class="line-numbers" :class="'language-' + currentLanguage"><code v-html="highlightedCode"></code></pre>
                     </div>
                 </div>
             </div>
@@ -373,6 +374,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
@@ -390,7 +392,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
         const TreeNode = {
             name: 'TreeNode',
-            props: ['node', 'depth', 'forceExpand', 'activeId'],
+            props: ['node', 'depth', 'forceExpand', 'activeId', 'version'],
             template: \`
                 <div class="tree-node-wrapper">
                     <div class="tree-item" :class="{ active: isActive }" :style="{ paddingLeft: (depth * 16 + 8) + 'px' }" @click="handleClick">
@@ -412,6 +414,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             :node="child"
                             :depth="depth + 1"
                             :active-id="activeId"
+                            :version="version"
                             @select="$emit('select', $event)"
                         ></tree-node>
                         <!-- Methods (if any directly on this node) -->
@@ -421,33 +424,17 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             :node="method"
                             :depth="depth + 1"
                             :active-id="activeId"
+                            :version="version"
                             @select="$emit('select', $event)"
                         ></tree-node>
                     </div>
                 </div>
             \`,
             setup(props, { emit }) {
-                // IMPORTANT: Directly use node.isExpanded if available, otherwise default to false
-                // Since we use shallowRef at root, we need to ensure reactivity works.
-                // However, deep mutations on shallowRef object don't trigger updates unless triggerRef is called.
-                // But passing node.isExpanded as a prop value (initial) and then maintaining local ref?
-                // No, we want to share state so parent expanding works.
-                // But the node object is shared.
-                // We can use a computed for isExpanded if we can trigger updates.
-                // Or just use the prop object directly in template?
-                // Vue 3 props are reactive if the source is.
-                // 'node' prop comes from iteration of parent children.
-                // If we modify props.node.isExpanded, we are mutating the source data.
-
-                // Let's use a local ref sync with the node property?
-                // The issue is when *parent* (app) modifies node.isExpanded (via expandPathToNode),
-                // this component needs to update.
-                // Since 'node' is a prop, and it's an object, mutations to its properties might not be detected if it's from shallowRef.
-                // But 'triggerRef' in parent will force update of 'filteredTree' / 'treeRoot'.
-                // If treeRoot updates, the entire tree might re-render or at least the affected parts.
-
-                // We'll use a computed that returns props.node.isExpanded to track it.
-                const isExpanded = computed(() => !!props.node.isExpanded);
+                // Computed dependent on version to force update
+                const isExpanded = computed(() => {
+                    return props.version >= 0 && !!props.node.isExpanded;
+                });
 
                 const hasChildren = computed(() => {
                     return (props.node.children && props.node.children.length > 0) ||
@@ -501,18 +488,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
                 function toggleExpand() {
                     if (hasChildren.value) {
-                        // Mutate the node object directly
                         props.node.isExpanded = !props.node.isExpanded;
-                        // We emit an event to tell root to triggerRef?
-                        // Or just rely on Vue handling object mutation in some cases?
-                        // With shallowRef, we likely need to trigger manually if we want full reliability
-                        // BUT for local toggle inside component, it might just work if we use forceUpdate or key change.
-                        // Actually, if we just modify the prop object, the computed 'isExpanded' will update
-                        // ONLY IF the dependency is reactive. props.node comes from shallowRef...
-
-                        // We can emit a 'toggle' event up to root?
-                        // Or simpler: We just force update the component instance?
-                        // Let's emit 'select' with a special type or just rely on parent checking?
                         emit('select', { node: props.node, type: 'toggle' });
                     }
                 }
@@ -539,6 +515,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             setup() {
                 // State
                 const treeRoot = shallowRef(initialTree);
+                const treeVersion = ref(0);
                 const nodeMap = new Map(); // Flat map for O(1) access
 
                 // Initialize Map
@@ -685,7 +662,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     const { node, type } = event;
 
                     if (type === 'toggle') {
-                        // Just trigger reactivity update for the tree
+                        // Force update version
+                        treeVersion.value++;
                         triggerRef(treeRoot);
                         return;
                     }
@@ -697,6 +675,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
                     // Expand path
                     if (expandPathToNode(treeRoot.value, node.fullPath)) {
+                        treeVersion.value++;
                         triggerRef(treeRoot); // Force update
                     }
 
@@ -816,6 +795,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     stats,
                     treeRoot,
                     filteredTree,
+                    treeVersion,
                     filterQuery,
                     searchQuery,
                     showSearch,
