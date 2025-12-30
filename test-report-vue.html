@@ -1,40 +1,4 @@
-import { MethodComplexity } from './types';
 
-export interface FileAnalysisResult {
-    path: string;
-    content: string;
-    methods: MethodComplexity[];
-    totalScore: number;
-}
-
-export interface ProjectAnalysisResult {
-    files: FileAnalysisResult[];
-    totalScore: number;
-}
-
-interface TreeNode {
-    id: string;
-    name: string;
-    fullPath: string;
-    type: 'file' | 'folder' | 'method';
-    score: number;
-    children?: TreeNode[];
-    methods?: MethodComplexity[];
-    // For UI state (not strictly part of the data model, but useful to initialize)
-    isExpanded?: boolean;
-}
-
-export function generateHtmlReport(result: ProjectAnalysisResult): string {
-    const date = new Date().toLocaleString();
-
-    // We construct the tree on the server side (Node) to pass a clean JSON structure to Vue
-    const tree = buildFileTree(result.files);
-
-    // Escape the JSON to prevent XSS or breaking the script tag
-    const projectDataStr = JSON.stringify(result.files).replace(/</g, '\\u003c');
-    const treeDataStr = JSON.stringify(tree).replace(/</g, '\\u003c');
-
-    return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -62,11 +26,11 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             --tree-selected: #eff6ff;
         }
 
-        body { 
+        body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            margin: 0; 
-            height: 100vh; 
-            display: flex; 
+            margin: 0;
+            height: 100vh;
+            display: flex;
             flex-direction: column;
             color: var(--text-main);
             background: var(--bg-color);
@@ -167,9 +131,9 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
         .score-badge {
             margin-left: auto;
-            font-size: 0.75rem; 
-            font-weight: 600; 
-            padding: 1px 6px; 
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 1px 6px;
             border-radius: 10px;
         }
         .score-high { background: #fee2e2; color: #b91c1c; }
@@ -381,16 +345,16 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         const { createApp, ref, computed, onMounted, nextTick, shallowRef, watch } = Vue;
 
         // Data from Server
-        const projectFiles = ${projectDataStr};
-        const initialTree = ${treeDataStr};
-        const generatedDate = "${date}";
+        const projectFiles = [{"path":"src/feature/component_0.ts","content":"\nclass Component0 {\n    methodA() {\n        if (true) {\n            if (true) {\n                console.log('nested');\n            }\n        }\n    }\n}\n            ","methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}],"totalScore":3},{"path":"src/feature/component_1.ts","content":"\nclass Component1 {\n    methodA() {\n        if (true) {\n            if (true) {\n                console.log('nested');\n            }\n        }\n    }\n}\n            ","methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}],"totalScore":3},{"path":"src/feature/component_2.ts","content":"\nclass Component2 {\n    methodA() {\n        if (true) {\n            if (true) {\n                console.log('nested');\n            }\n        }\n    }\n}\n            ","methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}],"totalScore":3},{"path":"src/feature/component_3.ts","content":"\nclass Component3 {\n    methodA() {\n        if (true) {\n            if (true) {\n                console.log('nested');\n            }\n        }\n    }\n}\n            ","methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}],"totalScore":3},{"path":"src/feature/component_4.ts","content":"\nclass Component4 {\n    methodA() {\n        if (true) {\n            if (true) {\n                console.log('nested');\n            }\n        }\n    }\n}\n            ","methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}],"totalScore":3}];
+        const initialTree = {"id":"root","name":"root","fullPath":"","type":"folder","score":15,"children":[{"id":"dir-0","name":"src","fullPath":"src","type":"folder","score":15,"children":[{"id":"dir-1","name":"feature","fullPath":"src/feature","type":"folder","score":15,"children":[{"id":"file-2","name":"component_0.ts","fullPath":"src/feature/component_0.ts","type":"file","score":3,"children":[],"methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}]},{"id":"file-3","name":"component_1.ts","fullPath":"src/feature/component_1.ts","type":"file","score":3,"children":[],"methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}]},{"id":"file-4","name":"component_2.ts","fullPath":"src/feature/component_2.ts","type":"file","score":3,"children":[],"methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}]},{"id":"file-5","name":"component_3.ts","fullPath":"src/feature/component_3.ts","type":"file","score":3,"children":[],"methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}]},{"id":"file-6","name":"component_4.ts","fullPath":"src/feature/component_4.ts","type":"file","score":3,"children":[],"methods":[{"name":"methodA","score":3,"startLine":2,"endLine":8,"details":[{"message":"Nesting +1","score":1,"line":3},{"message":"Nesting +2","score":2,"line":4}],"isCallback":false,"isRoot":true,"isAsync":false,"isPublic":true,"isStatic":false}]}]}]}]};
+        const generatedDate = "12/30/2025, 2:14:01 AM";
 
         // --- Components ---
 
         const TreeNode = {
             name: 'TreeNode',
             props: ['node', 'depth', 'forceExpand'],
-            template: \`
+            template: `
                 <div class="tree-node-wrapper">
                     <div class="tree-item" :class="{ active: isActive }" :style="{ paddingLeft: (depth * 16 + 8) + 'px' }" @click="handleClick">
                         <span
@@ -422,7 +386,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                         ></tree-node>
                     </div>
                 </div>
-            \`,
+            `,
             setup(props, { emit }) {
                 const isExpanded = ref(props.node.isExpanded || false);
 
@@ -640,7 +604,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             line: d.line,
                             score: d.score,
                             message: d.message,
-                            shortMsg: d.message.replace(/\\(incl \\d+ for nesting\\)/, '').trim()
+                            shortMsg: d.message.replace(/\(incl \d+ for nesting\)/, '').trim()
                         }));
 
                         // Scroll to line
@@ -728,74 +692,3 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     </script>
 </body>
 </html>
-    `;
-}
-
-function buildFileTree(files: FileAnalysisResult[]): TreeNode {
-    const root: TreeNode = {
-        id: 'root',
-        name: 'root',
-        fullPath: '',
-        type: 'folder',
-        score: 0,
-        children: []
-    };
-
-    let idCounter = 0;
-    const map = new Map<string, TreeNode>();
-    map.set('', root);
-
-    // Build tree
-    for (const file of files) {
-        const parts = file.path.split('/');
-        let currentPath = '';
-        let parent = root;
-
-        for (let i = 0; i < parts.length - 1; i++) {
-            const part = parts[i];
-            const nextPath = currentPath ? `${currentPath}/${part}` : part;
-
-            if (!map.has(nextPath)) {
-                const newFolder: TreeNode = {
-                    id: `dir-${idCounter++}`,
-                    name: part,
-                    fullPath: nextPath,
-                    type: 'folder',
-                    score: 0,
-                    children: []
-                };
-                map.set(nextPath, newFolder);
-                parent.children!.push(newFolder);
-            }
-            parent = map.get(nextPath)!;
-            currentPath = nextPath;
-        }
-
-        const fileName = parts[parts.length - 1];
-        parent.children!.push({
-            id: `file-${idCounter++}`,
-            name: fileName,
-            fullPath: file.path,
-            type: 'file',
-            score: file.totalScore,
-            children: [],
-            methods: file.methods.filter(m => !m.isCallback)
-        });
-    }
-
-    // Calculate scores
-    function calcScore(node: TreeNode): number {
-        if (node.type === 'file') return node.score;
-        let total = 0;
-        if (node.children) {
-            for (const child of node.children) {
-                total += calcScore(child);
-            }
-        }
-        node.score = total;
-        return total;
-    }
-    calcScore(root);
-
-    return root;
-}
