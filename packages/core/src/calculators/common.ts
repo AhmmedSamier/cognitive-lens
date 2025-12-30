@@ -84,7 +84,8 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                 endIndex: node.endIndex,
                 startLine: node.startPosition.row,
                 endLine: node.endPosition.row,
-                isCallback
+                isCallback,
+                isRoot: methodStack.length === 0
             };
 
             methods.push(newMethod);
@@ -170,7 +171,7 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                 // Add score to all *other* ancestors in the stack (propagate complexity)
                 // Note: The top of the stack is activeMethod, which we just updated.
                 for (let i = 0; i < methodStack.length - 1; i++) {
-                     methodStack[i].score += score;
+                    methodStack[i].score += score;
                 }
             }
 
@@ -236,7 +237,7 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                 // So this only applies when `activeMethod === currentMethod`.
 
                 if (activeMethod === currentMethod) {
-                     nextNesting = currentNesting;
+                    nextNesting = currentNesting;
                 }
             }
 

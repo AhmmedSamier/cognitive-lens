@@ -73,9 +73,9 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     public reveal(method: MethodComplexity) {
-         if (this._view && this._view.visible) {
-             this._view.webview.postMessage({ type: 'reveal', body: method });
-         }
+        if (this._view && this._view.visible) {
+            this._view.webview.postMessage({ type: 'reveal', body: method });
+        }
     }
 
     private _jumpToMethod(method: MethodComplexity) {
@@ -414,7 +414,7 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                         sortData();
 
                         allMethods.forEach(method => {
-                            if (method.isCallback) return;
+                           if (method.isCallback) return;
 
                             const highlightedName = getHighlightedHtml(method.name, filter);
                             if (highlightedName === null) {

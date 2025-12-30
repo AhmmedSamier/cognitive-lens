@@ -84,7 +84,7 @@ export function normalizeSettings(input: any): CognitiveComplexitySettings {
                 else settings.showInlayHints.methodScore = Boolean(input[key]);
             }
             if (cleanKey === 'showInlayHints.details') {
-                 if (typeof input[key] === 'string') settings.showInlayHints.details = input[key] === 'true';
+                if (typeof input[key] === 'string') settings.showInlayHints.details = input[key] === 'true';
                 else settings.showInlayHints.details = Boolean(input[key]);
             }
             if (cleanKey === 'totalScorePrefix') settings.totalScorePrefix = String(input[key]);
@@ -114,9 +114,9 @@ export function computeDiagnostics(
 
             // Try to approximate the method signature line
             if (end.line > start.line) {
-                 const lineText = getLineText(document, start.line);
-                 // Use line length to stay within LSP bounds
-                 range.end = { line: start.line, character: lineText.length };
+                const lineText = getLineText(document, start.line);
+                // Use line length to stay within LSP bounds
+                range.end = { line: start.line, character: lineText.length };
             }
 
             const severity = complexity.score >= settings.threshold.error
@@ -126,11 +126,10 @@ export function computeDiagnostics(
             const diagnostic: Diagnostic = {
                 severity,
                 range,
-                message: `Cognitive Complexity is ${complexity.score} (threshold: ${
-                    severity === DiagnosticSeverity.Error
-                        ? settings.threshold.error
-                        : settings.threshold.warning
-                })`,
+                message: `Cognitive Complexity is ${complexity.score} (threshold: ${severity === DiagnosticSeverity.Error
+                    ? settings.threshold.error
+                    : settings.threshold.warning
+                    })`,
                 source: 'Cognitive Complexity'
             };
             diagnostics.push(diagnostic);
@@ -179,9 +178,9 @@ function calculateMethodHintPosition(
             // Previous line is empty/whitespace: align with current indentation
             let labelPrefix = "";
             if (currentIndentStr.startsWith(prevLineText)) {
-                 labelPrefix = currentIndentStr.substring(prevLineText.length);
+                labelPrefix = currentIndentStr.substring(prevLineText.length);
             } else if (prevLineText.length < currentIndentStr.length) {
-                 labelPrefix = " ".repeat(currentIndentStr.length - prevLineText.length);
+                labelPrefix = " ".repeat(currentIndentStr.length - prevLineText.length);
             }
 
             return {
@@ -282,7 +281,7 @@ export function computeInlayHints(
 
             let uniqueMessages = Array.from(new Set(messages));
             if (uniqueMessages.length === 0 && totalScore > 0) {
-                 uniqueMessages = ['nesting'];
+                uniqueMessages = ['nesting'];
             }
 
             const label = `(+${totalScore} ${uniqueMessages.join(', ')})`;
@@ -312,25 +311,25 @@ export function computeCodeLenses(
     return complexities
         .filter(c => !c.isCallback)
         .map(c => {
-        const start = document.positionAt(c.startIndex);
-        const end = document.positionAt(c.endIndex);
-        const lines = end.line - start.line + 1;
+            const start = document.positionAt(c.startIndex);
+            const end = document.positionAt(c.endIndex);
+            const lines = end.line - start.line + 1;
 
-        let icon = '🟢';
-        if (c.score >= settings.threshold.error) {
-            icon = '🔴';
-        } else if (c.score >= settings.threshold.warning) {
-            icon = '🟡';
-        }
+            let icon = '🟢';
+            if (c.score >= settings.threshold.error) {
+                icon = '🔴';
+            } else if (c.score >= settings.threshold.warning) {
+                icon = '🟡';
+            }
 
-        return {
-            range: { start, end },
-            command: {
-                title: `${icon} ${settings.totalScorePrefix}: ${c.score} (${lines} lines)`,
-                command: '',
-                arguments: []
-            },
-            data: c.name
-        };
-    });
+            return {
+                range: { start, end },
+                command: {
+                    title: `${icon} ${settings.totalScorePrefix}: ${c.score} (${lines} lines)`,
+                    command: '',
+                    arguments: []
+                },
+                data: c.name
+            };
+        });
 }
