@@ -313,6 +313,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                         :key="child.id"
                         :node="child"
                         :depth="0"
+                        :active-id="activeNodeId"
                         @select="selectNode"
                     ></tree-node>
                 </div>
@@ -378,7 +379,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
 
     <script>
-        const { createApp, ref, computed, onMounted, nextTick, shallowRef, watch } = Vue;
+        const { createApp, ref, computed, onMounted, nextTick, shallowRef, triggerRef, watch } = Vue;
 
         // Data from Server
         const projectFiles = ${projectDataStr};
@@ -389,7 +390,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
         const TreeNode = {
             name: 'TreeNode',
-            props: ['node', 'depth', 'forceExpand'],
+            props: ['node', 'depth', 'forceExpand', 'activeId'],
             template: \`
                 <div class="tree-node-wrapper">
                     <div class="tree-item" :class="{ active: isActive }" :style="{ paddingLeft: (depth * 16 + 8) + 'px' }" @click="handleClick">
@@ -410,6 +411,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             :key="child.id"
                             :node="child"
                             :depth="depth + 1"
+                            :active-id="activeId"
                             @select="$emit('select', $event)"
                         ></tree-node>
                         <!-- Methods (if any directly on this node) -->
@@ -418,13 +420,34 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             :key="method.id"
                             :node="method"
                             :depth="depth + 1"
+                            :active-id="activeId"
                             @select="$emit('select', $event)"
                         ></tree-node>
                     </div>
                 </div>
             \`,
             setup(props, { emit }) {
-                const isExpanded = ref(props.node.isExpanded || false);
+                // IMPORTANT: Directly use node.isExpanded if available, otherwise default to false
+                // Since we use shallowRef at root, we need to ensure reactivity works.
+                // However, deep mutations on shallowRef object don't trigger updates unless triggerRef is called.
+                // But passing node.isExpanded as a prop value (initial) and then maintaining local ref?
+                // No, we want to share state so parent expanding works.
+                // But the node object is shared.
+                // We can use a computed for isExpanded if we can trigger updates.
+                // Or just use the prop object directly in template?
+                // Vue 3 props are reactive if the source is.
+                // 'node' prop comes from iteration of parent children.
+                // If we modify props.node.isExpanded, we are mutating the source data.
+
+                // Let's use a local ref sync with the node property?
+                // The issue is when *parent* (app) modifies node.isExpanded (via expandPathToNode),
+                // this component needs to update.
+                // Since 'node' is a prop, and it's an object, mutations to its properties might not be detected if it's from shallowRef.
+                // But 'triggerRef' in parent will force update of 'filteredTree' / 'treeRoot'.
+                // If treeRoot updates, the entire tree might re-render or at least the affected parts.
+
+                // We'll use a computed that returns props.node.isExpanded to track it.
+                const isExpanded = computed(() => !!props.node.isExpanded);
 
                 const hasChildren = computed(() => {
                     return (props.node.children && props.node.children.length > 0) ||
@@ -473,12 +496,24 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 });
 
                 const isActive = computed(() => {
-                    return false; // Placeholder
+                    return props.activeId === props.node.id;
                 });
 
                 function toggleExpand() {
                     if (hasChildren.value) {
-                        isExpanded.value = !isExpanded.value;
+                        // Mutate the node object directly
+                        props.node.isExpanded = !props.node.isExpanded;
+                        // We emit an event to tell root to triggerRef?
+                        // Or just rely on Vue handling object mutation in some cases?
+                        // With shallowRef, we likely need to trigger manually if we want full reliability
+                        // BUT for local toggle inside component, it might just work if we use forceUpdate or key change.
+                        // Actually, if we just modify the prop object, the computed 'isExpanded' will update
+                        // ONLY IF the dependency is reactive. props.node comes from shallowRef...
+
+                        // We can emit a 'toggle' event up to root?
+                        // Or simpler: We just force update the component instance?
+                        // Let's emit 'select' with a special type or just rely on parent checking?
+                        emit('select', { node: props.node, type: 'toggle' });
                     }
                 }
 
@@ -486,19 +521,12 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     if (props.node.type === 'method') {
                         emit('select', { node: props.node, type: 'method' });
                     } else {
-                        // For files/folders, toggle expand
                         toggleExpand();
-                        // Also emit selection to show file content?
                         if (props.node.type === 'file') {
                             emit('select', { node: props.node, type: 'file' });
                         }
                     }
                 }
-
-                // If parent says force expand (for search/filtering), we obey
-                watch(() => props.node.forceExpand, (val) => {
-                    if (val) isExpanded.value = true;
-                });
 
                 return { isExpanded, hasChildren, icon, scoreClass, sortedChildren, sortedMethods, toggleExpand, handleClick, isActive };
             }
@@ -510,12 +538,25 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             components: { TreeNode },
             setup() {
                 // State
-                const treeRoot = shallowRef(initialTree); // Shallow because deep reactive tree is slow
+                const treeRoot = shallowRef(initialTree);
+                const nodeMap = new Map(); // Flat map for O(1) access
+
+                // Initialize Map
+                function indexNodes(node) {
+                    nodeMap.set(node.fullPath, node);
+                    if (node.children) node.children.forEach(indexNodes);
+                }
+                // Root children are the top level
+                if (treeRoot.value.children) {
+                    treeRoot.value.children.forEach(indexNodes);
+                }
+
                 const filterQuery = ref('');
                 const searchQuery = ref('');
                 const showSearch = ref(false);
                 const selectedResultIndex = ref(0);
                 const searchInput = ref(null);
+                const activeNodeId = ref('');
 
                 const currentFilePath = ref('');
                 const currentFileContent = ref('');
@@ -531,8 +572,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 };
 
                 const filteredTree = computed(() => {
-                    if (!filterQuery.value) return sortNodes(treeRoot.value.children || []); // Root children
-                    // If filtering, we need to return a new structure or modify visibility
+                    if (!filterQuery.value) return sortNodes(treeRoot.value.children || []);
                     return filterNodes(treeRoot.value.children || [], filterQuery.value.toLowerCase());
                 });
 
@@ -541,11 +581,19 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     const q = searchQuery.value.toLowerCase();
                     const results = [];
 
-                    // Flat search
-                    // Optimize: Cache this flat list
                     projectFiles.forEach(f => {
                         if (f.path.toLowerCase().includes(q)) {
-                             results.push({ name: f.path.split('/').pop(), path: f.path, score: f.totalScore, type: 'file' });
+                             // O(1) lookup
+                             const node = nodeMap.get(f.path);
+                             if (node) {
+                                results.push({
+                                    name: f.path.split('/').pop(),
+                                    path: f.path,
+                                    score: f.totalScore,
+                                    type: 'file',
+                                    id: node.id
+                                });
+                             }
                         }
                         f.methods.forEach(m => {
                             if (m.name.toLowerCase().includes(q)) {
@@ -560,7 +608,6 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
                 const highlightedCode = computed(() => {
                     if (!currentFileContent.value) return '';
-                    // Prism highlighting
                     if (window.Prism) {
                         try {
                             const grammar = Prism.languages[currentLanguage.value] || Prism.languages.javascript;
@@ -572,6 +619,24 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     }
                     return escapeHtml(currentFileContent.value);
                 });
+
+                // Helper to expand path to node
+                function expandPathToNode(node, targetPath) {
+                    // This function mutates the tree structure
+                    let modified = false;
+                    if (node.fullPath && targetPath.startsWith(node.fullPath)) {
+                        if (!node.isExpanded) {
+                            node.isExpanded = true;
+                            modified = true;
+                        }
+                    }
+                    if (node.children) {
+                        for (const child of node.children) {
+                            if (expandPathToNode(child, targetPath)) modified = true;
+                        }
+                    }
+                    return modified;
+                }
 
                 // Methods
                 function escapeHtml(text) {
@@ -593,19 +658,16 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 function filterNodes(nodes, query) {
                     return nodes.map(node => {
                         const matches = node.name.toLowerCase().includes(query);
-
                         let children = [];
                         if (node.children) children = filterNodes(node.children, query);
-
                         let methods = [];
                         if (node.methods) methods = node.methods.filter(m => m.name.toLowerCase().includes(query));
-
                         if (matches || children.length > 0 || methods.length > 0) {
                             return {
                                 ...node,
                                 children: sortNodes(children),
                                 methods,
-                                forceExpand: true, // Expand to show matches
+                                forceExpand: true,
                                 isExpanded: true
                             };
                         }
@@ -621,13 +683,26 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
                 function selectNode(event) {
                     const { node, type } = event;
+
+                    if (type === 'toggle') {
+                        // Just trigger reactivity update for the tree
+                        triggerRef(treeRoot);
+                        return;
+                    }
+
                     const file = projectFiles.find(f => f.path === node.fullPath);
                     if (!file) return;
+
+                    activeNodeId.value = node.id;
+
+                    // Expand path
+                    if (expandPathToNode(treeRoot.value, node.fullPath)) {
+                        triggerRef(treeRoot); // Force update
+                    }
 
                     currentFilePath.value = node.fullPath;
                     currentFileContent.value = file.content;
 
-                    // Determine language
                     const ext = node.fullPath.split('.').pop();
                     if (ext === 'cs') currentLanguage.value = 'csharp';
                     else if (ext === 'tsx') currentLanguage.value = 'tsx';
@@ -643,17 +718,40 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             shortMsg: d.message.replace(/\\(incl \\d+ for nesting\\)/, '').trim()
                         }));
 
-                        // Scroll to line
                         nextTick(() => {
                             const container = document.querySelector('.code-container');
                             const line = node.methodData.startLine;
                             if (container) {
-                                container.scrollTop = line * 20; // Exact match with 20px line-height
+                                container.scrollTop = line * 20;
                             }
                         });
-                    } else {
-                        selectedMethod.value = null;
-                        currentAnnotations.value = [];
+                    } else if (type === 'file') {
+                        if (file.methods && file.methods.length > 0) {
+                            const sortedMethods = file.methods.slice().sort((a, b) => b.score - a.score);
+                            const firstMethod = sortedMethods[0];
+
+                            selectedMethod.value = firstMethod;
+                            currentAnnotations.value = firstMethod.details.map(d => ({
+                                line: d.line,
+                                score: d.score,
+                                message: d.message,
+                                shortMsg: d.message.replace(/\\(incl \\d+ for nesting\\)/, '').trim()
+                            }));
+
+                            nextTick(() => {
+                                const container = document.querySelector('.code-container');
+                                if (container) {
+                                    container.scrollTop = firstMethod.startLine * 20;
+                                }
+                            });
+                        } else {
+                             selectedMethod.value = null;
+                             currentAnnotations.value = [];
+                             nextTick(() => {
+                                const container = document.querySelector('.code-container');
+                                if (container) container.scrollTop = 0;
+                            });
+                        }
                     }
                 }
 
@@ -678,10 +776,28 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
                 function selectResult(res) {
                     closeSearch();
-                    selectNode({
-                        node: { ...res, fullPath: res.path, methodData: res.methodData },
-                        type: res.type
-                    });
+                    if (res.type === 'file') {
+                         selectNode({
+                            node: {
+                                id: res.id,
+                                name: res.name,
+                                fullPath: res.path,
+                                type: 'file',
+                                score: res.score,
+                            },
+                            type: 'file'
+                        });
+                    } else {
+                        const methodId = 'method-' + res.methodData.name + '-' + res.methodData.startLine;
+                        selectNode({
+                            node: {
+                                id: methodId,
+                                fullPath: res.path,
+                                methodData: res.methodData,
+                            },
+                            type: 'method'
+                        });
+                    }
                 }
 
                 function selectSearchResult() {
@@ -689,7 +805,6 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     if (res) selectResult(res);
                 }
 
-                // Keyboard shortcuts
                 window.addEventListener('keydown', (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                         e.preventDefault();
@@ -719,7 +834,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     closeSearch,
                     moveSelection,
                     selectResult,
-                    selectSearchResult
+                    selectSearchResult,
+                    activeNodeId
                 };
             }
         });
