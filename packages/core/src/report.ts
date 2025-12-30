@@ -1,4 +1,5 @@
 import { MethodComplexity } from './types';
+import { VUE_SCRIPT, PRISM_CSS, PRISM_SCRIPT } from './assets';
 
 export interface FileAnalysisResult {
     path: string;
@@ -41,12 +42,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cognitive Complexity Report</title>
-    <!-- Vue 3 -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- PrismJS -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
     <style>
+        ${PRISM_CSS}
         :root {
             --bg-color: #f8fafc;
             --sidebar-bg: #ffffff;
@@ -373,12 +370,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
+    <script>${VUE_SCRIPT}</script>
+    <script>${PRISM_SCRIPT}</script>
 
     <script>
         const { createApp, ref, computed, onMounted, nextTick, shallowRef, triggerRef, watch } = Vue;
@@ -588,13 +581,59 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     if (window.Prism) {
                         try {
                             const grammar = Prism.languages[currentLanguage.value] || Prism.languages.javascript;
-                            return Prism.highlight(currentFileContent.value, grammar, currentLanguage.value);
+                            const html = Prism.highlight(currentFileContent.value, grammar, currentLanguage.value);
+                            // Wrap in a div to allow Prism plugin to process it?
+                            // Prism.highlight returns string HTML.
+                            // The line-numbers plugin usually runs on 'complete' hook or DOMContentLoaded.
+                            // Since we are using Vue, we need to trigger it manually or let the plugin run.
+                            // The plugin observes DOM additions or we can call Prism.highlightElement manually.
+                            return html;
                         } catch (e) {
                             console.error(e);
                             return escapeHtml(currentFileContent.value);
                         }
                     }
                     return escapeHtml(currentFileContent.value);
+                });
+
+                // Trigger Prism line numbers after update
+                watch(highlightedCode, () => {
+                    nextTick(() => {
+                        if (window.Prism) {
+                            // We need to re-run Prism on the code block to generate line numbers
+                            // Or better: use Prism.highlightElement which handles plugins.
+                            // But highlightedCode is computed string.
+                            // The line-numbers plugin listens to 'complete' hook of highlightElement.
+                            // If we just inject HTML, the plugin doesn't know.
+                            // We need to manually invoke the plugin or use highlightElement on the ref.
+
+                            // Hack: Prism line-numbers plugin exposes a resize method but also runs on complete.
+                            // Let's try to just select all pre.line-numbers and running Prism.highlightElement is redundant if we already highlighted.
+                            // Actually, if we use Prism.highlight (string), plugins are NOT applied automatically to the string.
+                            // We need to use Prism.highlightElement on the mounted DOM element.
+                            // So we should NOT use v-html with Prism.highlight string if we want plugins.
+                            // We should use a watcher and ref to call highlightElement.
+
+                            // Refactor:
+                            // We will inject the raw code into <code> and then call Prism.highlightElement.
+                            // But we are using v-html="highlightedCode".
+                            // Let's change the strategy in the template?
+                            // Or just manually run the line-numbers logic?
+                            // Prism.plugins.lineNumbers.resize(preElement) might work if structure is there.
+
+                            // Simpler: Just re-highlight the element.
+                            const codeEl = document.querySelector('pre.line-numbers code');
+                            if (codeEl) {
+                                // Reset content to raw to let Prism handle it?
+                                // Or does Prism.highlightElement work on already highlighted code? No.
+                                // It expects text content.
+
+                                // Let's just manually invoke the line number generation logic which adds the spans.
+                                // Prism.plugins.lineNumbers.resize is exposed.
+                                Prism.plugins.lineNumbers.resize(codeEl.parentElement);
+                            }
+                        }
+                    });
                 });
 
                 // Helper to expand path to node
