@@ -2,7 +2,7 @@ import { MethodComplexity } from './types';
 
 export interface FileAnalysisResult {
     path: string;
-    content: string;
+    content: string; // The full content of the file
     methods: MethodComplexity[];
     totalScore: number;
 }
@@ -76,6 +76,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             --highlight: #f1f5f9;
             --tree-hover: #f1f5f9;
             --tree-selected: #eff6ff;
+            --modal-overlay: rgba(0, 0, 0, 0.5);
+            --modal-bg: #ffffff;
         }
 
         * { box-sizing: border-box; }
@@ -106,6 +108,16 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         .stat-item { display: flex; flex-direction: column; }
         .stat-val { font-weight: bold; color: #38bdf8; }
         .stat-label { font-size: 0.75rem; color: #94a3b8; }
+
+        .shortcut-hint {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            background: rgba(255,255,255,0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-left: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
 
         .main-container {
             flex: 1;
@@ -274,11 +286,91 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             height: 100%;
             color: var(--text-muted);
         }
+
+        /* Modal / Command Palette */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--modal-overlay);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 10vh;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: all 0.1s ease-in-out;
+        }
+
+        .modal-overlay.open {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .modal {
+            background: var(--modal-bg);
+            width: 600px;
+            max-width: 90%;
+            max-height: 80vh;
+            border-radius: 8px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 1rem;
+            outline: none;
+            background: transparent;
+        }
+
+        .modal-results {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 500px;
+        }
+
+        .result-item {
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .result-item:last-child { border-bottom: none; }
+        .result-item.selected { background: var(--tree-selected); }
+
+        .result-icon { margin-right: 12px; font-size: 1.2rem; }
+
+        .result-info { flex: 1; overflow: hidden; }
+        .result-name { font-weight: 500; font-size: 0.9rem; color: var(--text-main); }
+        .result-path { font-size: 0.75rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .result-score {
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 2px 8px;
+            border-radius: 99px;
+            margin-left: 12px;
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>Cognitive Complexity Report</h1>
+        <div style="display: flex; align-items: center;">
+            <h1>Cognitive Complexity Report</h1>
+            <span class="shortcut-hint">Press Ctrl+K to search</span>
+        </div>
         <div class="stats">
             <div class="stat-item">
                 <span class="stat-label">Total Complexity</span>
@@ -298,7 +390,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     <div class="main-container">
         <div class="sidebar">
             <div class="sidebar-header">
-                <input type="text" class="search-box" placeholder="Filter methods or files..." oninput="filterTree(this.value)">
+                <input type="text" class="search-box" placeholder="Filter tree..." oninput="filterTree(this.value)">
             </div>
             <div class="tree-container" id="treeContainer">
                 <!-- Tree populated by JS -->
@@ -325,6 +417,14 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         </div>
     </div>
 
+    <!-- Modal -->
+    <div class="modal-overlay" id="searchModal" onclick="closeSearch(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <input type="text" class="modal-input" id="searchInput" placeholder="Search files and methods..." autocomplete="off">
+            <div class="modal-results" id="searchResults"></div>
+        </div>
+    </div>
+
     <script>
         const treeData = ${treeJson};
         const projectData = ${filesJson};
@@ -333,8 +433,14 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         const codeContainerEl = document.getElementById('codeContainer');
         const currentFilePathEl = document.getElementById('currentFilePath');
         const methodInfoEl = document.getElementById('methodInfo');
+        const searchModal = document.getElementById('searchModal');
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
 
+        let searchIndex = [];
         let activeMethodId = null;
+        let selectedResultIndex = -1;
+        let currentResults = [];
 
         function getScoreClass(score) {
             if (score >= 25) return 'score-badge-high';
@@ -342,7 +448,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             return 'score-badge-low';
         }
 
-        function createTreeItem(node, level = 0) {
+        function createTreeItem(node, level = 0, lazy = true) {
             const wrapper = document.createElement('div');
             const item = document.createElement('div');
             item.className = 'tree-item';
@@ -380,54 +486,68 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 const childrenContainer = document.createElement('div');
                 childrenContainer.className = 'tree-children';
                 
-                if (node.children) {
-                    node.children
-                        .sort((a, b) => {
-                            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-                            return b.score - a.score;
-                        })
-                        .forEach(child => {
-                            childrenContainer.appendChild(createTreeItem(child, level + 1));
-                        });
+                // Lazy loading logic
+                let childrenRendered = !lazy;
+
+                const renderChildren = () => {
+                     if (childrenRendered) return;
+                     childrenRendered = true;
+
+                     if (node.children) {
+                        node.children
+                            .sort((a, b) => {
+                                if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+                                return b.score - a.score;
+                            })
+                            .forEach(child => {
+                                childrenContainer.appendChild(createTreeItem(child, level + 1, true));
+                            });
+                    }
+
+                    if (node.methods) {
+                        node.methods
+                            .sort((a, b) => b.score - a.score)
+                            .forEach(method => {
+                                const methodNode = {
+                                    name: method.name,
+                                    type: 'method',
+                                    score: method.score,
+                                    methodData: method,
+                                    filePath: node.fullPath
+                                };
+                                childrenContainer.appendChild(createTreeItem(methodNode, level + 1, true));
+                            });
+                    }
                 }
                 
-                if (node.methods) {
-                    node.methods
-                        .sort((a, b) => b.score - a.score)
-                        .forEach(method => {
-                            const methodNode = {
-                                name: method.name,
-                                type: 'method',
-                                score: method.score,
-                                methodData: method,
-                                filePath: node.fullPath
-                            };
-                            childrenContainer.appendChild(createTreeItem(methodNode, level + 1));
-                        });
+                if (!lazy) {
+                    renderChildren();
                 }
 
                 wrapper.appendChild(childrenContainer);
 
-                item.onclick = (e) => {
-                    e.stopPropagation();
+                const toggleExpand = () => {
+                    renderChildren();
                     const isExpanded = childrenContainer.classList.toggle('expanded');
                     expander.classList.toggle('expanded', isExpanded);
                 };
+
+                // Allow clicking the item to expand for folders/files
+                if (node.type !== 'method') {
+                     item.onclick = (e) => {
+                        e.stopPropagation();
+                        toggleExpand();
+                    };
+                } else {
+                     // Methods expand differently or not at all? Methods are leaves in this tree structure usually.
+                     // But if a method had children (e.g. local functions - not supported yet), it would be here.
+                }
             }
             
             if (node.type === 'method') {
                 item.onclick = (e) => {
                     e.stopPropagation();
                     selectMethodInternal(node.methodData, node.filePath, item);
-                };
-            } else if (node.type === 'file' || node.type === 'folder') {
-                item.onclick = (e) => {
-                    e.stopPropagation();
-                    if (hasChildren) {
-                        const childrenContainer = wrapper.querySelector('.tree-children');
-                        const isExpanded = childrenContainer.classList.toggle('expanded');
-                        expander.classList.toggle('expanded', isExpanded);
-                    }
                 };
             }
 
@@ -436,7 +556,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
         function selectMethodInternal(method, filePath, element) {
             document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
-            element.classList.add('active');
+            if (element) element.classList.add('active');
 
             currentFilePathEl.textContent = filePath;
             methodInfoEl.innerHTML = '<span class="tree-score ' + getScoreClass(method.score) + '">' + method.score + ' Complexity</span>';
@@ -446,32 +566,45 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             if (file) {
                 renderCode(method, file.content);
                 
-                const targetLine = document.getElementById('line-' + (method.startLine + 1));
-                if (targetLine) {
-                    targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    highlightRange(method.startLine + 1, method.endLine + 1);
-                }
+                // Wait for render
+                setTimeout(() => {
+                    const targetLine = document.getElementById('line-' + (method.startLine + 1));
+                    if (targetLine) {
+                        targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        highlightRange(method.startLine + 1, method.endLine + 1);
+                    }
+                }, 10);
             }
         }
 
         function renderTree(filter = '') {
             treeContainerEl.innerHTML = '';
-            const filteredTree = filterNode(treeData, filter.toLowerCase());
-            if (filteredTree) {
-                // If it's the root node, just show its children to avoid a redundant "root" folder
-                if (filteredTree.id === 'root') {
-                    filteredTree.children.forEach(child => {
-                        treeContainerEl.appendChild(createTreeItem(child, 0));
-                    });
-                } else {
-                    treeContainerEl.appendChild(createTreeItem(filteredTree, 0));
+
+            if (filter) {
+                // When filtering, we don't use lazy loading because we need to show matches deep in the tree
+                const filteredTree = filterNode(treeData, filter.toLowerCase());
+                if (filteredTree) {
+                    if (filteredTree.id === 'root') {
+                         filteredTree.children.forEach(child => {
+                            treeContainerEl.appendChild(createTreeItem(child, 0, false));
+                        });
+                    } else {
+                        treeContainerEl.appendChild(createTreeItem(filteredTree, 0, false));
+                    }
+                    expandAll(treeContainerEl);
                 }
-                
-                if (filter) expandAll(treeContainerEl);
+            } else {
+                // Initial view - use lazy loading
+                if (treeData.children) {
+                    treeData.children.forEach(child => {
+                        treeContainerEl.appendChild(createTreeItem(child, 0, true));
+                    });
+                }
             }
         }
 
         function filterNode(node, query) {
+            // ... (same as before)
             if (!query) return node;
 
             const matches = node.name.toLowerCase().includes(query);
@@ -512,7 +645,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         }
 
         function renderCode(method, fileContent) {
-            const lines = fileContent.split(/\\r?\\n/);
+            // ... (same as before)
+             const lines = fileContent.split(/\\r?\\n/);
             const table = document.createElement('table');
             table.className = 'code-table';
             
@@ -568,6 +702,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         }
 
         function highlight(code) {
+             // ... (same as before)
             const keywords = /\\b(abstract|async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|false|finally|for|function|if|implements|import|in|instanceof|interface|let|new|null|package|private|protected|public|return|static|super|switch|this|throw|true|try|typeof|var|void|while|with|yield|bool|string|int|float|double|decimal|var|namespace|using|foreach|lock|fixed|unsafe|ref|out|params|is|as|base|checked|unchecked|delegate|event|explicit|implicit|operator|readonly|sizeof|stackalloc|volatile|async|await|record|init|with|params)\\b/g;
             const strings = /("[^"]*"|'[^']*'|\\\`[^*]*\\\`)/g;
             const comments = /(\\/\\/.*|\\/\\*[^*]*\\*\\/)/g;
@@ -600,7 +735,209 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             renderTree(val);
         }
 
+        // ==========================================
+        // SEARCH FUNCTIONALITY
+        // ==========================================
+
+        function buildSearchIndex() {
+            const index = [];
+            projectData.forEach(file => {
+                // Add file to index
+                index.push({
+                    name: file.path.split('/').pop(),
+                    path: file.path,
+                    type: 'file',
+                    score: file.totalScore,
+                    data: null
+                });
+
+                // Add methods to index
+                file.methods.forEach(method => {
+                    index.push({
+                        name: method.name,
+                        path: file.path,
+                        type: 'method',
+                        score: method.score,
+                        data: method
+                    });
+                });
+            });
+            return index;
+        }
+
+        function openSearch() {
+            searchModal.classList.add('open');
+            searchInput.value = '';
+            searchInput.focus();
+            renderSearchResults([]);
+        }
+
+        function closeSearch(e) {
+            if (e) e.stopPropagation();
+            searchModal.classList.remove('open');
+        }
+
+        function handleSearchInput(e) {
+            const query = e.target.value.toLowerCase();
+            if (!query) {
+                renderSearchResults([]);
+                return;
+            }
+
+            // Simple fuzzy-ish search: check if all characters exist in order?
+            // Or just 'includes' for now. Let's do 'includes' + score sorting.
+            // A better fuzzy search would be good but expensive to implement from scratch.
+            // Let's stick to "smart includes": matches word boundaries or simple substring.
+
+            const results = searchIndex.filter(item => {
+                return item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query);
+            });
+
+            // Score results
+            results.sort((a, b) => {
+                // Exact match on name
+                const aExact = a.name.toLowerCase() === query;
+                const bExact = b.name.toLowerCase() === query;
+                if (aExact && !bExact) return -1;
+                if (!aExact && bExact) return 1;
+
+                // Starts with
+                const aStart = a.name.toLowerCase().startsWith(query);
+                const bStart = b.name.toLowerCase().startsWith(query);
+                if (aStart && !bStart) return -1;
+                if (!aStart && bStart) return 1;
+
+                // Complexity score (descending)
+                return b.score - a.score;
+            });
+
+            currentResults = results.slice(0, 50); // Limit results
+            selectedResultIndex = 0;
+            renderSearchResults(currentResults);
+        }
+
+        function renderSearchResults(results) {
+            searchResults.innerHTML = '';
+            if (results.length === 0) {
+                if (searchInput.value) {
+                    const empty = document.createElement('div');
+                    empty.className = 'result-item';
+                    empty.style.color = '#94a3b8';
+                    empty.innerText = 'No results found';
+                    searchResults.appendChild(empty);
+                }
+                return;
+            }
+
+            results.forEach((res, idx) => {
+                const el = document.createElement('div');
+                el.className = 'result-item' + (idx === 0 ? ' selected' : '');
+                el.onclick = () => selectResult(res);
+                el.onmouseenter = () => {
+                    selectedResultIndex = idx;
+                    updateSelection();
+                };
+
+                const icon = document.createElement('span');
+                icon.className = 'result-icon';
+                icon.innerText = res.type === 'file' ? '📄' : 'ƒ';
+
+                const info = document.createElement('div');
+                info.className = 'result-info';
+
+                const name = document.createElement('div');
+                name.className = 'result-name';
+                name.innerText = res.name;
+
+                const path = document.createElement('div');
+                path.className = 'result-path';
+                path.innerText = res.path;
+
+                info.appendChild(name);
+                info.appendChild(path);
+
+                const score = document.createElement('span');
+                score.className = 'result-score ' + getScoreClass(res.score);
+                score.innerText = res.score;
+
+                el.appendChild(icon);
+                el.appendChild(info);
+                el.appendChild(score);
+                searchResults.appendChild(el);
+            });
+        }
+
+        function updateSelection() {
+            const items = searchResults.querySelectorAll('.result-item');
+            items.forEach((el, idx) => {
+                if (idx === selectedResultIndex) el.classList.add('selected');
+                else el.classList.remove('selected');
+            });
+
+            // Scroll into view
+            if (selectedResultIndex >= 0 && items[selectedResultIndex]) {
+                items[selectedResultIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function selectResult(res) {
+            closeSearch();
+            if (res.type === 'method') {
+                selectMethodInternal(res.data, res.path, null);
+            } else {
+                // For files, select the first method or just show the file
+                 const file = projectData.find(f => f.path === res.path);
+                 if (file && file.methods.length > 0) {
+                     // Select first method
+                     selectMethodInternal(file.methods[0], res.path, null);
+                 } else if (file) {
+                     // Show file without method selection?
+                     // Currently selectMethodInternal handles highlighting.
+                     // We can just show the first line.
+                     // But we need a dummy method object?
+                     // Or just render code.
+                     currentFilePathEl.textContent = res.path;
+                     methodInfoEl.innerHTML = '<span class="tree-score ' + getScoreClass(res.score) + '">' + res.score + ' Complexity</span>';
+                     renderCode({ details: [] }, file.content); // Empty details for file view
+                 }
+            }
+        }
+
+        // Event Listeners
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                if (searchModal.classList.contains('open')) {
+                    closeSearch();
+                } else {
+                    openSearch();
+                }
+            }
+
+            if (searchModal.classList.contains('open')) {
+                if (e.key === 'Escape') {
+                    closeSearch();
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedResultIndex = Math.min(selectedResultIndex + 1, currentResults.length - 1);
+                    updateSelection();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedResultIndex = Math.max(selectedResultIndex - 1, 0);
+                    updateSelection();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectedResultIndex >= 0 && currentResults[selectedResultIndex]) {
+                        selectResult(currentResults[selectedResultIndex]);
+                    }
+                }
+            }
+        });
+
+        searchInput.addEventListener('input', handleSearchInput);
+
         // Initialize
+        searchIndex = buildSearchIndex();
         renderTree();
     </script>
 </body>
@@ -669,4 +1006,3 @@ function buildFileTree(files: FileAnalysisResult[]): TreeNode {
     calculateFolderScores(root);
     return root;
 }
-
