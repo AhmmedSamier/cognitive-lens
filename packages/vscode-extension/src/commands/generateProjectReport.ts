@@ -86,7 +86,10 @@ export async function generateProjectReport(client: LanguageClient) {
                             languageId: languageId
                         });
 
-                        return { file, relativePath, complexities };
+                        const contentBuffer = await vscode.workspace.fs.readFile(file);
+                        const content = Buffer.from(contentBuffer).toString('utf8');
+
+                        return { file, relativePath, complexities, content };
                     } catch (e) {
                         console.error(`Failed to analyze ${file.fsPath}:`, e);
                         return null;
@@ -100,6 +103,7 @@ export async function generateProjectReport(client: LanguageClient) {
                             .reduce((acc, curr) => acc + curr.score, 0);
                         reportData.files.push({
                             path: res.relativePath,
+                            content: res.content,
                             methods: res.complexities.map(c => ({
                                 ...c,
                                 details: (c as any).details || []
