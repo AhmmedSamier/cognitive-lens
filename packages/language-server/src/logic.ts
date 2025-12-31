@@ -261,9 +261,15 @@ export function computeInlayHints(
                 icon = '🟡';
             }
 
+            let label = `${posInfo.labelPrefix}${icon} ${settings.totalScorePrefix}: ${method.score} (${lines} lines)`;
+            if (method.complexityDelta !== undefined && method.complexityDelta !== 0) {
+                const sign = method.complexityDelta > 0 ? '+' : '';
+                label += ` (${sign}${method.complexityDelta})`;
+            }
+
             result.push({
                 position: posInfo.position,
-                label: `${posInfo.labelPrefix}${icon} ${settings.totalScorePrefix}: ${method.score} (${lines} lines)`,
+                label: label,
                 kind: InlayHintKind.Type,
                 paddingLeft: posInfo.paddingLeft,
                 paddingRight: posInfo.paddingRight
@@ -324,10 +330,16 @@ export function computeCodeLenses(
                 icon = '🟡';
             }
 
+            let title = `${icon} ${settings.totalScorePrefix}: ${c.score} (${lines} lines)`;
+            if (c.complexityDelta !== undefined && c.complexityDelta !== 0) {
+                const sign = c.complexityDelta > 0 ? '+' : '';
+                title += ` (${sign}${c.complexityDelta})`;
+            }
+
             return {
                 range: { start, end },
                 command: {
-                    title: `${icon} ${settings.totalScorePrefix}: ${c.score} (${lines} lines)`,
+                    title: title,
                     command: '',
                     arguments: []
                 },

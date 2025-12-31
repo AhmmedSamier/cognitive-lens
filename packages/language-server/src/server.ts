@@ -37,6 +37,8 @@ import {
     computeHover
 } from './logic';
 import { IncrementalParser } from './IncrementalParser';
+import { GitService } from './GitService';
+import { TextDecoder } from 'util';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -173,13 +175,45 @@ const complexityPromises = new Map<string, { version: number, promise: Promise<M
 const validationTimers = new Map<string, NodeJS.Timeout>();
 const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
 
+const gitService = new GitService();
+const baseComplexityCache = new Map<string, MethodComplexity[]>();
+
 // Handle document lifecycle for incremental parsing
 connection.onDidOpenTextDocument(async (params: DidOpenTextDocumentParams) => {
     if (!parserInitialized) await initParser();
     if (incrementalParser) {
         await incrementalParser.handleOpen(params);
     }
+
+    // Fetch base complexity from Git HEAD
+    updateBaseComplexity(params.textDocument.uri, params.textDocument.languageId);
 });
+
+async function updateBaseComplexity(uri: string, languageId: string) {
+    if (baseComplexityCache.has(uri)) return;
+
+    try {
+        let fsPath = '';
+        if (uri.startsWith('file://')) {
+            fsPath = fileURLToPath(uri);
+        } else {
+            return;
+        }
+
+        const baseContentBuffer = await gitService.getGitHeadContent(fsPath);
+        if (baseContentBuffer) {
+            const decoder = new TextDecoder('utf-8');
+            const baseContent = decoder.decode(baseContentBuffer);
+            const baseComplexities = await analyzeContent(baseContent, languageId);
+            baseComplexityCache.set(uri, baseComplexities);
+        } else {
+            baseComplexityCache.set(uri, []);
+        }
+    } catch (e) {
+        connection.console.error(`Failed to update base complexity: ${e}`);
+        baseComplexityCache.set(uri, []);
+    }
+}
 
 connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
     // Synchronously update the tree
@@ -199,6 +233,7 @@ connection.onDidCloseTextDocument((params: DidCloseTextDocumentParams) => {
     complexityCache.delete(params.textDocument.uri);
     complexityPromises.delete(params.textDocument.uri);
     settingsCache.delete(params.textDocument.uri);
+    baseComplexityCache.delete(params.textDocument.uri);
 
     // Clear any pending validation to avoid resurrection
     const timer = validationTimers.get(params.textDocument.uri);
@@ -280,6 +315,17 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
             }
         } catch (e) {
             connection.console.error(`Error calculating complexity: ${e}`);
+        }
+
+        // Calculate delta if base complexity is available
+        const baseComplexities = baseComplexityCache.get(textDocument.uri);
+        if (baseComplexities) {
+            for (const current of complexities) {
+                const base = baseComplexities.find(b => b.name === current.name);
+                if (base) {
+                    current.complexityDelta = current.score - base.score;
+                }
+            }
         }
 
         complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });

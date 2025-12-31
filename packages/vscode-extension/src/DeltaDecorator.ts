@@ -4,7 +4,7 @@ import { MethodComplexity } from './types';
 let improvedDecorationType: TextEditorDecorationType | undefined;
 let regressedDecorationType: TextEditorDecorationType | undefined;
 
-export function updateDeltaDecorations(editor: TextEditor, currentComplexities: MethodComplexity[], baseComplexities: MethodComplexity[] | undefined) {
+export function updateDeltaDecorations(editor: TextEditor, currentComplexities: MethodComplexity[]) {
     // Check configuration
     const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
     if (!config.get<boolean>('showInlayHints.complexityDelta', true)) {
@@ -16,48 +16,35 @@ export function updateDeltaDecorations(editor: TextEditor, currentComplexities: 
         createDecorationTypes();
     }
 
-    if (!baseComplexities) {
-        clearDecorations(editor);
-        return;
-    }
-
     const improvedRanges: { range: Range, renderOptions: any }[] = [];
     const regressedRanges: { range: Range, renderOptions: any }[] = [];
 
     for (const current of currentComplexities) {
-        // Find corresponding base method
-        // Using name for now. Ideally we'd use signature or location heuristic, but name is a good start.
-        const base = baseComplexities.find(b => b.name === current.name);
+        const delta = current.complexityDelta;
 
-        if (base) {
-            const delta = current.score - base.score;
-            if (delta !== 0) {
-                const startPos = editor.document.positionAt(current.startIndex);
-                const endPos = editor.document.positionAt(current.startIndex + current.name.length); // Approximate end of name?
-                // Actually, we want to place it *after* the method declaration line, or at the end of the line.
-                // Let's place it at the end of the first line of the method.
+        if (delta !== undefined && delta !== 0) {
+            const startPos = editor.document.positionAt(current.startIndex);
+            // Let's place it at the end of the first line of the method.
+            const line = editor.document.lineAt(startPos.line);
+            const range = new Range(line.range.end, line.range.end);
 
-                const line = editor.document.lineAt(startPos.line);
-                const range = new Range(line.range.end, line.range.end);
+            const sign = delta > 0 ? '+' : '';
+            const text = ` ${sign}${delta} Complexity`;
 
-                const sign = delta > 0 ? '+' : '';
-                const text = ` ${sign}${delta} Complexity`;
-
-                const renderOptions = {
-                    after: {
-                        contentText: text,
-                        margin: '0 0 0 10px',
-                        fontWeight: 'bold'
-                    }
-                };
-
-                if (delta > 0) {
-                    // Regression (Red)
-                    regressedRanges.push({ range, renderOptions });
-                } else {
-                    // Improvement (Green)
-                    improvedRanges.push({ range, renderOptions });
+            const renderOptions = {
+                after: {
+                    contentText: text,
+                    margin: '0 0 0 10px',
+                    fontWeight: 'bold'
                 }
+            };
+
+            if (delta > 0) {
+                // Regression (Red)
+                regressedRanges.push({ range, renderOptions });
+            } else {
+                // Improvement (Green)
+                improvedRanges.push({ range, renderOptions });
             }
         }
     }

@@ -14,4 +14,5 @@ export interface MethodComplexity {
     endLine: number;
     isCallback?: boolean;
     isRoot?: boolean;
+    complexityDelta?: number;
 }
