@@ -80,7 +80,7 @@ export function activate(context: ExtensionContext) {
     // Register command for report generation
     context.subscriptions.push(commands.registerCommand('cognitive-complexity.generateReport', async () => {
         if (client) {
-            await generateProjectReport(client);
+            await generateProjectReport(client, context);
         } else {
             window.showErrorMessage('Cognitive Complexity Language Server is not ready.');
         }
