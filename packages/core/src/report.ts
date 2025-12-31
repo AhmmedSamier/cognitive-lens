@@ -53,11 +53,68 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     <link rel="icon" type="image/png" href="${result.favicon || ''}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css">
     <style>
-        :root{--bg-color:#f8fafc;--sidebar-bg:#ffffff;--border-color:#e2e8f0;--text-main:#1e293b;--text-muted:#64748b;--primary:#2563eb;--error:#ef4444;--warning:#f59e0b;--success:#10b981;--code-bg:#ffffff;--tree-hover:#f1f5f9;--tree-selected:#eff6ff}
-        *{box-sizing:border-box}
-        body{font-family:'Inter',sans-serif;margin:0;height:100vh;display:flex;flex-direction:column;color:var(--text-main);background:var(--bg-color);overflow:hidden}
+        :root {
+            --bg-color: #f8fafc;
+            --sidebar-bg: #ffffff;
+            --sidebar-header-bg: #f8fafc;
+            --content-header-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --primary: #2563eb;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --code-bg: #ffffff;
+            --tree-hover: #f1f5f9;
+            --tree-selected: #eff6ff;
+            --header-bg: #1e293b;
+            --header-text: #ffffff;
+            --modal-bg: #ffffff;
+            --modal-shadow: rgba(0,0,0,0.1);
+            --match-highlight: #fde68a;
+            --inlay-bg: #fee2e2;
+            --inlay-border: #fecaca;
+            --inlay-text: #991b1b;
+            --score-high-bg: #fee2e2;
+            --score-high-text: #b91c1c;
+            --score-med-bg: #ffedd5;
+            --score-med-text: #9a3412;
+            --score-low-bg: #dcfce7;
+            --score-low-text: #15803d;
+        }
+
+        [data-theme='dark'] {
+            --bg-color: #0f172a;
+            --sidebar-bg: #1e293b;
+            --sidebar-header-bg: #0f172a;
+            --content-header-bg: #1e293b;
+            --border-color: #334155;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --code-bg: #0f172a;
+            --tree-hover: #334155;
+            --tree-selected: #0f172a;
+            --header-bg: #020617;
+            --modal-bg: #1e293b;
+            --modal-shadow: rgba(0,0,0,0.5);
+            --match-highlight: #854d0e;
+            --inlay-bg: #450a0a;
+            --inlay-border: #7f1d1d;
+            --inlay-text: #fca5a5;
+            --score-high-bg: #450a0a;
+            --score-high-text: #fca5a5;
+            --score-med-bg: #431407;
+            --score-med-text: #fed7aa;
+            --score-low-bg: #064e3b;
+            --score-low-text: #6ee7b7;
+        }
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; color: var(--text-main); background: var(--bg-color); overflow: hidden; }
         #app{display:flex;flex-direction:column;height:100%;width:100%}
-        header{height:60px;background:#1e293b;color:white;display:flex;align-items:center;padding:0 20px;justify-content:space-between;flex-shrink:0}
+        header { height: 60px; background: var(--header-bg); color: var(--header-text); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; flex-shrink: 0; border-bottom: 1px solid var(--border-color); }
         .main-container{flex:1;display:flex;overflow:hidden}
         .sidebar{width:350px;background:var(--sidebar-bg);border-right:1px solid var(--border-color);display:flex;flex-direction:column;overflow:hidden;position:relative;flex-shrink:0;transition:width .3s cubic-bezier(.4,0,.2,1)}
         .sidebar.is-resizing{transition:none}
@@ -65,17 +122,17 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         .resize-handle{position:absolute;right:0;top:0;bottom:0;width:4px;cursor:col-resize;transition:background .2s;z-index:100}
         .resize-handle:hover,.sidebar.is-resizing .resize-handle{background:var(--primary)}
         .content{flex:1;display:flex;flex-direction:column;background:var(--code-bg);overflow:hidden;position:relative}
-        .sidebar-header{padding:10px 16px 10px 12px;border-bottom:1px solid var(--border-color);background:#f8fafc;display:flex;align-items:center;gap:8px;width:100%;flex-shrink:0}
+        .sidebar-header { padding: 10px 16px 10px 12px; border-bottom: 1px solid var(--border-color); background: var(--sidebar-header-bg); display: flex; align-items: center; gap: 8px; width: 100%; flex-shrink: 0; }
         .sidebar.collapsed .sidebar-header{display:none}
         .header-btn{padding:6px;border-radius:4px;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center;border:1px solid transparent;background:transparent;transition:all .2s;flex-shrink:0}
-        .header-btn:hover{background:#f1f5f9;color:var(--primary);border-color:var(--border-color)}
+        .header-btn:hover { background: var(--tree-hover); color: var(--primary); border-color: var(--border-color); }
         .header-btn svg{width:18px;height:18px;fill:currentColor;display:block}
         .header-btn.flip svg{transform:scaleX(-1)}
         .search-box-container{flex:1;position:relative;display:flex;align-items:center}
-        .search-box{flex:1;padding:8px 30px 8px 12px;border:1px solid var(--border-color);border-radius:6px;font-size:.85rem;outline:none;width:100%}
+        .search-box{flex:1;padding:8px 30px 8px 12px;border:1px solid var(--border-color);border-radius:6px;font-size:.85rem;outline:none;width:100%;background:transparent;color:var(--text-main)}
         .search-box:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(37,99,235,.1)}
         .clear-btn{position:absolute;right:8px;padding:4px;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:50%;transition:all .2s}
-        .clear-btn:hover{background:#f1f5f9;color:var(--primary)}
+        .clear-btn:hover { background: var(--tree-hover); color: var(--primary); }
         .clear-btn svg{width:14px;height:14px;fill:currentColor}
         .tree-container{flex:1;overflow:auto;padding:8px 0}
         .sidebar.collapsed .tree-container{display:none}
@@ -86,24 +143,24 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         .tree-expander.expanded{transform:rotate(90deg)}
         .invisible{visibility:hidden;flex-shrink:0}
         .score-badge{margin-left:auto;font-size:.75rem;font-weight:600;padding:1px 6px;border-radius:10px;flex-shrink:0}
-        .score-high{background:#fee2e2;color:#b91c1c}
-        .score-med{background:#ffedd5;color:#9a3412}
-        .score-low{background:#dcfce7;color:#15803d}
-        .content-header{padding:12px 20px;border-bottom:1px solid var(--border-color);background:white;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        .score-high { background: var(--score-high-bg); color: var(--score-high-text); }
+        .score-med { background: var(--score-med-bg); color: var(--score-med-text); }
+        .score-low { background: var(--score-low-bg); color: var(--score-low-text); }
+        .content-header { padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: var(--content-header-bg); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
         .code-container{flex:1;overflow:auto;position:relative;background:var(--code-bg)}
         .code-wrapper{position:relative;padding:20px 0;min-width:max-content}
         .code-line{display:flex;align-items:center;height:20px;line-height:20px;font-family:monospace;font-size:13px}
         .code-line:hover{background:rgba(241,245,249,.5)}
-        .line-number{width:50px;text-align:right;padding-right:20px;color:#94a3b8;font-size:12px;user-select:none;flex-shrink:0;border-right:1px solid var(--border-color);margin-right:15px}
+        .line-number{width:50px;text-align:right;padding-right:20px;color:var(--text-muted);font-size:12px;user-select:none;flex-shrink:0;border-right:1px solid var(--border-color);margin-right:15px}
         .line-content{white-space:pre;color:var(--text-main)}
 
         /* Inlay Hint Styles */
         .inlay-hint {
             display: inline-flex;
             align-items: center;
-            background: #fee2e2;
-            border: 1px solid #fecaca;
-            color: #991b1b;
+            background: var(--inlay-bg);
+            border: 1px solid var(--inlay-border);
+            color: var(--inlay-text);
             padding: 0 6px;
             border-radius: 4px;
             font-size: 11px;
@@ -117,7 +174,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         }
 
         .inlay-hint:hover {
-            background: #fecaca;
+            filter: brightness(0.9);
         }
 
         /* Modal */
@@ -131,14 +188,15 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             z-index: 200;
         }
         .modal {
-            background: white;
+            background: var(--modal-bg);
             width: 600px;
             max-width: 90%;
             max-height: 80vh;
             border-radius: 8px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 25px -5px var(--modal-shadow);
+            border: 1px solid var(--border-color);
         }
         .modal-input-container {
             position: relative;
@@ -152,6 +210,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             border: none;
             outline: none;
             flex: 1;
+            background: transparent;
+            color: var(--text-main);
         }
         .modal-input-container .clear-btn {
             right: 16px;
@@ -169,18 +229,52 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             cursor: pointer;
             display: flex;
             align-items: center;
-            border-bottom: 1px solid #f1f5f9;
+            border-bottom: 1px solid var(--border-color);
         }
         .result-item.selected { background: var(--tree-selected); }
         .result-info { flex: 1; overflow: hidden; }
         .result-name { font-weight: 500; font-size: 14px; }
         .result-path { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
         .match-highlight {
-            background: #fde68a;
-            color: #000;
+            background: var(--match-highlight);
+            color: var(--text-main);
             border-radius: 2px;
             font-weight: bold;
         }
+
+        /* Dark Mode Prism Overrides */
+        [data-theme='dark'] .token.comment,
+        [data-theme='dark'] .token.prolog,
+        [data-theme='dark'] .token.doctype,
+        [data-theme='dark'] .token.cdata { color: #94a3b8; }
+        [data-theme='dark'] .token.punctuation { color: #f1f5f9; }
+        [data-theme='dark'] .token.namespace { opacity: .7; }
+        [data-theme='dark'] .token.property,
+        [data-theme='dark'] .token.tag,
+        [data-theme='dark'] .token.boolean,
+        [data-theme='dark'] .token.number,
+        [data-theme='dark'] .token.constant,
+        [data-theme='dark'] .token.symbol,
+        [data-theme='dark'] .token.deleted { color: #f472b6; }
+        [data-theme='dark'] .token.selector,
+        [data-theme='dark'] .token.attr-name,
+        [data-theme='dark'] .token.string,
+        [data-theme='dark'] .token.char,
+        [data-theme='dark'] .token.builtin,
+        [data-theme='dark'] .token.inserted { color: #34d399; }
+        [data-theme='dark'] .token.operator,
+        [data-theme='dark'] .token.entity,
+        [data-theme='dark'] .token.url,
+        [language-css] .token.string,
+        .style .token.string { color: #f1f5f9; }
+        [data-theme='dark'] .token.atrule,
+        [data-theme='dark'] .token.attr-value,
+        [data-theme='dark'] .token.keyword { color: #3b82f6; }
+        [data-theme='dark'] .token.function,
+        [data-theme='dark'] .token.class-name { color: #fbbf24; }
+        [data-theme='dark'] .token.regex,
+        [data-theme='dark'] .token.important,
+        [data-theme='dark'] .token.variable { color: #e879f9; }
 
         .offline-warning {
             padding: 20px;
@@ -197,10 +291,14 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 <h1 style="font-size: 1.2rem; margin: 0;">Cognitive Lens Report</h1>
                 <span style="font-size: 0.75rem; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">Ctrl+K</span>
             </div>
-            <div style="display: flex; gap: 20px; font-size: 0.9rem;">
+            <div style="display: flex; gap: 16px; align-items: center; font-size: 0.9rem;">
                 <div>Files: <span style="color: #38bdf8; font-weight: bold;">{{ stats.fileCount }}</span></div>
                 <div>Total: <span style="color: #38bdf8; font-weight: bold;">{{ stats.totalScore }}</span></div>
-                <div style="color: #94a3b8; font-size: 0.75rem;">{{ stats.date }}</div>
+                <div style="color: #94a3b8; font-size: 0.75rem; margin-right: 10px;">{{ stats.date }}</div>
+                <button class="header-btn" @click="toggleTheme" :title="'Switch to ' + (theme === 'dark' ? 'light' : 'dark') + ' mode'" style="color: white; border: 1px solid rgba(255,255,255,0.2);">
+                    <span v-if="theme === 'light'" v-html="MOON_SVG"></span>
+                    <span v-else v-html="SUN_SVG"></span>
+                </button>
             </div>
         </header>
 
@@ -247,7 +345,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     </div>
                 </div>
                 <div class="code-container" ref="codeContainer">
-                    <div v-if="!currentFileContent" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #94a3b8;">
+                    <div v-if="!currentFileContent" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
                         <div style="text-align: center;">
                             <p>Select a method to view code</p>
                         </div>
@@ -322,6 +420,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
         const SIDEBAR_SVG = \`<svg viewBox="0 0 512 512"><path d="M28.44 85.33h28.44c.03-15.7 12.75-28.42 28.44-28.44h341.33c15.7.03 28.42 12.75 28.44 28.44v341.33c-.03 15.7-12.75 28.42-28.44 28.44H85.33c-15.7-.03-28.42-12.75-28.44-28.44V85.33H28.44H0v341.33c.02 47.14 38.19 85.31 85.33 85.33h341.33c47.14-.02 85.31-38.19 85.33-85.33V85.33C511.98 38.19 473.81.02 426.67 0H85.33C38.19.02.02 38.19 0 85.33H28.44z"/><path d="M142.22 28.44v455.11c0 15.71 12.74 28.44 28.44 28.44s28.44-12.74 28.44-28.44V28.44C199.11 12.73 186.38 0 170.67 0s-28.45 12.73-28.45 28.44"/><path d="M321.22 179l-56.89 56.89c-11.11 11.11-11.11 29.12 0 40.23L321.22 333c11.11 11.11 29.12 11.11 40.23 0s11.11-29.12 0-40.23L324.67 256l36.78-36.78c11.11-11.11 11.11-29.12 0-40.23-11.11-11.11-29.12-11.11-40.23 0z"/></svg>\`;
         const CLEAR_SVG = \`<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>\`;
+        const SUN_SVG = \`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>\`;
+        const MOON_SVG = \`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>\`;
 
         function highlightMatch(text, query) {
             if (!query) return text;
@@ -488,6 +588,17 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 const isSidebarCollapsed = ref(false);
                 const sidebarWidth = ref(350);
                 const isResizing = ref(false);
+
+                const theme = ref(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+
+                function toggleTheme() {
+                    theme.value = theme.value === 'light' ? 'dark' : 'light';
+                }
+
+                watch(theme, (newTheme) => {
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                }, { immediate: true });
 
                 function startResizing(e) {
                     isResizing.value = true;
@@ -872,7 +983,11 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     moveSelection,
                     selectResult,
                     selectSearchResult,
-                    activeNodeId
+                    activeNodeId,
+                    theme,
+                    toggleTheme,
+                    SUN_SVG,
+                    MOON_SVG
                 };
             }
         });
