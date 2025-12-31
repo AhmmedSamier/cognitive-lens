@@ -39,6 +39,7 @@ import {
 import { IncrementalParser } from './IncrementalParser';
 import { GitService } from './GitService';
 import { TextDecoder } from 'util';
+import { fileURLToPath } from 'url';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -208,6 +209,12 @@ async function updateBaseComplexity(uri: string, languageId: string) {
             baseComplexityCache.set(uri, baseComplexities);
         } else {
             baseComplexityCache.set(uri, []);
+        }
+
+        // Trigger re-validation to update UI with delta
+        const document = documents.get(uri);
+        if (document) {
+            validateTextDocument(document);
         }
     } catch (e) {
         connection.console.error(`Failed to update base complexity: ${e}`);
