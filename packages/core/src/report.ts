@@ -1,16 +1,19 @@
 import { MethodComplexity } from './types';
-import { VUE_SCRIPT, PRISM_CSS, PRISM_SCRIPT } from './assets';
+import { zlibSync, strToU8 } from 'fflate';
+// Assets are now loaded via CDN in the generated HTML
+
 
 export interface FileAnalysisResult {
     path: string;
     content: string;
-    methods: MethodComplexity[];
+    methods: any[];
     totalScore: number;
 }
 
 export interface ProjectAnalysisResult {
     files: FileAnalysisResult[];
     totalScore: number;
+    favicon?: string;
 }
 
 interface TreeNode {
@@ -20,7 +23,7 @@ interface TreeNode {
     type: 'file' | 'folder' | 'method';
     score: number;
     children?: TreeNode[];
-    methods?: MethodComplexity[];
+    methods?: any[];
     // For UI state (not strictly part of the data model, but useful to initialize)
     isExpanded?: boolean;
 }
@@ -31,207 +34,90 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     // We construct the tree on the server side (Node) to pass a clean JSON structure to Vue
     const tree = buildFileTree(result.files);
 
-    // Escape the JSON to prevent XSS or breaking the script tag
-    const projectDataStr = JSON.stringify(result.files).replace(/</g, '\\u003c');
-    const treeDataStr = JSON.stringify(tree).replace(/</g, '\\u003c');
+    // Compress project files and tree to reduce report size
+    const projectFilesBuf = strToU8(JSON.stringify(result.files));
+    const compressedProjectFiles = zlibSync(projectFilesBuf, { level: 9 });
+    const projectFilesBase64 = Buffer.from(compressedProjectFiles).toString('base64');
 
-    return `
+    const treeBuf = strToU8(JSON.stringify(tree));
+    const compressedTree = zlibSync(treeBuf, { level: 9 });
+    const treeBase64 = Buffer.from(compressedTree).toString('base64');
+
+    return /*html*/ `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cognitive Complexity Report</title>
+    <link rel="icon" type="image/png" href="${result.favicon || ''}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css">
     <style>
-        ${PRISM_CSS}
-        :root {
-            --bg-color: #f8fafc;
-            --sidebar-bg: #ffffff;
-            --border-color: #e2e8f0;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --primary: #2563eb;
-            --error: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-            --code-bg: #ffffff;
-            --tree-hover: #f1f5f9;
-            --tree-selected: #eff6ff;
-        }
+        :root{--bg-color:#f8fafc;--sidebar-bg:#ffffff;--border-color:#e2e8f0;--text-main:#1e293b;--text-muted:#64748b;--primary:#2563eb;--error:#ef4444;--warning:#f59e0b;--success:#10b981;--code-bg:#ffffff;--tree-hover:#f1f5f9;--tree-selected:#eff6ff}
+        *{box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;margin:0;height:100vh;display:flex;flex-direction:column;color:var(--text-main);background:var(--bg-color);overflow:hidden}
+        #app{display:flex;flex-direction:column;height:100%;width:100%}
+        header{height:60px;background:#1e293b;color:white;display:flex;align-items:center;padding:0 20px;justify-content:space-between;flex-shrink:0}
+        .main-container{flex:1;display:flex;overflow:hidden}
+        .sidebar{width:350px;background:var(--sidebar-bg);border-right:1px solid var(--border-color);display:flex;flex-direction:column;overflow:hidden;position:relative;flex-shrink:0;transition:width .3s cubic-bezier(.4,0,.2,1)}
+        .sidebar.is-resizing{transition:none}
+        .sidebar.collapsed{width:0!important;border-right:none}
+        .resize-handle{position:absolute;right:0;top:0;bottom:0;width:4px;cursor:col-resize;transition:background .2s;z-index:100}
+        .resize-handle:hover,.sidebar.is-resizing .resize-handle{background:var(--primary)}
+        .content{flex:1;display:flex;flex-direction:column;background:var(--code-bg);overflow:hidden;position:relative}
+        .sidebar-header{padding:10px 16px 10px 12px;border-bottom:1px solid var(--border-color);background:#f8fafc;display:flex;align-items:center;gap:8px;width:100%;flex-shrink:0}
+        .sidebar.collapsed .sidebar-header{display:none}
+        .header-btn{padding:6px;border-radius:4px;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center;border:1px solid transparent;background:transparent;transition:all .2s;flex-shrink:0}
+        .header-btn:hover{background:#f1f5f9;color:var(--primary);border-color:var(--border-color)}
+        .header-btn svg{width:18px;height:18px;fill:currentColor;display:block}
+        .header-btn.flip svg{transform:scaleX(-1)}
+        .search-box-container{flex:1;position:relative;display:flex;align-items:center}
+        .search-box{flex:1;padding:8px 30px 8px 12px;border:1px solid var(--border-color);border-radius:6px;font-size:.85rem;outline:none;width:100%}
+        .search-box:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(37,99,235,.1)}
+        .clear-btn{position:absolute;right:8px;padding:4px;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:50%;transition:all .2s}
+        .clear-btn:hover{background:#f1f5f9;color:var(--primary)}
+        .clear-btn svg{width:14px;height:14px;fill:currentColor}
+        .tree-container{flex:1;overflow:auto;padding:8px 0}
+        .sidebar.collapsed .tree-container{display:none}
+        .tree-item{display:flex;align-items:center;padding:4px 12px;padding-right:24px;cursor:pointer;font-size:.85rem;white-space:nowrap;user-select:none;min-width:100%;width:max-content}
+        .tree-item:hover{background:var(--tree-hover)}
+        .tree-item.active{background:var(--tree-selected);color:var(--primary);font-weight:500}
+        .tree-expander{width:16px;height:16px;display:flex;align-items:center;justify-content:center;margin-right:4px;color:var(--text-muted);font-size:.7rem;transition:transform .1s;flex-shrink:0}
+        .tree-expander.expanded{transform:rotate(90deg)}
+        .invisible{visibility:hidden;flex-shrink:0}
+        .score-badge{margin-left:auto;font-size:.75rem;font-weight:600;padding:1px 6px;border-radius:10px;flex-shrink:0}
+        .score-high{background:#fee2e2;color:#b91c1c}
+        .score-med{background:#ffedd5;color:#9a3412}
+        .score-low{background:#dcfce7;color:#15803d}
+        .content-header{padding:12px 20px;border-bottom:1px solid var(--border-color);background:white;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        .code-container{flex:1;overflow:auto;position:relative;background:var(--code-bg)}
+        .code-wrapper{position:relative;padding:20px 0;min-width:max-content}
+        .code-line{display:flex;align-items:center;height:20px;line-height:20px;font-family:monospace;font-size:13px}
+        .code-line:hover{background:rgba(241,245,249,.5)}
+        .line-number{width:50px;text-align:right;padding-right:20px;color:#94a3b8;font-size:12px;user-select:none;flex-shrink:0;border-right:1px solid var(--border-color);margin-right:15px}
+        .line-content{white-space:pre;color:var(--text-main)}
 
-        body { 
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            margin: 0; 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column;
-            color: var(--text-main);
-            background: var(--bg-color);
-            overflow: hidden;
-        }
-
-        #app {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            width: 100%;
-        }
-
-        /* Layout */
-        header {
-            height: 60px;
-            background: #1e293b;
-            color: white;
-            display: flex;
+        /* Inlay Hint Styles */
+        .inlay-hint {
+            display: inline-flex;
             align-items: center;
-            padding: 0 20px;
-            justify-content: space-between;
-            flex-shrink: 0;
-        }
-
-        .main-container {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
-
-        .sidebar {
-            width: 350px;
-            background: var(--sidebar-bg);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: var(--code-bg);
-            overflow: hidden;
-        }
-
-        /* Sidebar Components */
-        .sidebar-header {
-            padding: 12px;
-            border-bottom: 1px solid var(--border-color);
-            background: #f8fafc;
-        }
-
-        .search-box {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.85rem;
-            outline: none;
-        }
-        .search-box:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
-
-        .tree-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px 0;
-        }
-
-        /* Tree Item Styles */
-        .tree-item {
-            display: flex;
-            align-items: center;
-            padding: 4px 12px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            white-space: nowrap;
-            user-select: none;
-        }
-        .tree-item:hover { background: var(--tree-hover); }
-        .tree-item.active { background: var(--tree-selected); color: var(--primary); font-weight: 500; }
-
-        .tree-expander {
-            width: 16px;
-            height: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 4px;
-            color: var(--text-muted);
-            font-size: 0.7rem;
-            transition: transform 0.1s;
-        }
-        .tree-expander.expanded { transform: rotate(90deg); }
-        .invisible { visibility: hidden; }
-
-        .score-badge {
-            margin-left: auto;
-            font-size: 0.75rem; 
-            font-weight: 600; 
-            padding: 1px 6px; 
-            border-radius: 10px;
-        }
-        .score-high { background: #fee2e2; color: #b91c1c; }
-        .score-med { background: #ffedd5; color: #9a3412; }
-        .score-low { background: #dcfce7; color: #15803d; }
-
-        /* Code View */
-        .content-header {
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--border-color);
-            background: white;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-        }
-
-        .code-container {
-            flex: 1;
-            overflow: auto;
-            position: relative;
-            font-size: 13px;
-        }
-
-        /* Prism Overrides / Line Highlighting */
-        /* IMPORTANT: Force line-height to 20px to match annotation calculation */
-        pre[class*="language-"] {
-            margin: 0 !important;
-            padding: 20px !important;
-            background: transparent !important;
-            line-height: 20px !important;
-        }
-
-        code[class*="language-"] {
-            line-height: 20px !important;
-        }
-
-        /* Line Numbers & Highlighting Logic */
-        .code-wrapper {
-            position: relative;
-        }
-
-        .line-highlight {
-            position: absolute;
-            left: 0;
-            right: 0;
-            background: rgba(255, 247, 237, 0.5); /* #fff7ed */
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* Annotation Badges overlaying code */
-        .annotation-marker {
-            position: absolute;
-            right: 20px;
             background: #fee2e2;
             border: 1px solid #fecaca;
             color: #991b1b;
-            padding: 2px 8px;
+            padding: 0 6px;
             border-radius: 4px;
             font-size: 11px;
-            line-height: 1.2;
-            z-index: 10;
-            pointer-events: auto;
+            margin-left: 12px;
             cursor: help;
+            white-space: nowrap;
+            height: 18px;
+            vertical-align: middle;
+            font-weight: 500;
+            user-select: none;
+        }
+
+        .inlay-hint:hover {
+            background: #fecaca;
         }
 
         /* Modal */
@@ -254,12 +140,25 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
             flex-direction: column;
             box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
         }
+        .modal-input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
         .modal-input {
-            padding: 16px;
+            padding: 16px 45px 16px 16px;
             font-size: 16px;
             border: none;
-            border-bottom: 1px solid var(--border-color);
             outline: none;
+            flex: 1;
+        }
+        .modal-input-container .clear-btn {
+            right: 16px;
+        }
+        .modal-input-container .clear-btn svg {
+            width: 20px;
+            height: 20px;
         }
         .modal-results {
             flex: 1;
@@ -276,6 +175,12 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         .result-info { flex: 1; overflow: hidden; }
         .result-name { font-weight: 500; font-size: 14px; }
         .result-path { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+        .match-highlight {
+            background: #fde68a;
+            color: #000;
+            border-radius: 2px;
+            font-weight: bold;
+        }
 
         .offline-warning {
             padding: 20px;
@@ -300,9 +205,21 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         </header>
 
         <div class="main-container">
-            <div class="sidebar">
+            <div 
+                class="sidebar" 
+                :class="{ collapsed: isSidebarCollapsed, 'is-resizing': isResizing }"
+                :style="{ width: isSidebarCollapsed ? '0px' : sidebarWidth + 'px' }"
+            >
                 <div class="sidebar-header">
-                    <input v-model="filterQuery" class="search-box" placeholder="Filter tree..." />
+                    <div class="search-box-container">
+                        <input v-model="filterQuery" class="search-box" placeholder="Filter tree..." />
+                        <button v-if="filterQuery" class="clear-btn" title="Clear search" @click="filterQuery = ''">
+                            <span v-html="CLEAR_SVG"></span>
+                        </button>
+                    </div>
+                    <button class="header-btn" title="Collapse Sidebar" @click="isSidebarCollapsed = true">
+                        <span v-html="SIDEBAR_SVG"></span>
+                    </button>
                 </div>
                 <div class="tree-container">
                     <tree-node
@@ -312,16 +229,21 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                         :depth="0"
                         :version="treeVersion"
                         :active-id="activeNodeId"
+                        :query="filterQuery"
                         @select="selectNode"
                     ></tree-node>
                 </div>
+                <div class="resize-handle" @mousedown.prevent="startResizing"></div>
             </div>
 
             <div class="content">
                 <div class="content-header">
-                    <div style="font-family: monospace; color: var(--text-muted);">{{ currentFilePath || 'Select a file or method' }}</div>
-                    <div v-if="selectedMethod" :class="['score-badge', getScoreClass(selectedMethod.score)]">
-                        {{ selectedMethod.score }} Complexity
+                    <button v-if="isSidebarCollapsed" class="header-btn flip" style="margin-right: 12px;" @click="isSidebarCollapsed = false" title="Expand Sidebar">
+                        <span v-html="SIDEBAR_SVG"></span>
+                    </button>
+                    <div style="font-family: monospace; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis;">{{ currentFilePath || 'Select a file' }}</div>
+                    <div v-if="currentFilePath" :class="['score-badge', getScoreClass(currentFileScore)]">
+                        {{ currentFileScore }} Total Complexity
                     </div>
                 </div>
                 <div class="code-container" ref="codeContainer">
@@ -331,16 +253,15 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                         </div>
                     </div>
                     <div v-else class="code-wrapper">
-                        <!-- Annotations Layer -->
-                        <div v-for="ann in currentAnnotations"
-                             :style="{ top: (ann.line * 20 + 20) + 'px' }"
-                             class="annotation-marker"
-                             :title="ann.message">
-                            +{{ ann.score }} {{ ann.shortMsg }}
+                        <div v-for="(line, i) in highlightedLines" :key="i" class="code-line">
+                            <span class="line-number">{{ i + 1 }}</span>
+                            <span class="line-content" v-html="line || '&nbsp;'"></span>
+                            <span v-if="annotationsByLine[i]" 
+                                  class="inlay-hint" 
+                                  :title="annotationsByLine[i].message">
+                                {{ annotationsByLine[i].shortMsg }}
+                            </span>
                         </div>
-
-                        <!-- Syntax Highlighted Code -->
-                        <pre class="line-numbers" :class="'language-' + currentLanguage"><code v-html="highlightedCode"></code></pre>
                     </div>
                 </div>
             </div>
@@ -349,7 +270,12 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         <!-- Search Modal -->
         <div v-if="showSearch" class="modal-overlay" @click="closeSearch">
             <div class="modal" @click.stop>
-                <input ref="searchInput" v-model="searchQuery" class="modal-input" placeholder="Search files and methods..." @keydown.down.prevent="moveSelection(1)" @keydown.up.prevent="moveSelection(-1)" @keydown.enter="selectSearchResult" @keydown.esc="closeSearch">
+                <div class="modal-input-container">
+                    <input ref="searchInput" v-model="searchQuery" class="modal-input" placeholder="Search files and methods..." @keydown.down.prevent="moveSelection(1)" @keydown.up.prevent="moveSelection(-1)" @keydown.enter="selectSearchResult" @keydown.esc="closeSearch">
+                    <button v-if="searchQuery" class="clear-btn" title="Clear search" @click="searchQuery = ''; $refs.searchInput.focus()">
+                        <span v-html="CLEAR_SVG"></span>
+                    </button>
+                </div>
                 <div class="modal-results">
                     <div v-for="(res, idx) in searchResults"
                          :key="idx"
@@ -359,8 +285,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                          @mouseenter="selectedResultIndex = idx">
                         <span style="margin-right: 10px; font-size: 1.2rem;">{{ res.type === 'file' ? '📄' : 'ƒ' }}</span>
                         <div class="result-info">
-                            <div class="result-name">{{ res.name }}</div>
-                            <div class="result-path">{{ res.path }}</div>
+                            <div class="result-name" v-html="highlightMatch(res.name, searchQuery)"></div>
+                            <div class="result-path" v-html="highlightMatch(res.path, searchQuery)"></div>
                         </div>
                         <span :class="['score-badge', getScoreClass(res.score)]">{{ res.score }}</span>
                     </div>
@@ -370,32 +296,78 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     </div>
 
     <!-- Scripts -->
-    <script>${VUE_SCRIPT}</script>
-    <script>${PRISM_SCRIPT}</script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/fflate"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
 
     <script>
         const { createApp, ref, computed, onMounted, nextTick, shallowRef, triggerRef, watch } = Vue;
 
-        // Data from Server
-        const projectFiles = ${projectDataStr};
-        const initialTree = ${treeDataStr};
+        // Decompress Data from Server
+        function decompress(base64) {
+            const bin = atob(base64);
+            const u8 = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+            return JSON.parse(fflate.strFromU8(fflate.unzlibSync(u8)));
+        }
+
+        const projectFiles = decompress("${projectFilesBase64}");
+        const initialTree = decompress("${treeBase64}");
         const generatedDate = "${date}";
 
-        // --- Components ---
+        const SIDEBAR_SVG = \`<svg viewBox="0 0 512 512"><path d="M28.44 85.33h28.44c.03-15.7 12.75-28.42 28.44-28.44h341.33c15.7.03 28.42 12.75 28.44 28.44v341.33c-.03 15.7-12.75 28.42-28.44 28.44H85.33c-15.7-.03-28.42-12.75-28.44-28.44V85.33H28.44H0v341.33c.02 47.14 38.19 85.31 85.33 85.33h341.33c47.14-.02 85.31-38.19 85.33-85.33V85.33C511.98 38.19 473.81.02 426.67 0H85.33C38.19.02.02 38.19 0 85.33H28.44z"/><path d="M142.22 28.44v455.11c0 15.71 12.74 28.44 28.44 28.44s28.44-12.74 28.44-28.44V28.44C199.11 12.73 186.38 0 170.67 0s-28.45 12.73-28.45 28.44"/><path d="M321.22 179l-56.89 56.89c-11.11 11.11-11.11 29.12 0 40.23L321.22 333c11.11 11.11 29.12 11.11 40.23 0s11.11-29.12 0-40.23L324.67 256l36.78-36.78c11.11-11.11 11.11-29.12 0-40.23-11.11-11.11-29.12-11.11-40.23 0z"/></svg>\`;
+        const CLEAR_SVG = \`<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>\`;
 
-        const TreeNode = {
-            name: 'TreeNode',
-            props: ['node', 'depth', 'forceExpand', 'activeId', 'version'],
-            template: \`
+        function highlightMatch(text, query) {
+            if (!query) return text;
+            const q = query.toLowerCase();
+            const lowerText = text.toLowerCase();
+            let result = '';
+            let lastIdx = 0;
+            let queryIdx = 0;
+
+            for (let i = 0; i < text.length && queryIdx < q.length; i++) {
+                if (lowerText[i] === q[queryIdx]) {
+                    result += text.substring(lastIdx, i) + '<span class="match-highlight">' + text[i] + '</span>';
+                    lastIdx = i + 1;
+                    queryIdx++;
+                }
+            }
+            result += text.substring(lastIdx);
+            return queryIdx === q.length ? result : text;
+        }
+
+        function fuzzyMatch(text, query) {
+            if (!query) return true;
+            const q = query.toLowerCase();
+            const t = text.toLowerCase();
+            let queryIdx = 0;
+            for (let i = 0; i < t.length && queryIdx < q.length; i++) {
+                if (t[i] === q[queryIdx]) queryIdx++;
+            }
+            return queryIdx === q.length;
+        }
+
+    // --- Components ---
+
+    const TreeNode = {
+        name: 'TreeNode',
+        props: ['node', 'depth', 'forceExpand', 'activeId', 'version', 'query'],
+        template: \`
                 <div class="tree-node-wrapper">
-                    <div class="tree-item" :class="{ active: isActive }" :style="{ paddingLeft: (depth * 16 + 8) + 'px' }" @click="handleClick">
+                    <div class="tree-item" :class="{ active: isActive }" :style="{ paddingLeft: (depth * 16 + 12) + 'px' }" @click="handleClick">
                         <span
                             class="tree-expander"
                             :class="{ expanded: isExpanded, invisible: !hasChildren }"
                             @click.stop="toggleExpand"
                         >▶</span>
-                        <span style="margin-right: 6px;">{{ icon }}</span>
-                        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis;">{{ node.name }}</span>
+                        <span style="margin-right: 8px; flex-shrink: 0;">{{ icon }}</span>
+                        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis;" v-html="highlightMatch(node.name, query)"></span>
                         <span v-if="node.score > 0" :class="['score-badge', scoreClass]">{{ node.score }}</span>
                     </div>
 
@@ -408,16 +380,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             :depth="depth + 1"
                             :active-id="activeId"
                             :version="version"
-                            @select="$emit('select', $event)"
-                        ></tree-node>
-                        <!-- Methods (if any directly on this node) -->
-                        <tree-node
-                            v-for="method in sortedMethods"
-                            :key="method.id"
-                            :node="method"
-                            :depth="depth + 1"
-                            :active-id="activeId"
-                            :version="version"
+                            :query="query"
                             @select="$emit('select', $event)"
                         ></tree-node>
                     </div>
@@ -430,8 +393,7 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 });
 
                 const hasChildren = computed(() => {
-                    return (props.node.children && props.node.children.length > 0) ||
-                           (props.node.methods && props.node.methods.length > 0);
+                    return props.node.type === 'folder' && props.node.children && props.node.children.length > 0;
                 });
 
                 const icon = computed(() => {
@@ -487,17 +449,13 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 }
 
                 function handleClick() {
-                    if (props.node.type === 'method') {
-                        emit('select', { node: props.node, type: 'method' });
-                    } else {
-                        toggleExpand();
-                        if (props.node.type === 'file') {
-                            emit('select', { node: props.node, type: 'file' });
-                        }
+                    toggleExpand();
+                    if (props.node.type === 'file') {
+                        emit('select', { node: props.node, type: 'file' });
                     }
                 }
 
-                return { isExpanded, hasChildren, icon, scoreClass, sortedChildren, sortedMethods, toggleExpand, handleClick, isActive };
+                return { isExpanded, hasChildren, icon, scoreClass, sortedChildren, sortedMethods, toggleExpand, handleClick, isActive, highlightMatch };
             }
         };
 
@@ -527,12 +485,42 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                 const selectedResultIndex = ref(0);
                 const searchInput = ref(null);
                 const activeNodeId = ref('');
+                const isSidebarCollapsed = ref(false);
+                const sidebarWidth = ref(350);
+                const isResizing = ref(false);
+
+                function startResizing(e) {
+                    isResizing.value = true;
+                    document.addEventListener('mousemove', handleResizing);
+                    document.addEventListener('mouseup', stopResizing);
+                    document.body.style.cursor = 'col-resize';
+                }
+
+                function handleResizing(e) {
+                    if (!isResizing.value) return;
+                    const newWidth = e.clientX;
+                    if (newWidth > 200 && newWidth < 800) {
+                        sidebarWidth.value = newWidth;
+                    }
+                }
+
+                function stopResizing() {
+                    isResizing.value = false;
+                    document.removeEventListener('mousemove', handleResizing);
+                    document.removeEventListener('mouseup', stopResizing);
+                    document.body.style.cursor = '';
+                }
 
                 const currentFilePath = ref('');
                 const currentFileContent = ref('');
                 const currentLanguage = ref('typescript');
                 const selectedMethod = ref(null);
                 const currentAnnotations = ref([]);
+
+                const currentFileScore = computed(() => {
+                    const file = projectFiles.find(f => f.path === currentFilePath.value);
+                    return file ? file.totalScore : 0;
+                });
 
                 // Computed
                 const stats = {
@@ -552,88 +540,118 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     const results = [];
 
                     projectFiles.forEach(f => {
-                        if (f.path.toLowerCase().includes(q)) {
-                             // O(1) lookup
-                             const node = nodeMap.get(f.path);
-                             if (node) {
-                                results.push({
-                                    name: f.path.split('/').pop(),
-                                    path: f.path,
-                                    score: f.totalScore,
-                                    type: 'file',
-                                    id: node.id
-                                });
+                         const pathMatch = fuzzyMatch(f.path, q);
+                         if (pathMatch) {
+                              // O(1) lookup
+                              const node = nodeMap.get(f.path);
+                              if (node) {
+                                 results.push({
+                                     name: f.path.split('/').pop(),
+                                     path: f.path,
+                                     score: f.totalScore,
+                                     type: 'file',
+                                     id: node.id
+                                 });
+                              }
+                         }
+
+                         f.methods.forEach(m => {
+                             if (fuzzyMatch(m.name, q)) {
+                                 results.push({
+                                     name: m.name,
+                                     path: f.path,
+                                     score: m.score,
+                                     type: 'method',
+                                     methodData: m
+                                 });
                              }
-                        }
-                        f.methods.forEach(m => {
-                            if (m.name.toLowerCase().includes(q)) {
-                                results.push({ name: m.name, path: f.path, score: m.score, type: 'method', methodData: m });
-                            }
-                        });
+                         });
                     });
 
-                    // Sort by score desc
-                    return results.sort((a, b) => b.score - a.score).slice(0, 50);
+                    // Sort: Files first, then by score desc
+                    return results.sort((a, b) => {
+                        if (a.type !== b.type) return a.type === 'file' ? -1 : 1;
+                        return b.score - a.score;
+                    }).slice(0, 50);
                 });
 
-                const highlightedCode = computed(() => {
-                    if (!currentFileContent.value) return '';
+                const highlightedLines = computed(() => {
+                    if (!currentFileContent.value) return [];
                     if (window.Prism) {
                         try {
                             const grammar = Prism.languages[currentLanguage.value] || Prism.languages.javascript;
                             const html = Prism.highlight(currentFileContent.value, grammar, currentLanguage.value);
-                            // Wrap in a div to allow Prism plugin to process it?
-                            // Prism.highlight returns string HTML.
-                            // The line-numbers plugin usually runs on 'complete' hook or DOMContentLoaded.
-                            // Since we are using Vue, we need to trigger it manually or let the plugin run.
-                            // The plugin observes DOM additions or we can call Prism.highlightElement manually.
-                            return html;
+                            
+                            // Split and fix tokens that span across lines (simple stack-based fix)
+                            const lines = html.split('\\n');
+                            const fixedLines = [];
+                            let openTags = [];
+
+                            for (let line of lines) {
+                                let fixedLine = openTags.join('') + line;
+                                
+                                // Update open tags stack
+                                const tagMatches = line.matchAll(/<span class="([^"]+)">|<\\/span>/g);
+                                for (const match of tagMatches) {
+                                    if (match[0].startsWith('<span')) {
+                                        openTags.push(match[0]);
+                                    } else {
+                                        openTags.pop();
+                                    }
+                                }
+
+                                // Close all tags at end of line to keep it valid
+                                fixedLine += '</span>'.repeat(openTags.length);
+                                fixedLines.push(fixedLine);
+                            }
+                            return fixedLines;
                         } catch (e) {
                             console.error(e);
-                            return escapeHtml(currentFileContent.value);
+                            return currentFileContent.value.split('\\n').map(escapeHtml);
                         }
                     }
-                    return escapeHtml(currentFileContent.value);
+                    return currentFileContent.value.split('\\n').map(escapeHtml);
                 });
 
-                // Trigger Prism line numbers after update
-                watch(highlightedCode, () => {
-                    nextTick(() => {
-                        if (window.Prism) {
-                            // We need to re-run Prism on the code block to generate line numbers
-                            // Or better: use Prism.highlightElement which handles plugins.
-                            // But highlightedCode is computed string.
-                            // The line-numbers plugin listens to 'complete' hook of highlightElement.
-                            // If we just inject HTML, the plugin doesn't know.
-                            // We need to manually invoke the plugin or use highlightElement on the ref.
-
-                            // Hack: Prism line-numbers plugin exposes a resize method but also runs on complete.
-                            // Let's try to just select all pre.line-numbers and running Prism.highlightElement is redundant if we already highlighted.
-                            // Actually, if we use Prism.highlight (string), plugins are NOT applied automatically to the string.
-                            // We need to use Prism.highlightElement on the mounted DOM element.
-                            // So we should NOT use v-html with Prism.highlight string if we want plugins.
-                            // We should use a watcher and ref to call highlightElement.
-
-                            // Refactor:
-                            // We will inject the raw code into <code> and then call Prism.highlightElement.
-                            // But we are using v-html="highlightedCode".
-                            // Let's change the strategy in the template?
-                            // Or just manually run the line-numbers logic?
-                            // Prism.plugins.lineNumbers.resize(preElement) might work if structure is there.
-
-                            // Simpler: Just re-highlight the element.
-                            const codeEl = document.querySelector('pre.line-numbers code');
-                            if (codeEl) {
-                                // Reset content to raw to let Prism handle it?
-                                // Or does Prism.highlightElement work on already highlighted code? No.
-                                // It expects text content.
-
-                                // Let's just manually invoke the line number generation logic which adds the spans.
-                                // Prism.plugins.lineNumbers.resize is exposed.
-                                Prism.plugins.lineNumbers.resize(codeEl.parentElement);
-                            }
+                const annotationsByLine = computed(() => {
+                    const map = {};
+                    currentAnnotations.value.forEach(ann => {
+                        const line = ann.line;
+                        if (!map[line]) {
+                            map[line] = { score: 0, messages: [], line: line, isTotal: !!ann.isTotal };
                         }
+                        map[line].score += ann.score;
+                        if (ann.message !== 'nesting' && ann.message !== 'total') {
+                            map[line].messages.push(ann.message);
+                        }
+                        if (ann.isTotal) map[line].isTotal = true;
                     });
+
+                    const finalMap = {};
+                    Object.keys(map).forEach(line => {
+                        const data = map[line];
+                        
+                        // Clean messages: Remove leading "+1 " or "+2 " if we are already showing sum
+                        const processedMsgs = data.messages.map(m => m.replace(/^\\+\\d+\\s+/, '').trim());
+                        let msgs = Array.from(new Set(processedMsgs)).filter(Boolean);
+                        
+                        if (msgs.length === 0 && data.score > 0 && !data.isTotal) {
+                            msgs = ['nesting'];
+                        }
+                        
+                        const label = data.isTotal 
+                            ? \`Cognitive Complexity: \${data.score}\`
+                            : \`+\${data.score} \${msgs.join(', ')}\`;
+
+                        finalMap[line] = {
+                            score: data.score,
+                            shortMsg: label,
+                            message: label,
+                            line: data.line,
+                            isTotal: data.isTotal
+                        };
+                    });
+                    return finalMap;
                 });
 
                 // Helper to expand path to node
@@ -673,11 +691,11 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 
                 function filterNodes(nodes, query) {
                     return nodes.map(node => {
-                        const matches = node.name.toLowerCase().includes(query);
+                        const matches = fuzzyMatch(node.name, query);
                         let children = [];
                         if (node.children) children = filterNodes(node.children, query);
                         let methods = [];
-                        if (node.methods) methods = node.methods.filter(m => m.name.toLowerCase().includes(query));
+                        if (node.methods) methods = node.methods.filter(m => fuzzyMatch(m.name, query));
                         if (matches || children.length > 0 || methods.length > 0) {
                             return {
                                 ...node,
@@ -727,50 +745,41 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     else if (ext === 'jsx') currentLanguage.value = 'jsx';
                     else currentLanguage.value = 'typescript';
 
-                    if (type === 'method' && node.methodData) {
-                        selectedMethod.value = node.methodData;
-                        currentAnnotations.value = node.methodData.details.map(d => ({
-                            line: d.line,
-                            score: d.score,
-                            message: d.message,
-                            shortMsg: d.message.replace(/\\(incl \\d+ for nesting\\)/, '').trim()
-                        }));
-
-                        nextTick(() => {
-                            const container = document.querySelector('.code-container');
-                            const line = node.methodData.startLine;
-                            if (container) {
-                                container.scrollTop = line * 20;
+                    // For the simplified "File-only" view, we show ALL method annotations at once.
+                    if (file.methods && file.methods.length > 0) {
+                        const allDetails = [];
+                        file.methods.forEach(m => {
+                            // Add original details
+                            allDetails.push(...m.details);
+                            
+                            // Add a synthetic "total" hint for the method start line
+                            // ONLY for non-callbacks as requested
+                            if (!m.isCallback) {
+                                allDetails.push({
+                                    line: m.startLine,
+                                    score: m.score,
+                                    message: 'total',
+                                    isTotal: true
+                                });
                             }
                         });
-                    } else if (type === 'file') {
-                        if (file.methods && file.methods.length > 0) {
-                            const sortedMethods = file.methods.slice().sort((a, b) => b.score - a.score);
-                            const firstMethod = sortedMethods[0];
-
-                            selectedMethod.value = firstMethod;
-                            currentAnnotations.value = firstMethod.details.map(d => ({
-                                line: d.line,
-                                score: d.score,
-                                message: d.message,
-                                shortMsg: d.message.replace(/\\(incl \\d+ for nesting\\)/, '').trim()
-                            }));
-
-                            nextTick(() => {
-                                const container = document.querySelector('.code-container');
-                                if (container) {
-                                    container.scrollTop = firstMethod.startLine * 20;
-                                }
-                            });
-                        } else {
-                             selectedMethod.value = null;
-                             currentAnnotations.value = [];
-                             nextTick(() => {
-                                const container = document.querySelector('.code-container');
-                                if (container) container.scrollTop = 0;
-                            });
-                        }
+                        currentAnnotations.value = allDetails;
+                        selectedMethod.value = file.methods.reduce((max, m) => m.score > (max ? max.score : 0) ? m : max, file.methods[0]);
+                    } else {
+                        selectedMethod.value = null;
+                        currentAnnotations.value = [];
                     }
+
+                    nextTick(() => {
+                        const container = document.querySelector('.code-container');
+                        if (container) {
+                            if (node.scrollLine !== undefined) {
+                                container.scrollTop = node.scrollLine * 20;
+                            } else {
+                                container.scrollTop = 0;
+                            }
+                        }
+                    });
                 }
 
                 function openSearch() {
@@ -806,14 +815,14 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                             type: 'file'
                         });
                     } else {
-                        const methodId = 'method-' + res.methodData.name + '-' + res.methodData.startLine;
+                        const fileNode = nodeMap.get(res.path);
                         selectNode({
                             node: {
-                                id: methodId,
+                                id: fileNode ? fileNode.id : 'unknown',
                                 fullPath: res.path,
-                                methodData: res.methodData,
+                                scrollLine: res.methodData.startLine
                             },
-                            type: 'method'
+                            type: 'file'
                         });
                     }
                 }
@@ -841,14 +850,23 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     searchResults,
                     selectedResultIndex,
                     searchInput,
+                    isSidebarCollapsed,
+                    sidebarWidth,
+                    isResizing,
+                    startResizing,
+                    SIDEBAR_SVG,
+                    CLEAR_SVG,
                     currentFilePath,
+                    currentFileScore,
                     currentFileContent,
                     currentLanguage,
-                    highlightedCode,
+                    highlightedLines,
+                    annotationsByLine,
                     selectedMethod,
                     currentAnnotations,
                     getScoreClass,
                     selectNode,
+                    highlightMatch,
                     openSearch,
                     closeSearch,
                     moveSelection,
