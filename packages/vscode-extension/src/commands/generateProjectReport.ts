@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import { LanguageClient } from 'vscode-languageclient/node';
 import { ProjectAnalysisResult, generateHtmlReport } from '@cognitive-complexity/core';
 import { MethodComplexity } from '../types';
-import { GitService } from '../gitService';
 
 export async function generateProjectReport(client: LanguageClient, context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -48,9 +47,10 @@ export async function generateProjectReport(client: LanguageClient, context: vsc
 
             progress.report({ message: `Filtering ${files.length} files...` });
 
-            const gitService = new GitService();
+            progress.report({ message: `Filtering ${files.length} files...` });
+
             const filePaths = files.map(f => f.fsPath);
-            const filteredPaths = await gitService.filterIgnored(filePaths);
+            const filteredPaths = await client.sendRequest<string[]>('cognitive-complexity/filterIgnored', { filePaths });
 
             const validPaths = new Set(filteredPaths.map(p => p.toLowerCase()));
             files = files.filter(f => validPaths.has(f.fsPath.toLowerCase()));

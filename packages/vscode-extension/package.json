@@ -141,6 +141,18 @@
           "default": true,
           "description": "Enable or disable detailed contribution inlay hints."
         },
+        "cognitiveComplexity.showInlayHints.complexityDelta": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "description": "Enable or disable the complexity delta in the inlay hint (use for editors other than VS Code)."
+        },
+        "cognitiveComplexity.showComplexityDeltaDecoration": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the colored complexity delta text decoration (specific to VS Code)."
+        },
         "cognitiveComplexity.totalScorePrefix": {
           "scope": "resource",
           "type": "string",

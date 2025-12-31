@@ -4,10 +4,10 @@ import { MethodComplexity } from './types';
 let improvedDecorationType: TextEditorDecorationType | undefined;
 let regressedDecorationType: TextEditorDecorationType | undefined;
 
-export function updateDeltaDecorations(editor: TextEditor, currentComplexities: MethodComplexity[], baseComplexities: MethodComplexity[] | undefined) {
+export function updateDeltaDecorations(editor: TextEditor, currentComplexities: MethodComplexity[]) {
     // Check configuration
     const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
-    if (!config.get<boolean>('showInlayHints.complexityDelta', true)) {
+    if (!config.get<boolean>('showComplexityDeltaDecoration', true)) {
         clearDecorations(editor);
         return;
     }
@@ -16,51 +16,50 @@ export function updateDeltaDecorations(editor: TextEditor, currentComplexities: 
         createDecorationTypes();
     }
 
-    if (!baseComplexities) {
-        clearDecorations(editor);
-        return;
-    }
-
     const improvedRanges: { range: Range, renderOptions: any }[] = [];
     const regressedRanges: { range: Range, renderOptions: any }[] = [];
 
+    let deltaCount = 0;
     for (const current of currentComplexities) {
-        // Find corresponding base method
-        // Using name for now. Ideally we'd use signature or location heuristic, but name is a good start.
-        const base = baseComplexities.find(b => b.name === current.name);
+        const delta = current.complexityDelta;
 
-        if (base) {
-            const delta = current.score - base.score;
-            if (delta !== 0) {
-                const startPos = editor.document.positionAt(current.startIndex);
-                const endPos = editor.document.positionAt(current.startIndex + current.name.length); // Approximate end of name?
-                // Actually, we want to place it *after* the method declaration line, or at the end of the line.
-                // Let's place it at the end of the first line of the method.
+        if (delta !== undefined && delta !== 0) {
+            deltaCount++;
+            const startPos = editor.document.positionAt(current.startIndex);
+            // Place it at the end of the first line of the method.
+            const line = editor.document.lineAt(startPos.line);
+            const range = new Range(line.range.end, line.range.end);
 
-                const line = editor.document.lineAt(startPos.line);
-                const range = new Range(line.range.end, line.range.end);
+            const sign = delta > 0 ? '+' : '';
+            const text = ` ${sign}${delta} Complexity`;
 
-                const sign = delta > 0 ? '+' : '';
-                const text = ` ${sign}${delta} Complexity`;
-
+            if (delta > 0) {
+                // Regression (Red)
                 const renderOptions = {
                     after: {
                         contentText: text,
                         margin: '0 0 0 10px',
-                        fontWeight: 'bold'
+                        fontWeight: 'bold',
+                        color: new ThemeColor('charts.red')
                     }
                 };
-
-                if (delta > 0) {
-                    // Regression (Red)
-                    regressedRanges.push({ range, renderOptions });
-                } else {
-                    // Improvement (Green)
-                    improvedRanges.push({ range, renderOptions });
-                }
+                regressedRanges.push({ range, renderOptions });
+            } else {
+                // Improvement (Green)
+                const renderOptions = {
+                    after: {
+                        contentText: text,
+                        margin: '0 0 0 10px',
+                        fontWeight: 'bold',
+                        color: new ThemeColor('charts.green')
+                    }
+                };
+                improvedRanges.push({ range, renderOptions });
             }
         }
     }
+
+    // console.log(`[Cognitive Lens] Applied ${deltaCount} delta decorations to ${editor.document.fileName}`);
 
     if (improvedDecorationType) editor.setDecorations(improvedDecorationType, improvedRanges);
     if (regressedDecorationType) editor.setDecorations(regressedDecorationType, regressedRanges);
@@ -69,17 +68,14 @@ export function updateDeltaDecorations(editor: TextEditor, currentComplexities: 
 function createDecorationTypes() {
     improvedDecorationType = window.createTextEditorDecorationType({
         after: {
-            color: 'lightgreen', // Fallback
-            // ThemeColor is better but "green" isn't a standard ThemeColor.
-            // We can use 'testing.iconPassed' or similar.
-             color: new ThemeColor('testing.iconPassed')
+            color: new ThemeColor('charts.green')
         },
         rangeBehavior: DecorationRangeBehavior.ClosedOpen
     });
 
     regressedDecorationType = window.createTextEditorDecorationType({
         after: {
-             color: new ThemeColor('errorForeground')
+            color: new ThemeColor('charts.red')
         },
         rangeBehavior: DecorationRangeBehavior.ClosedOpen
     });

@@ -9,12 +9,10 @@ import {
 import { TextDecoder } from 'util';
 import { MethodComplexity } from './types';
 import { ComplexityWebviewProvider } from './ComplexityWebviewProvider';
-import { GitService } from './gitService';
 import { generateProjectReport } from './commands/generateProjectReport';
 import { updateDeltaDecorations, disposeDeltaDecorations } from './DeltaDecorator';
 
 let client: LanguageClient;
-const gitService = new GitService();
 
 // SVGs for gutter icons
 const greenIcon = Uri.parse('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjQiIGZpbGw9ImdyZWVuIiAvPjwvc3ZnPg==');
@@ -27,8 +25,6 @@ let redDecorationType: TextEditorDecorationType | undefined;
 
 // Cache complexities to restore decorations on tab switch
 const complexityCache = new Map<string, MethodComplexity[]>();
-// Cache base complexities (from Git HEAD) to avoid repeated calculations
-const baseComplexityCache = new Map<string, MethodComplexity[]>();
 
 let webviewProvider: ComplexityWebviewProvider;
 
@@ -103,26 +99,12 @@ export function activate(context: ExtensionContext) {
         client.onNotification('cognitive-complexity/fileAnalyzed', async (params: { uri: string, complexities: MethodComplexity[] }) => {
             // Update cache
             complexityCache.set(params.uri, params.complexities);
-            // Trigger background fetch if not in cache (so we have delta info for decorations)
-            const baseComplexities = baseComplexityCache.get(params.uri);
-            if (baseComplexities) {
-                params.complexities.forEach(current => {
-                    const base = baseComplexities.find(b => b.name === current.name);
-                    if (base) {
-                        current.complexityDelta = current.score - base.score;
-                    }
-                });
-            }
-
-            // Update visible editors
+            // Update decorations for all visible editors of this file
             updateDecorations(params.uri, params.complexities);
 
             // Update webview if it's showing the active editor
             const activeEditor = window.activeTextEditor;
             if (activeEditor && activeEditor.document.uri.toString() === params.uri) {
-                if (!baseComplexities) {
-                   updateBaseComplexity(activeEditor);
-                }
                 const config = getWebviewConfig(activeEditor.document.uri);
                 webviewProvider.update(params.complexities, config);
             }
@@ -135,20 +117,7 @@ export function activate(context: ExtensionContext) {
             const uri = editor.document.uri.toString();
             const cached = complexityCache.get(uri);
 
-            // Trigger base complexity fetch
-            updateBaseComplexity(editor);
-
             if (cached) {
-                const baseComplexities = baseComplexityCache.get(uri);
-                if (baseComplexities) {
-                    cached.forEach(current => {
-                        const base = baseComplexities.find(b => b.name === current.name);
-                        if (base) {
-                            current.complexityDelta = current.score - base.score;
-                        }
-                    });
-                }
-
                 updateEditorDecorations(editor, cached);
                 const config = getWebviewConfig(editor.document.uri);
                 webviewProvider.update(cached, config);
@@ -173,7 +142,6 @@ export function activate(context: ExtensionContext) {
     workspace.onDidCloseTextDocument(doc => {
         const uri = doc.uri.toString();
         complexityCache.delete(uri);
-        baseComplexityCache.delete(uri);
     }, null, context.subscriptions);
 
     // Handle cursor movement to reveal in tree view
@@ -199,7 +167,7 @@ export function activate(context: ExtensionContext) {
     workspace.onDidChangeConfiguration(e => {
         if (e.affectsConfiguration('cognitiveComplexity.showGutterIcon') ||
             e.affectsConfiguration('cognitiveComplexity.threshold') ||
-            e.affectsConfiguration('cognitiveComplexity.showInlayHints.complexityDelta')) {
+            e.affectsConfiguration('cognitiveComplexity.showComplexityDeltaDecoration')) {
             createDecorations();
 
             // Re-apply to all visible editors
@@ -270,70 +238,19 @@ function updateDecorations(uri: string, complexities: MethodComplexity[]) {
 }
 
 async function updateBaseComplexity(editor: TextEditor) {
-    const uri = editor.document.uri.toString();
-    if (baseComplexityCache.has(uri)) return;
-
-    try {
-        const fsPath = editor.document.uri.fsPath;
-        const baseContentBuffer = await gitService.getGitHeadContent(fsPath);
-
-        if (baseContentBuffer) {
-            // Get encoding from settings or default to utf8
-            const config = workspace.getConfiguration('files', editor.document.uri);
-            const encoding = config.get<string>('encoding', 'utf8');
-
-            let baseContent = '';
-            try {
-                // Map common VS Code encoding names to Node.js/TextDecoder supported ones if necessary
-                // TextDecoder supports utf-8, utf-16le, etc.
-                const decoder = new TextDecoder(encoding);
-                baseContent = decoder.decode(baseContentBuffer);
-            } catch (e) {
-                // Fallback to utf-8
-                baseContent = baseContentBuffer.toString('utf8');
-            }
-
-            const baseComplexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeText', {
-                text: baseContent,
-                languageId: editor.document.languageId
-            });
-            baseComplexityCache.set(uri, baseComplexities);
-
-            // If the editor is still active, refresh the view AND decorations
-            if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri) {
-                const cached = complexityCache.get(uri);
-                if (cached) {
-                    const config = getWebviewConfig(editor.document.uri);
-                    cached.forEach(current => {
-                        const base = baseComplexities.find(b => b.name === current.name);
-                        if (base) {
-                            current.complexityDelta = current.score - base.score;
-                        }
-                    });
-
-                    // Force update decorations now that we have base complexity
-                    updateEditorDecorations(editor, cached);
-                    webviewProvider.update(cached, config);
-                }
-            }
-        } else {
-            // Mark as empty to avoid retrying endlessly? Or just leave it.
-            // For now, if null, we won't cache anything, so it might retry on next focus.
-            // Better to cache empty list or a specific marker to indicate "no base version".
-            baseComplexityCache.set(uri, []);
-        }
-    } catch (e) {
-        console.error('Failed to update base complexity', e);
-        baseComplexityCache.set(uri, []); // Prevent endless retries
-    }
+    // Logic moved to LSP
 }
 
 function updateEditorDecorations(editor: TextEditor, complexities: MethodComplexity[]) {
     const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
 
-    // Update Delta Decorations
-    const baseComplexities = baseComplexityCache.get(editor.document.uri.toString());
-    updateDeltaDecorations(editor, complexities, baseComplexities);
+    // Update Delta Decorations - using deltas already present in complexities from LSP
+    updateDeltaDecorations(editor, complexities);
+
+    const deltas = complexities.filter(c => c.complexityDelta !== undefined && c.complexityDelta !== 0).length;
+    if (deltas > 0) {
+        window.setStatusBarMessage(`$(git-branch) Cognitive Lens: ${deltas} deltas detected`, 5000);
+    }
 
     if (!config.get<boolean>('showGutterIcon', true)) {
         // Clear gutter decorations if disabled for this resource
@@ -385,7 +302,6 @@ export function deactivate(): Thenable<void> | undefined {
     disposeDeltaDecorations();
 
     complexityCache.clear();
-    baseComplexityCache.clear();
 
     if (!client) {
         return undefined;

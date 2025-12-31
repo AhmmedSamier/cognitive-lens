@@ -37,9 +37,11 @@ import {
     computeHover
 } from './logic';
 import { IncrementalParser } from './IncrementalParser';
+import { GitService } from './gitService';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
+const gitService = new GitService();
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -154,7 +156,7 @@ connection.onInitialize(async (params: InitializeParams) => {
     return result;
 });
 
-connection.onInitialized(() => {
+connection.onInitialized(async () => {
     if (hasConfigurationCapability) {
         // Register for all configuration changes.
         connection.client.register(DidChangeConfigurationNotification.type, undefined);
@@ -164,6 +166,16 @@ connection.onInitialized(() => {
             connection.console.log('Workspace folder change event received.');
         });
     }
+
+    // Check if git is available
+    try {
+        const { execSync } = require('child_process');
+        const gitVersion = execSync('git --version').toString().trim();
+        connection.console.log(`[LSP] Git detected: ${gitVersion}`);
+        connection.console.log(`[LSP] Server ready and listening. Deltas will be calculated for Git-tracked files.`);
+    } catch (e) {
+        connection.console.warn(`[LSP] Git not found or failed to execute. Deltas will not be available. Error: ${e}`);
+    }
 });
 
 let globalSettings: CognitiveComplexitySettings = defaultSettings;
@@ -172,6 +184,7 @@ const complexityCache = new Map<string, { version: number, complexities: MethodC
 const complexityPromises = new Map<string, { version: number, promise: Promise<MethodComplexity[]> }>();
 const validationTimers = new Map<string, NodeJS.Timeout>();
 const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
+const baseComplexityCache = new Map<string, MethodComplexity[]>();
 
 // Handle document lifecycle for incremental parsing
 connection.onDidOpenTextDocument(async (params: DidOpenTextDocumentParams) => {
@@ -199,6 +212,7 @@ connection.onDidCloseTextDocument((params: DidCloseTextDocumentParams) => {
     complexityCache.delete(params.textDocument.uri);
     complexityPromises.delete(params.textDocument.uri);
     settingsCache.delete(params.textDocument.uri);
+    baseComplexityCache.delete(params.textDocument.uri);
 
     // Clear any pending validation to avoid resurrection
     const timer = validationTimers.get(params.textDocument.uri);
@@ -283,6 +297,44 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
         }
 
         complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
+
+        // Calculate deltas if not already cached
+        try {
+            if (textDocument.uri.startsWith('file://')) {
+                const fsPath = fileURLToPath(textDocument.uri);
+                if (!baseComplexityCache.has(textDocument.uri)) {
+                    connection.console.log(`[Git] Fetching base complexity for ${fsPath}`);
+                    const baseContentBuffer = await gitService.getGitHeadContent(fsPath);
+                    if (baseContentBuffer) {
+                        const baseContent = baseContentBuffer.toString('utf8');
+                        const baseComplexities = await analyzeContent(baseContent, textDocument.languageId);
+                        baseComplexityCache.set(textDocument.uri, baseComplexities);
+                        connection.console.log(`[Git] Cached base complexity for ${fsPath} (${baseComplexities.length} methods)`);
+                    } else {
+                        connection.console.log(`[Git] No base content found for ${fsPath}`);
+                        baseComplexityCache.set(textDocument.uri, []);
+                    }
+                }
+
+                const baseComplexities = baseComplexityCache.get(textDocument.uri) || [];
+                if (baseComplexities.length > 0) {
+                    let deltasCalculated = 0;
+                    complexities.forEach(current => {
+                        const base = baseComplexities.find(b => b.name === current.name);
+                        if (base) {
+                            current.complexityDelta = current.score - base.score;
+                            if (current.complexityDelta !== 0) deltasCalculated++;
+                        }
+                    });
+                    if (deltasCalculated > 0) {
+                        connection.console.log(`[Git] Calculated ${deltasCalculated} non-zero deltas for ${fsPath}`);
+                    }
+                }
+            }
+        } catch (e) {
+            connection.console.error(`[Git] Error calculating deltas for ${textDocument.uri}: ${e}`);
+            baseComplexityCache.set(textDocument.uri, []);
+        }
 
         const currentPending = complexityPromises.get(textDocument.uri);
         if (currentPending && currentPending.version === textDocument.version) {
@@ -483,6 +535,7 @@ connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: 
 // Handler for file-based analysis (e.g., project report)
 connection.onRequest('cognitive-complexity/analyzeFile', async (params: { uri: string, languageId: string, content?: string }): Promise<MethodComplexity[]> => {
     try {
+        // ... existing analyzeFile logic ...
         // 1. Use provided content if available (Optimization: avoids double I/O)
         if (params.content !== undefined) {
             return analyzeContent(params.content, params.languageId);
@@ -509,6 +562,16 @@ connection.onRequest('cognitive-complexity/analyzeFile', async (params: { uri: s
     } catch (e) {
         connection.console.error(`Error in analyzeFile: ${e}`);
         return [];
+    }
+});
+
+// Handler for filtering ignored files
+connection.onRequest('cognitive-complexity/filterIgnored', async (params: { filePaths: string[] }): Promise<string[]> => {
+    try {
+        return await gitService.filterIgnored(params.filePaths);
+    } catch (e) {
+        connection.console.error(`Error in filterIgnored: ${e}`);
+        return params.filePaths;
     }
 });
 

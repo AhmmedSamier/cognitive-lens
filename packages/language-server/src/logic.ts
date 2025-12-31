@@ -20,6 +20,7 @@ export interface CognitiveComplexitySettings {
     showDiagnostics: boolean;
     showInlayHints: {
         methodScore: boolean;
+        complexityDelta: boolean;
         details: boolean;
     };
     totalScorePrefix: string;
@@ -34,6 +35,7 @@ export const defaultSettings: CognitiveComplexitySettings = {
     showDiagnostics: true,
     showInlayHints: {
         methodScore: true,
+        complexityDelta: true,
         details: true
     },
     totalScorePrefix: 'Cognitive Complexity'
@@ -57,6 +59,7 @@ export function normalizeSettings(input: any): CognitiveComplexitySettings {
         if (typeof input.showDiagnostics === 'boolean') settings.showDiagnostics = input.showDiagnostics;
         if (input.showInlayHints) {
             if (typeof input.showInlayHints.methodScore === 'boolean') settings.showInlayHints.methodScore = input.showInlayHints.methodScore;
+            if (typeof input.showInlayHints.complexityDelta === 'boolean') settings.showInlayHints.complexityDelta = input.showInlayHints.complexityDelta;
             if (typeof input.showInlayHints.details === 'boolean') settings.showInlayHints.details = input.showInlayHints.details;
         }
         if (typeof input.totalScorePrefix === 'string') settings.totalScorePrefix = input.totalScorePrefix;
@@ -88,6 +91,10 @@ export function normalizeSettings(input: any): CognitiveComplexitySettings {
             if (cleanKey === 'showInlayHints.details') {
                 if (typeof input[key] === 'string') settings.showInlayHints.details = input[key] === 'true';
                 else settings.showInlayHints.details = Boolean(input[key]);
+            }
+            if (cleanKey === 'showInlayHints.complexityDelta') {
+                if (typeof input[key] === 'string') settings.showInlayHints.complexityDelta = input[key] === 'true';
+                else settings.showInlayHints.complexityDelta = Boolean(input[key]);
             }
             if (cleanKey === 'totalScorePrefix') settings.totalScorePrefix = String(input[key]);
         });
@@ -254,16 +261,23 @@ export function computeInlayHints(
             // Check visibility bounds for previous line placement
             if (posInfo.position.line < startLine - 1 || posInfo.position.line > endLine) continue;
 
-            let icon = '🟢';
-            if (method.score >= settings.threshold.error) {
-                icon = '🔴';
-            } else if (method.score >= settings.threshold.warning) {
-                icon = '🟡';
+
+
+            let deltaLabel = "";
+            const hasDelta = method.complexityDelta !== undefined && method.complexityDelta !== null;
+            if (hasDelta && settings.showInlayHints.complexityDelta) {
+                const isImprovement = method.complexityDelta! < 0;
+                const symbol = isImprovement ? "🟢" : "🔴";
+                const prefix = method.complexityDelta! > 0 ? "+" : "";
+                deltaLabel = ` ${symbol} (${prefix}${method.complexityDelta})`;
             }
+
+            // If score is 0 but has delta, we might want a different icon or label
+            let label = `${posInfo.labelPrefix}${settings.totalScorePrefix}: ${method.score}${deltaLabel} (${lines} lines)`;
 
             result.push({
                 position: posInfo.position,
-                label: `${posInfo.labelPrefix}${icon} ${settings.totalScorePrefix}: ${method.score} (${lines} lines)`,
+                label: label,
                 kind: InlayHintKind.Type,
                 paddingLeft: posInfo.paddingLeft,
                 paddingRight: posInfo.paddingRight
@@ -404,11 +418,11 @@ export function computeHover(
                 if (score > 3) mdLines.push(`  > *Tip: Complex conditional logic can often be simplified with polymorphism or strategy patterns.*`);
                 break;
             case 'Loops':
-                 if (score > 3) mdLines.push(`  > *Tip: Consider using functional methods (map/filter/reduce) if applicable, or extract the loop body.*`);
-                 break;
+                if (score > 3) mdLines.push(`  > *Tip: Consider using functional methods (map/filter/reduce) if applicable, or extract the loop body.*`);
+                break;
             case 'Switch Case':
-                 mdLines.push(`  > *Tip: Large switch statements might indicate a missing abstraction. Consider replacing with a factory or polymorphism.*`);
-                 break;
+                mdLines.push(`  > *Tip: Large switch statements might indicate a missing abstraction. Consider replacing with a factory or polymorphism.*`);
+                break;
         }
     });
 
