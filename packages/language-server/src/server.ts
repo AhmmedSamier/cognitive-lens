@@ -464,15 +464,20 @@ connection.onRequest('cognitive-complexity/analyzeText', async (params: { text: 
 });
 
 // Handler for file-based analysis (e.g., project report)
-connection.onRequest('cognitive-complexity/analyzeFile', async (params: { uri: string, languageId: string }): Promise<MethodComplexity[]> => {
+connection.onRequest('cognitive-complexity/analyzeFile', async (params: { uri: string, languageId: string, content?: string }): Promise<MethodComplexity[]> => {
     try {
-        // Check if document is already open/managed
+        // 1. Use provided content if available (Optimization: avoids double I/O)
+        if (params.content !== undefined) {
+            return analyzeContent(params.content, params.languageId);
+        }
+
+        // 2. Check if document is already open/managed
         const document = documents.get(params.uri);
         if (document) {
             return analyzeContent(document.getText(), params.languageId);
         }
 
-        // If not managed, read from disk
+        // 3. If not managed and no content provided, read from disk (Fallback)
         // Note: This assumes file scheme.
         if (params.uri.startsWith('file://')) {
             const fsPath = fileURLToPath(params.uri);
