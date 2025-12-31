@@ -16,7 +16,9 @@ import {
     DiagnosticSeverity,
     DidChangeTextDocumentParams,
     DidOpenTextDocumentParams,
-    DidCloseTextDocumentParams
+    DidCloseTextDocumentParams,
+    HoverParams,
+    Hover
 } from 'vscode-languageserver/node';
 import {
     TextDocument
@@ -31,7 +33,8 @@ import {
     defaultSettings,
     computeDiagnostics,
     computeInlayHints,
-    computeCodeLenses
+    computeCodeLenses,
+    computeHover
 } from './logic';
 import { IncrementalParser } from './IncrementalParser';
 
@@ -137,7 +140,8 @@ connection.onInitialize(async (params: InitializeParams) => {
             },
             inlayHintProvider: {
                 resolveProvider: false
-            }
+            },
+            hoverProvider: true
         }
     };
     if (hasWorkspaceFolderCapability) {
@@ -381,6 +385,19 @@ connection.onCodeLens(async (params: CodeLensParams): Promise<CodeLens[]> => {
 
 connection.onCodeLensResolve((codeLens: CodeLens): CodeLens => {
     return codeLens;
+});
+
+connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
+    const document = documents.get(params.textDocument.uri);
+    if (!document) return null;
+
+    try {
+        const complexities = await getComplexity(document);
+        return computeHover(document, params.position, complexities);
+    } catch (e) {
+        connection.console.error(`Error in onHover: ${e}`);
+        return null;
+    }
 });
 
 // Use connection.languages.inlayHint.on instead of connection.onInlayHint

@@ -23,21 +23,21 @@ This document outlines the findings from a deep dive into the Cognitive Lens cod
 ## 3. Enhancements for Code Reviews (Editor-Focused)
 To assist users specifically during code reviews, the following features are recommended:
 
-### A. Complexity Delta (Planned)
+### A. Complexity Delta (Implemented)
 *   **Concept:** Show the difference in complexity between the *current* code and the *committed* code (Git HEAD).
 *   **Value:** Immediate feedback on whether a change is making the code better or worse.
-*   **UI:** "+2" (Red) or "-5" (Green) indicators in the Methods View.
+*   **UI:** `(+2 Complexity)` (Red) or `(-5 Complexity)` (Green) indicators via Text Decorations (simulating Inlay Hints).
 
-### B. "Refactor Candidate" Highlighting
+### B. "Refactor Candidate" Highlighting (Implemented)
 *   **Concept:** Visually distinguish methods that exceed the "Error" threshold significantly.
-*   **UI:** distinct icon or background color in the side panel for methods with score > 25.
+*   **UI:** Smart Hover provider gives tips on *why* complexity is high (Nesting, Ifs, etc.).
 
 ### C. Pull Request Mode
 *   **Concept:** Instead of just "Active File", have a mode that lists *all* changed methods in the current PR/Branch sorted by complexity.
 *   **Value:** Allows reviewers to focus immediately on the riskiest changes in a PR.
 
-### D. Inlay Hint "Ghost Text" for Delta
-*   **Concept:** Display `MethodName (+2)` directly in the editor as an Inlay Hint.
+### D. Inlay Hint "Ghost Text" for Delta (Implemented)
+*   **Concept:** Display `MethodName (+2)` directly in the editor.
 *   **Value:** No need to look at the side panel; the impact is right in the code.
 
 ## 4. Specific Codebase Notes

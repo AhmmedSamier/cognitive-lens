@@ -1,6 +1,6 @@
 # Cognitive Complexity Extension
 
-This monorepo contains extensions for VS Code and Zed to calculate and display Cognitive Complexity for TypeScript methods.
+This monorepo contains extensions for VS Code and Zed to calculate and display Cognitive Complexity for TypeScript and C# methods.
 
 ## Structure
 
@@ -8,6 +8,24 @@ This monorepo contains extensions for VS Code and Zed to calculate and display C
 *   `packages/language-server`: LSP server wrapping the core logic.
 *   `packages/vscode-extension`: VS Code extension client.
 *   `packages/zed-extension`: Zed extension source.
+
+## Features
+
+### 1. Real-time Complexity Analysis
+*   **CodeLens**: Displays the total Cognitive Complexity score above each method.
+*   **Inlay Hints**: Displays the complexity contribution of each line (e.g., `(+1 if)`).
+*   **Gutter Icons**: Traffic light indicators (Green, Yellow, Red) for quick visual feedback.
+*   **Diagnostics**: Warnings and Errors for methods exceeding configured thresholds.
+
+### 2. Code Review Helpers
+*   **Complexity Delta**: Shows the change in complexity relative to Git HEAD directly in the editor (e.g., `(+2 Complexity)` in Red or `(-1 Complexity)` in Green).
+*   **Methods View**: A side panel listing all methods sorted by complexity, with search and delta tracking.
+
+### 3. Refactoring Assistance
+*   **Smart Hover**: Hover over a high-complexity method signature to see a breakdown of contributors and actionable refactoring tips (e.g., "Deep nesting increases mental load...").
+
+### 4. Reporting
+*   **Project Report**: Generate a standalone HTML report for the entire codebase via the `Cognitive Lens: Generate Project Report` command.
 
 ## Prerequisites
 
@@ -41,34 +59,13 @@ cd packages/vscode-extension
 bun run package:vsix
 ```
 
-### 4. Build Zed Extension
-
-For Zed, you need to compile the Rust code to WASM and bundle the server script.
-
-1.  Build the server script (if not already done):
-    ```bash
-    cd packages/vscode-extension
-    bun run package:server
-    ```
-
-2.  Copy the server script to the Zed extension directory:
-    ```bash
-    cp packages/vscode-extension/dist/server.js packages/zed-extension/server.js
-    ```
-
-3.  Build the WASM:
-    ```bash
-    cd packages/zed-extension
-    cargo build --target wasm32-wasip1 --release
-    ```
-
 ## Running
 
 ### VS Code
 
 1.  Open `packages/vscode-extension` in VS Code.
 2.  Press `F5` to launch a new Extension Development Host window.
-3.  Open a TypeScript file to see complexity scores.
+3.  Open a TypeScript or C# file to see complexity scores.
 
 ### Zed
 
@@ -77,8 +74,3 @@ For Zed, you need to compile the Rust code to WASM and bundle the server script.
 3.  Select the `packages/zed-extension` directory.
     *   Note: Ensure `server.js` is present in that directory.
 4.  Open a TypeScript or JavaScript file.
-
-## Features
-
-*   **CodeLens**: Displays the total Cognitive Complexity score above each method.
-*   **Inlay Hints**: Displays the complexity contribution of each line (e.g., `(+1 if)`).
