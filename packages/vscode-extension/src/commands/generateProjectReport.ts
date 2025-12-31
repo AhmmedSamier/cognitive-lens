@@ -60,7 +60,8 @@ export async function generateProjectReport(client: LanguageClient) {
 
             // OPTIMIZATION: Parallel Analysis
             // Process files in chunks to avoid overwhelming the server but still gain speed.
-            const concurrency = 10;
+            // Increased concurrency since we now avoid blocking I/O on the server side by passing content.
+            const concurrency = 30;
             const chunks: vscode.Uri[][] = [];
             for (let i = 0; i < files.length; i += concurrency) {
                 chunks.push(files.slice(i, i + concurrency));
@@ -81,13 +82,16 @@ export async function generateProjectReport(client: LanguageClient) {
                         else if (ext === '.jsx') languageId = 'javascriptreact';
                         else if (ext === '.tsx') languageId = 'typescriptreact';
 
-                        const complexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeFile', {
-                            uri: file.toString(),
-                            languageId: languageId
-                        });
-
+                        // Read content first (async I/O on client side)
                         const contentBuffer = await vscode.workspace.fs.readFile(file);
                         const content = Buffer.from(contentBuffer).toString('utf8');
+
+                        // Send content to server to avoid double I/O and server-side blocking read
+                        const complexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeFile', {
+                            uri: file.toString(),
+                            languageId: languageId,
+                            content: content
+                        });
 
                         return { file, relativePath, complexities, content };
                     } catch (e) {
