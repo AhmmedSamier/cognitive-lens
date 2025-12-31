@@ -4,7 +4,9 @@ import {
     InlayHint,
     InlayHintKind,
     CodeLens,
-    Position
+    Position,
+    Hover,
+    Range
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { MethodComplexity } from '@cognitive-complexity/core';
@@ -332,4 +334,92 @@ export function computeCodeLenses(
                 data: c.name
             };
         });
+}
+
+// --- Hover Provider for Refactoring Tips ---
+
+export function computeHover(
+    document: TextDocument,
+    position: Position,
+    complexities: MethodComplexity[]
+): Hover | null {
+    const offset = document.offsetAt(position);
+
+    // Find the smallest method containing the cursor
+    // (Sort by length ascending to get inner functions first if nested, though core logic usually flattens or specific nesting handling)
+    const method = complexities
+        .filter(m => offset >= m.startIndex && offset <= m.endIndex)
+        .sort((a, b) => (a.endIndex - a.startIndex) - (b.endIndex - b.startIndex))[0];
+
+    if (!method) return null;
+
+    // Check if we are "hovering" over the method definition itself or inside the body.
+    // Usually, users want tips when hovering the function name or signature.
+    // Let's assume the user hovers anywhere in the function for now, OR we can restrict to the signature.
+    // To limit noise, let's only show if the user hovers over the first line (signature).
+    const startPos = document.positionAt(method.startIndex);
+    if (position.line > startPos.line + 2) {
+        // Allow a slight buffer for multi-line signatures, but don't show when hovering deep in body unless we map specific tokens.
+        // Actually, let's check if the complexity is high enough to warrant a tip.
+        if (method.score < 15) return null; // No tips needed for simple methods
+    }
+
+    if (method.score < 15) return null;
+
+    const contributors = new Map<string, number>();
+    method.details.forEach(d => {
+        let key = d.message;
+        // Normalize messages like "if" vs "nested if" if needed, but core messages are usually clean.
+        if (key.includes('nesting')) key = 'Nesting';
+        else if (key.includes('if')) key = 'If Statement';
+        else if (key.includes('else')) key = 'Else/Else If';
+        else if (key.includes('for') || key.includes('while') || key.includes('do')) key = 'Loops';
+        else if (key.includes('switch')) key = 'Switch Case';
+        else if (key.includes('catch')) key = 'Try/Catch';
+        else if (key.includes('ternary')) key = 'Ternary Operator';
+        else if (key.includes('recursi')) key = 'Recursion';
+
+        contributors.set(key, (contributors.get(key) || 0) + d.score);
+    });
+
+    const sortedContributors = Array.from(contributors.entries())
+        .sort((a, b) => b[1] - a[1]);
+
+    const mdLines = [
+        `### Refactoring Tips for **${method.name}**`,
+        `**Cognitive Complexity**: ${method.score} (High)`,
+        ``,
+        `**Primary Contributors:**`
+    ];
+
+    sortedContributors.forEach(([type, score]) => {
+        mdLines.push(`- **${type}** (+${score})`);
+        // Add specific advice
+        switch (type) {
+            case 'Nesting':
+                mdLines.push(`  > *Tip: Deep nesting increases mental load. Consider extracting nested blocks into separate methods or using [Guard Clauses](https://refactoring.guru/replace-nested-conditional-with-guard-clauses) to return early.*`);
+                break;
+            case 'If Statement':
+            case 'Else/Else If':
+                if (score > 3) mdLines.push(`  > *Tip: Complex conditional logic can often be simplified with polymorphism or strategy patterns.*`);
+                break;
+            case 'Loops':
+                 if (score > 3) mdLines.push(`  > *Tip: Consider using functional methods (map/filter/reduce) if applicable, or extract the loop body.*`);
+                 break;
+            case 'Switch Case':
+                 mdLines.push(`  > *Tip: Large switch statements might indicate a missing abstraction. Consider replacing with a factory or polymorphism.*`);
+                 break;
+        }
+    });
+
+    return {
+        contents: {
+            kind: 'markdown',
+            value: mdLines.join('\n')
+        },
+        range: {
+            start: document.positionAt(method.startIndex),
+            end: document.positionAt(method.startIndex + method.name.length) // Highlight name
+        }
+    };
 }

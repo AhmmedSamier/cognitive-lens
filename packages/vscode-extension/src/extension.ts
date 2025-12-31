@@ -11,6 +11,7 @@ import { MethodComplexity } from './types';
 import { ComplexityWebviewProvider } from './ComplexityWebviewProvider';
 import { GitService } from './gitService';
 import { generateProjectReport } from './commands/generateProjectReport';
+import { updateDeltaDecorations, disposeDeltaDecorations } from './DeltaDecorator';
 
 let client: LanguageClient;
 const gitService = new GitService();
@@ -102,30 +103,27 @@ export function activate(context: ExtensionContext) {
         client.onNotification('cognitive-complexity/fileAnalyzed', async (params: { uri: string, complexities: MethodComplexity[] }) => {
             // Update cache
             complexityCache.set(params.uri, params.complexities);
+            // Trigger background fetch if not in cache (so we have delta info for decorations)
+            const baseComplexities = baseComplexityCache.get(params.uri);
+            if (baseComplexities) {
+                params.complexities.forEach(current => {
+                    const base = baseComplexities.find(b => b.name === current.name);
+                    if (base) {
+                        current.complexityDelta = current.score - base.score;
+                    }
+                });
+            }
+
             // Update visible editors
             updateDecorations(params.uri, params.complexities);
 
             // Update webview if it's showing the active editor
             const activeEditor = window.activeTextEditor;
             if (activeEditor && activeEditor.document.uri.toString() === params.uri) {
-                const config = getWebviewConfig(activeEditor.document.uri);
-
-                // Calculate delta
-                const baseComplexities = baseComplexityCache.get(params.uri);
-                if (baseComplexities) {
-                    params.complexities.forEach(current => {
-                        const base = baseComplexities.find(b => b.name === current.name);
-                        if (base) {
-                            current.complexityDelta = current.score - base.score;
-                        }
-                    });
-                } else {
-                    // Trigger background fetch if not in cache (optional, or rely on tab switch/open)
-                    // For MVP, we can trigger it here if missing, but just ONCE per session is handled by the initial check logic or lazy loading.
-                    // To keep it simple and performant: We won't block here. We'll trigger an update.
-                    updateBaseComplexity(activeEditor);
+                if (!baseComplexities) {
+                   updateBaseComplexity(activeEditor);
                 }
-
+                const config = getWebviewConfig(activeEditor.document.uri);
                 webviewProvider.update(params.complexities, config);
             }
         });
@@ -141,10 +139,6 @@ export function activate(context: ExtensionContext) {
             updateBaseComplexity(editor);
 
             if (cached) {
-                updateEditorDecorations(editor, cached);
-                const config = getWebviewConfig(editor.document.uri);
-
-                // Apply delta if available
                 const baseComplexities = baseComplexityCache.get(uri);
                 if (baseComplexities) {
                     cached.forEach(current => {
@@ -155,6 +149,8 @@ export function activate(context: ExtensionContext) {
                     });
                 }
 
+                updateEditorDecorations(editor, cached);
+                const config = getWebviewConfig(editor.document.uri);
                 webviewProvider.update(cached, config);
             } else {
                 const config = getWebviewConfig(editor.document.uri);
@@ -202,7 +198,8 @@ export function activate(context: ExtensionContext) {
     // Re-create decorations if configuration changes
     workspace.onDidChangeConfiguration(e => {
         if (e.affectsConfiguration('cognitiveComplexity.showGutterIcon') ||
-            e.affectsConfiguration('cognitiveComplexity.threshold')) {
+            e.affectsConfiguration('cognitiveComplexity.threshold') ||
+            e.affectsConfiguration('cognitiveComplexity.showInlayHints.complexityDelta')) {
             createDecorations();
 
             // Re-apply to all visible editors
@@ -302,7 +299,7 @@ async function updateBaseComplexity(editor: TextEditor) {
             });
             baseComplexityCache.set(uri, baseComplexities);
 
-            // If the editor is still active, refresh the view
+            // If the editor is still active, refresh the view AND decorations
             if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri) {
                 const cached = complexityCache.get(uri);
                 if (cached) {
@@ -313,6 +310,9 @@ async function updateBaseComplexity(editor: TextEditor) {
                             current.complexityDelta = current.score - base.score;
                         }
                     });
+
+                    // Force update decorations now that we have base complexity
+                    updateEditorDecorations(editor, cached);
                     webviewProvider.update(cached, config);
                 }
             }
@@ -330,8 +330,13 @@ async function updateBaseComplexity(editor: TextEditor) {
 
 function updateEditorDecorations(editor: TextEditor, complexities: MethodComplexity[]) {
     const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
+
+    // Update Delta Decorations
+    const baseComplexities = baseComplexityCache.get(editor.document.uri.toString());
+    updateDeltaDecorations(editor, complexities, baseComplexities);
+
     if (!config.get<boolean>('showGutterIcon', true)) {
-        // Clear decorations if disabled for this resource
+        // Clear gutter decorations if disabled for this resource
         if (greenDecorationType) editor.setDecorations(greenDecorationType, []);
         if (yellowDecorationType) editor.setDecorations(yellowDecorationType, []);
         if (redDecorationType) editor.setDecorations(redDecorationType, []);
@@ -377,6 +382,7 @@ export function deactivate(): Thenable<void> | undefined {
     if (greenDecorationType) greenDecorationType.dispose();
     if (yellowDecorationType) yellowDecorationType.dispose();
     if (redDecorationType) redDecorationType.dispose();
+    disposeDeltaDecorations();
 
     complexityCache.clear();
     baseComplexityCache.clear();
