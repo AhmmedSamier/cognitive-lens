@@ -1,55 +1,77 @@
 # Cognitive Lens for VS Code
 
-This extension calculates and displays Cognitive Complexity for TypeScript, JavaScript, and C# methods directly in your editor.
+**Cognitive Lens** helps you write cleaner, more maintainable code by visualizing **Cognitive Complexity** directly in Visual Studio Code.
 
-## Features
+It goes beyond simple cyclomatic complexity by assessing how difficult a unit of code is to understand intuitively.
 
-### CodeLens
-Displays the total Cognitive Complexity score above each method.
+## ✨ Key Features
 
-![CodeLens](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/code-lens.png)
+### 1. Real-time Visualization
+*   **CodeLens**: Display the cumulative complexity score above methods.
+    
+    ![CodeLens](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/code-lens.png)
 
-### Inlay Hints
-Displays the complexity contribution of each line (e.g., `(+1 if)`).
+*   **Inlay Hints**: Detailed per-line breakdown of what contributes to complexity.
+    *   Example: `if (condition)` -> `+1 (if)`
+    *   Example: Nested logic -> `+2 (nesting)`
+    
+    ![Inlay Hints](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/score-details-per-line.png)
 
-![Inlay Hints](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/score-details-per-line.png)
+*   **Gutter Icons**: Traffic light icons in the gutter.
+    
+    ![Gutter Icons](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/gutters.png)
 
-### Gutter Icons
-Optional traffic light icons in the gutter to indicate complexity status.
+### 2. Complexity Deltas (New) 📉
+Track changes in real-time as you edit. Cognitive Lens compares your current code against the Git HEAD:
+*   **🟢 Improvement**: You reduced complexity (e.g., `🟢 -3`).
+*   **🔴 Regression**: You increased complexity (e.g., `🔴 +2`).
 
-![Gutter Icons](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/gutters.png)
+![Complexity Deltas](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/git-delta.png)
 
-### Diagnostics
-Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
+### 3. Project Report (New) 📊
+Generate a full-screen, interactive HTML dashboard to analyze your entire project.
+*   **Command**: Run `Cognitive Lens: Generate Project Report`.
+*   **Features**:
+    *   Sort and filter methods by complexity.
+    *   Fuzzy search for specific files or functions.
+    *   Dark/Light mode support.
 
-### Side Panel
-A "Methods" view in the Activity Bar to list all methods and their complexity scores, with search functionality.
+![Project Report](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/html-report.png)
 
-## Configuration
+### 4. Refactoring Assistance 💡
+Hover over any method with high complexity to see a **Refactoring Advisory**:
+*   Breakdown of primary contributors (Loops, If/Else, Nesting).
+*   Actionable tips (e.g., "Consider extracting this loop into a separate function").
 
-You can customize the extension behavior in your `settings.json`:
+### 5. Methods Explorer
+A dedicated **Side Panel** view lists all methods in your workspace, sorted by complexity score, making it easy to hunt down technical debt.
+
+![Methods Explorer](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/side-menu.png)
+
+## ⚙️ Configuration
+
+Customize the extension in your `settings.json`:
 
 | Setting | Default | Description |
 | :--- | :--- | :--- |
-| `cognitiveComplexity.threshold.warning` | `15` | Complexity score threshold for showing a warning. |
-| `cognitiveComplexity.threshold.error` | `25` | Complexity score threshold for showing an error. |
-| `cognitiveComplexity.showCodeLens` | `true` | Enable or disable CodeLens for cognitive complexity. |
-| `cognitiveComplexity.showGutterIcon` | `false` | Enable or disable the gutter icon. |
-| `cognitiveComplexity.showDiagnostics` | `true` | Enable or disable diagnostics (warnings/errors). |
-| `cognitiveComplexity.showInlayHints.methodScore` | `false` | Enable or disable the method score inlay hint (useful if CodeLens is disabled). |
-| `cognitiveComplexity.showInlayHints.details` | `true` | Enable or disable detailed contribution inlay hints. |
-| `cognitiveComplexity.totalScorePrefix` | `"Cognitive Complexity"` | The prefix text to display before the total complexity score. |
+| `cognitiveComplexity.threshold.warning` | `15` | Score causing a Warning diagnostic (Yellow). |
+| `cognitiveComplexity.threshold.error` | `25` | Score causing an Error diagnostic (Red). |
+| `cognitiveComplexity.showCodeLens` | `true` | Show score above methods. |
+| `cognitiveComplexity.showInlayHints.details` | `true` | Show line-by-line attribution. |
+| `cognitiveComplexity.showInlayHints.complexityDelta` | `true` | Show complexity changes (Deltas) in inlay hints. |
+| `cognitiveComplexity.showComplexityDeltaDecoration` | `true` | Show colored decorations for deltas. |
+| `cognitiveComplexity.showGutterIcon` | `false` | Show traffic light icons in the gutter. |
 
-## Supported Languages
+## 📦 Supported Languages
 
--   TypeScript (`.ts`, `.tsx`)
--   JavaScript (`.js`, `.jsx`)
--   C# (`.cs`)
+*   **TypeScript** (`.ts`, `.tsx`)
+*   **JavaScript** (`.js`, `.jsx`)
+*   **C#** (`.cs`)
 
-## Installation
+## 🚀 Installation
 
-Install via the Visual Studio Code Marketplace: [Cognitive Lens](https://marketplace.visualstudio.com/items?itemName=AhmedSamir.cognitive-lens)
+Install via the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=AhmedSamir.cognitive-lens).
 
-## Issues
+## 🤝 Contributing
 
-Please report issues on [GitHub](https://github.com/AhmmedSamier/cognitive-lens/issues).
+Issues and Pull Requests are welcome on [GitHub](https://github.com/AhmmedSamier/cognitive-lens).

@@ -272,8 +272,15 @@ export function computeInlayHints(
                 deltaLabel = ` ${symbol} (${prefix}${method.complexityDelta})`;
             }
 
+            let icon = '🟢';
+            if (method.score >= settings.threshold.error) {
+                icon = '🔴';
+            } else if (method.score >= settings.threshold.warning) {
+                icon = '🟡';
+            }
+
             // If score is 0 but has delta, we might want a different icon or label
-            let label = `${posInfo.labelPrefix}${settings.totalScorePrefix}: ${method.score}${deltaLabel} (${lines} lines)`;
+            let label = `${posInfo.labelPrefix}${icon} ${settings.totalScorePrefix}: ${method.score}${deltaLabel} (${lines} lines)`;
 
             result.push({
                 position: posInfo.position,
