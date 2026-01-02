@@ -10,7 +10,7 @@
     },
     "packages/core": {
       "name": "@cognitive-complexity/core",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "fflate": "^0.8.2",
         "tree-sitter-c-sharp": "^0.23.1",
@@ -23,7 +23,7 @@
     },
     "packages/language-server": {
       "name": "@cognitive-complexity/language-server",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "@cognitive-complexity/core": "workspace:*",
         "tree-sitter-c-sharp": "^0.23.1",
@@ -37,7 +37,7 @@
     },
     "packages/vscode-extension": {
       "name": "cognitive-lens",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "bin": {
         "cognitive-complexity-ls": "./dist/server.js",
       },

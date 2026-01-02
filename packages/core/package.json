@@ -1,6 +1,6 @@
 {
   "name": "@cognitive-complexity/core",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "main": "src/index.ts",
   "dependencies": {
     "fflate": "^0.8.2",
