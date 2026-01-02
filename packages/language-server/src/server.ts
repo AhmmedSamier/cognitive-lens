@@ -320,6 +320,7 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
                 if (baseComplexities.length > 0) {
                     let deltasCalculated = 0;
                     complexities.forEach(current => {
+                        if (current.isCallback) return;
                         const base = baseComplexities.find(b => b.name === current.name);
                         if (base) {
                             current.complexityDelta = current.score - base.score;

@@ -21,6 +21,7 @@ export function updateDeltaDecorations(editor: TextEditor, currentComplexities: 
 
     let deltaCount = 0;
     for (const current of currentComplexities) {
+        if (current.isCallback) continue;
         const delta = current.complexityDelta;
 
         if (delta !== undefined && delta !== 0) {

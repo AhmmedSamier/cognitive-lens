@@ -247,7 +247,7 @@ function updateEditorDecorations(editor: TextEditor, complexities: MethodComplex
     // Update Delta Decorations - using deltas already present in complexities from LSP
     updateDeltaDecorations(editor, complexities);
 
-    const deltas = complexities.filter(c => c.complexityDelta !== undefined && c.complexityDelta !== 0).length;
+    const deltas = complexities.filter(c => !c.isCallback && c.complexityDelta !== undefined && c.complexityDelta !== 0).length;
     if (deltas > 0) {
         window.setStatusBarMessage(`$(git-branch) Cognitive Lens: ${deltas} deltas detected`, 5000);
     }
