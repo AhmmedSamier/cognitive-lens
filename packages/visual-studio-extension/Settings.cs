@@ -53,6 +53,12 @@ namespace CognitiveComplexity
         };
 
         [VisualStudioContribution]
+        public static Setting.Boolean ShowInlayHintsComplexityDelta { get; } = new("cognitiveComplexityShowInlayHintsComplexityDelta", "Show Complexity Delta", Category, false)
+        {
+            Description = "Enable or disable the complexity delta in the inlay hint.",
+        };
+
+        [VisualStudioContribution]
         public static Setting.String TotalScorePrefix { get; } = new("cognitiveComplexityTotalScorePrefix", "Total Score Prefix", Category, "Cognitive Complexity")
         {
             Description = "The prefix text to display before the total complexity score.",
