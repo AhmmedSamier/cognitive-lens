@@ -18,8 +18,9 @@ export class IncrementalParser {
     private cache = new Map<string, CacheEntry>();
     private parsers = new Map<string, Parser>();
 
-    constructor(parsers: { csharp?: Parser, typescript?: Parser, tsx?: Parser }) {
+    constructor(parsers: { csharp?: Parser, typescript?: Parser, tsx?: Parser, dart?: Parser }) {
         if (parsers.csharp) this.parsers.set('csharp', parsers.csharp);
+        if (parsers.dart) this.parsers.set('dart', parsers.dart);
         if (parsers.typescript) {
             this.parsers.set('typescript', parsers.typescript);
             this.parsers.set('javascript', parsers.typescript);
