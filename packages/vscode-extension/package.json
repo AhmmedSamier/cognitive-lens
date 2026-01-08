@@ -1,8 +1,8 @@
 {
   "name": "cognitive-lens",
   "displayName": "Cognitive Lens",
-  "description": "Shows Cognitive Complexity for TypeScript and C# methods",
-  "version": "1.5.0",
+  "description": "Shows Cognitive Complexity for TypeScript, C#, and Dart methods",
+  "version": "1.5.1",
   "publisher": "AhmedSamir",
   "repository": "https://github.com/AhmmedSamier/cognitive-lens",
   "icon": "resources/icon.png",

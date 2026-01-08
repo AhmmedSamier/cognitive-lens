@@ -3,7 +3,7 @@ name = "Cognitive Lens"
 version = "1.2.0"
 schema_version = 1
 authors = ["ASamir"]
-description = "Shows Cognitive Complexity for TypeScript and C# methods"
+description = "Shows Cognitive Complexity for TypeScript, C#, and Dart methods"
 repository = "https://github.com/AhmmedSamier/cognitive-lens"
 
 [language_servers.cognitive-complexity-ls]

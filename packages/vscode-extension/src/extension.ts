@@ -50,7 +50,8 @@ export function activate(context: ExtensionContext) {
             { scheme: 'file', language: 'typescriptreact' },
             { scheme: 'file', language: 'javascript' },
             { scheme: 'file', language: 'javascriptreact' },
-            { scheme: 'file', language: 'csharp' }
+            { scheme: 'file', language: 'csharp' },
+            { scheme: 'file', language: 'dart' }
         ],
         synchronize: {
             fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
@@ -152,7 +153,6 @@ export function activate(context: ExtensionContext) {
             if (cached) {
                 const position = event.selections[0].active;
                 const offset = event.textEditor.document.offsetAt(position);
-
                 const method = cached.find(m => offset >= m.startIndex && offset <= m.endIndex && !m.isCallback);
 
                 if (method) {
