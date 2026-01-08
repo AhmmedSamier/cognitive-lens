@@ -8,7 +8,8 @@ export type ComplexityNodeType =
     | 'CATCH'
     | 'TERNARY'
     | 'BINARY'
-    | 'ELSE';
+    | 'ELSE'
+    | 'GOTO';
 
 export interface LanguageAdapter {
     isMethod(node: SyntaxNode): boolean;
@@ -32,6 +33,10 @@ export interface LanguageAdapter {
     // Checks if the nesting should be flattened for a specific child
     // (e.g. parent is IF, child is ELSE IF -> don't increase nesting for the child)
     shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
+
+    // If true, lambdas/callbacks ALWAYS increase nesting (SonarSource C# behavior).
+    // If false, uses second-level function handling (SonarJS behavior).
+    lambdaAlwaysNested: boolean;
 }
 
 export abstract class BaseLanguageAdapter implements LanguageAdapter {
@@ -42,6 +47,10 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
     abstract getBinaryOperator(node: SyntaxNode): string | undefined;
     abstract isElseIf(node: SyntaxNode): boolean;
     abstract shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
+
+    // Default: SonarJS behavior (second-level function handling)
+    // Override to true for C# behavior (lambdas always nest)
+    lambdaAlwaysNested: boolean = false;
 
     isBinaryContinuation(node: SyntaxNode): boolean {
         const op = this.getBinaryOperator(node);
@@ -131,11 +140,19 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
 
             // Determine nesting for children:
             // - Root method (depth 0): nesting starts at 0
-            // - Second-level (depth 1): we'll compute both ways, but pass 0 for now
-            // - Deeper (depth 2+): inherit parent nesting + 1
+            // - For lambdaAlwaysNested=true (C#): all nested functions inherit nesting + 1
+            // - For lambdaAlwaysNested=false (JS): second-level uses special handling
             let childNesting = 0;
-            if (depth >= 2) {
-                childNesting = currentNesting + 1;
+            if (adapter.lambdaAlwaysNested) {
+                // C# behavior: lambdas always add nesting
+                if (depth >= 1) {
+                    childNesting = currentNesting + 1;
+                }
+            } else {
+                // JS behavior: only depth 2+ inherits nesting
+                if (depth >= 2) {
+                    childNesting = currentNesting + 1;
+                }
             }
 
             // Visit children
@@ -165,8 +182,8 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                 }
 
                 newMethod.score = totalComplexity;
-            } else if (depth === 1) {
-                // Second-level function: register with parent
+            } else if (depth === 1 && !adapter.lambdaAlwaysNested) {
+                // Second-level function (SonarJS behavior): register with parent
                 const parentContext = contextStack[0];  // Top-level is always at index 0
                 parentContext.secondLevelFunctions.push({
                     method: newMethod,
@@ -175,7 +192,7 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                 });
                 // Don't add to parent score yet - will be decided when top-level exits
             } else {
-                // Deeper nested: add to parent's score directly
+                // Deeper nested OR lambdaAlwaysNested: add to parent's score directly
                 const parentContext = contextStack[contextStack.length - 1];
                 parentContext.method.score += newMethod.score;
             }
@@ -237,6 +254,11 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                             increasesNesting = false;
                         }
                         break;
+                    case 'GOTO':
+                        label = 'goto';
+                        structural = 1;
+                        increasesNesting = true;  // SonarSource C#: goto adds nesting penalty
+                        break;
                 }
             }
 
@@ -257,8 +279,8 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                     if (increasesNesting && currentNesting > 0) {
                         currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
                     }
-                } else if (currentContext.depth === 1) {
-                    // Second-level: track both ways
+                } else if (currentContext.depth === 1 && !adapter.lambdaAlwaysNested) {
+                    // Second-level (SonarJS): track both ways for later decision
                     const scoreIfTopLevel = structural;  // No nesting penalty
                     const scoreIfNested = structural + (increasesNesting ? (currentNesting + 1) : 0);  // +1 for being in callback
 
@@ -271,7 +293,7 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                         currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
                     }
                 } else {
-                    // Deeper: add score with full nesting
+                    // Deeper OR lambdaAlwaysNested (C#): add score with full nesting
                     currentContext.method.score += score;
                     currentContext.method.details.push({ line, score: structural, message: label });
                     if (increasesNesting && currentNesting > 0) {

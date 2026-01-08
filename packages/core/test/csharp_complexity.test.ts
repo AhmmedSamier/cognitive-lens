@@ -95,13 +95,13 @@ describe("Cognitive Complexity (C#)", () => {
         expect(results[0].score).toBe(3);
     });
 
-    test("List.ForEach with lambda - no structural complexity in parent", async () => {
-        // When parent has NO structural complexity, the lambda is treated as independent
+    test("List.ForEach with lambda - always adds nesting (C# behavior)", async () => {
+        // SonarSource C# ALWAYS increases nesting for lambdas (unlike SonarJS)
         const code = `
         class Test {
             void Process(List<int> items) {
                 items.ForEach(item => {
-                    if (item > 0) { // +1 (no nesting penalty since parent has no structure)
+                    if (item > 0) { // +1 + 1 (nesting from lambda)
                         Console.WriteLine(item);
                     }
                 });
@@ -114,21 +114,21 @@ describe("Cognitive Complexity (C#)", () => {
         const processMethod = results.find(r => r.name === 'Process');
         expect(processMethod).toBeDefined();
 
-        // SonarJS behavior: parent has no structural complexity
-        // So the lambda's if gets +1 only (no nesting penalty)
-        // Total: 1
-        console.log('C# ForEach no-structure - Process score:', processMethod!.score);
-        expect(processMethod!.score).toBe(1);
+        // SonarSource C# behavior: lambdas ALWAYS add nesting
+        // Lambda's if: +1 + 1 (nesting from being in lambda) = 2
+        // Total: 2
+        console.log('C# ForEach lambda - Process score:', processMethod!.score);
+        expect(processMethod!.score).toBe(2);
     });
 
-    test("List.ForEach with lambda - has structural complexity in parent", async () => {
-        // When parent HAS structural complexity, the lambda gets nesting penalty
+    test("List.ForEach with lambda inside if - deeper nesting", async () => {
+        // Lambda inside structural block gets additional nesting
         const code = `
         class Test {
             void Process(List<int> items, bool flag) {
                 if (flag) { // +1 structural
                     items.ForEach(item => {
-                        if (item > 0) { // +1 + nesting penalty
+                        if (item > 0) { // +1 + 2 (nesting: 1 from if, 1 from lambda)
                             Console.WriteLine(item);
                         }
                     });
@@ -141,11 +141,12 @@ describe("Cognitive Complexity (C#)", () => {
         const processMethod = results.find(r => r.name === 'Process');
         expect(processMethod).toBeDefined();
 
-        // SonarJS behavior: parent has structural complexity (if)
-        // So the lambda's if gets +1 + 1 (nesting from being in callback)
-        // Total: 1 (outer if) + 2 (lambda if with nesting) = 3
-        console.log('C# ForEach with-structure - Process score:', processMethod!.score);
-        expect(processMethod!.score).toBe(3);
+        // SonarSource C# behavior:
+        // - outer if: +1
+        // - lambda's if: +1 + 2 (nesting from if + lambda) = 3
+        // Total: 1 + 3 = 4
+        console.log('C# ForEach nested - Process score:', processMethod!.score);
+        expect(processMethod!.score).toBe(4);
     });
 
     test("Nested lambdas in List operations", async () => {
@@ -173,5 +174,49 @@ describe("Cognitive Complexity (C#)", () => {
         // Even if inner complexity varies, we should have some complexity
         // The key test is actually the simpler ForEach tests above
         console.log('C# Nested ForEach - Process score:', processMethod!.score);
+    });
+
+    test("Goto statement adds complexity with nesting", async () => {
+        // SonarSource C#: goto adds +1 + nesting
+        const code = `
+        class Test {
+            void Process(bool flag) {
+                if (flag) { // +1
+                    goto end; // +1 + 1 (nesting)
+                }
+                end:
+                Console.WriteLine("done");
+            }
+        }`;
+        const tree = parser.parse(code);
+        const results = await calculateComplexity(tree, 'csharp');
+
+        const processMethod = results.find(r => r.name === 'Process');
+        expect(processMethod).toBeDefined();
+
+        // if: +1, goto: +1 + 1 (nesting) = 3
+        console.log('C# Goto - Process score:', processMethod!.score);
+        expect(processMethod!.score).toBe(3);
+    });
+
+    test("Logical OR operator counted (C# differs from JS)", async () => {
+        // SonarSource C# counts BOTH && and || (unlike SonarJS which only counts &&)
+        const code = `
+        class Test {
+            void Process(bool a, bool b) {
+                if (a || b) { // +1 (if) + 1 (||)
+                    return;
+                }
+            }
+        }`;
+        const tree = parser.parse(code);
+        const results = await calculateComplexity(tree, 'csharp');
+
+        const processMethod = results.find(r => r.name === 'Process');
+        expect(processMethod).toBeDefined();
+
+        // if: +1, ||: +1 = 2
+        console.log('C# OR operator - Process score:', processMethod!.score);
+        expect(processMethod!.score).toBe(2);
     });
 });

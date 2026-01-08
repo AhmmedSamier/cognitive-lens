@@ -3,6 +3,8 @@ import { MethodComplexity } from '../types';
 import { calculateGenericComplexity, BaseLanguageAdapter, ComplexityNodeType } from './common';
 
 class CSharpAdapter extends BaseLanguageAdapter {
+    // SonarSource C# always increases nesting for lambdas (unlike SonarJS)
+    override lambdaAlwaysNested = true;
     isMethod(node: SyntaxNode): boolean {
         return [
             'method_declaration',
@@ -41,6 +43,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
             case 'conditional_expression': return 'TERNARY';
             case 'binary_expression': return 'BINARY';
             case 'else_clause': return 'ELSE';
+            case 'goto_statement': return 'GOTO';  // SonarSource C#: goto adds +1 + nesting
             default:
                 // Check for implicit else (alternative field which is not else_clause)
                 // C# 'if' structure: if (cond) con alternative
@@ -57,8 +60,9 @@ class CSharpAdapter extends BaseLanguageAdapter {
     }
 
     getBinaryOperator(node: SyntaxNode): string | undefined {
-        // SonarJS only counts && sequences, not || or ??
-        const operatorNode = node.children.find(c => c.type === '&&');
+        // SonarSource C# counts BOTH && and || (unlike SonarJS which only counts &&)
+        // See: sonar-dotnet/CSharpCognitiveComplexityMetric.cs VisitBinaryExpression
+        const operatorNode = node.children.find(c => c.type === '&&' || c.type === '||');
         return operatorNode?.type;
     }
 
