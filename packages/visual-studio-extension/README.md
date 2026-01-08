@@ -1,38 +1,45 @@
-# Cognitive Lens for Visual Studio
+# 🧠 Cognitive Lens for Visual Studio
 
-This extension calculates and displays Cognitive Complexity for C# methods in Visual Studio.
+Premium **Cognitive Complexity** analysis for .NET developers.
 
-## Features
+---
 
--   **CodeLens**: Displays the total Cognitive Complexity score above each method.
--   **Inlay Hints**: Displays the complexity contribution of each line (e.g., `(+1 if)`).
--   **Diagnostics**: Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
+## ✨ Features
 
-## Prerequisites
+-   **CodeLens Integration**: View live complexity scores above your C# methods.
+-   **Deep Attribution**: Inlay hints (using Roslyn and LSP) pinpoint exactly which code constructs add to the cognitive load.
+-   **Diagnostic Integration**: Seamlessly integrates with the Visual Studio Error List, flagging complex methods during development.
 
-*   Visual Studio 2022 (v17.9 or later recommended)
+---
 
-## Building
+## 🛠️ Build & Installation
 
-1.  **Build the Language Server Artifacts**:
-    Run the build script from the repository root:
-    ```bash
-    bun run build:vs
-    ```
-    This command will build the language server and copy the necessary files (`server.js`, `tree-sitter.wasm`, etc.) into `packages/visual-studio-extension/Resources`.
+### 1. Unified Engine Build
+From the repository root, build the shared analysis engine:
+```bash
+bun run build:vs
+```
+*This prepares the LSP server and Tree-Sitter binaries in the local Resources directory.*
 
-2.  **Open in Visual Studio**:
-    Open `packages/visual-studio-extension/CognitiveComplexity.sln` in Visual Studio.
+### 2. Solution Compilation
+- Open `packages/visual-studio-extension/CognitiveComplexity.sln` in **Visual Studio 2022**.
+- Build the solution (`Ctrl+Shift+B`).
+- Locate the `.vsix` in the output folder and install.
 
-3.  **Build the Solution**:
-    Build the solution in Visual Studio to generate the VSIX file.
+---
 
-4.  **Install**:
-    Double-click the generated VSIX file in the `bin/Debug` or `bin/Release` folder to install it.
+## 🧮 Methodology
 
-## Debugging
+Specifically tuned for the .NET ecosystem:
+- **Rule Alignment**: Matches **SonarSource C#** (Sonar-DotNet) rules (Logical OR `||` contribution, `goto` penalties, etc.).
+- **Aggregation**: Nested lambdas and anonymous types contribute to the parent method's total score.
 
-1.  Open the solution in Visual Studio.
-2.  Set the project as the startup project.
-3.  Press F5 to launch the experimental instance of Visual Studio.
-4.  Open a C# file to see the extension in action.
+---
+
+## 🐛 Debugging
+1. Open the solution in VS 2022.
+2. Select the `CognitiveComplexity` project as the Startup Project.
+3. Press **F5** to start an Experimental Instance of Visual Studio.
+
+---
+<p align="center">Empowering C# developers to build cleaner, more readable logic.</p>

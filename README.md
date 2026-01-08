@@ -1,91 +1,89 @@
-# Cognitive Lens
+# 🧠 Cognitive Lens
 
-**Cognitive Lens** is a powerful developer tool designed to help you visualize, track, and reduce **Cognitive Complexity** in your codebase. It provides real-time feedback directly in your editor, helping you write maintainable, clean code.
+**Cognitive Lens** is a state-of-the-art developer tool designed to visualize, track, and master **Cognitive Complexity**. By providing real-time, line-by-line feedback directly in your editor, it empowers you to write code that is not just functional, but intuitively maintainable.
 
-This monorepo contains the implementation for the **Language Server**, **VS Code Extension**, and **Zed Extension**.
+[![Visual Studio Code](https://img.shields.io/badge/VS%20Code-Extension-blue?logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=AhmedSamir.cognitive-lens)
+[![Zed](https://img.shields.io/badge/Zed-Extension-black?logo=zed)](https://github.com/AhmmedSamier/cognitive-lens/tree/main/packages/zed-extension)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 🚀 Features
+---
 
-### 1. Real-time Analysis
-*   **CodeLens**: See the complexity score directly above every method.
+## ✨ Experience the Clarity
 
-    ![CodeLens](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/code-lens.png)
+### 1. Real-time Awareness
+*   **Method Scores (CodeLens)**: Instant visibility into the complexity of every function.
+    ![CodeLens](images/code-lens.png)
+*   **Deep Attribution (Inlay Hints)**: Don't just see a score; see *why* it's there. Every `if`, `for`, and nested block is explained inline.
+    ![Inlay Hints](images/score-details-per-line.png)
+*   **Gutter Health Indicators**: Intuitive **🟢 Green**, **🟡 Yellow**, and **🔴 Red** indicators for rapid context switching.
+    ![Gutter Icons](images/gutters.png)
 
-*   **Inlay Hints**: Understand exactly *why* a method is complex with line-by-line attribution (e.g., `+1 (if)`, `+1 (nesting)`).
+### 2. Intelligent Evolution
+*   **Complexity Deltas**: Visualize the impact of your changes in real-time relative to Git HEAD.
+    *   **Improvements**: `🟢 (-2)` - Your refactor worked!
+    *   **Regressions**: `🔴 (+3)` - Logic is getting tangled.
+    ![Complexity Deltas](images/git-delta.png)
 
-    ![Inlay Hints](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/score-details-per-line.png)
+### 3. Holistic Insights
+*   **Project Dashboard**: Generate beautiful, standalone HTML reports for your entire workspace. Search, filter, and prioritize your technical debt reduction.
+    ![Project Report](images/html-report.png)
 
-*   **Gutter Indicators**: Traffic light icons (🟢 🟡 🔴) provide immediate visual feedback on method health.
+---
 
-    ![Gutter Icons](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/gutters.png)
+## 🏗️ Architecture & Methodology
 
-### 2. Historical Context (New)
-*   **Complexity Deltas**: Instantly see how your current edits affect complexity relative to the Git HEAD.
-    *   **Improvements** are highlighted in **Green** (e.g., `🟢 (-2)`).
-    *   **Regressions** are highlighted in **Red** (e.g., `🔴 (+3)`).
+Cognitive Lens is built on a unified **Language Server Protocol (LSP)** backend, ensuring consistent analysis across all supported editors.
 
-    ![Complexity Deltas](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/git-delta.png)
+### 🌐 Supported Platforms
 
-### 3. Project Insights (New)
-*   **HTML Project Report**: Generate a comprehensive, standalone HTML report for your entire workspace.
-    *   **Dashboard**: Visualize complexity distribution.
-    *   **Explore**: Search and filter methods by complexity score.
-    *   **Theme Aware**: Fully supports Dark and Light modes.
+| Editor | Platform | Status |
+| :--- | :--- | :--- |
+| **Visual Studio Code** | Windows, macOS, Linux | Stable |
+| **Visual Studio 2022** | Windows | Stable |
+| **Zed** | macOS, Linux, Windows | Stable |
 
-    ![Project Report](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/html-report.png)
+### ⚖️ Algorithm Alignment
 
-### 4. Smart Refactoring
-*   **Refactoring Tips**: Hover over high-complexity methods to receive tailored advice on how to simplify them (e.g., "Extract Method," "Use Guard Clauses").
+Our calculation engine is meticulously tuned to match industry-standard rules while providing a more **holistic view** through method aggregation.
 
-### 5. Methods Explorer
-*   **Side Panel**: Lists all methods in your workspace, sorted by complexity score, making it easy to hunt down technical debt.
+| Language | Root Methodology |
+| :--- | :--- |
+| **TypeScript / JS** | **SonarJS (S3776)** |
+| **C#** | **SonarSource C#** |
+| **Dart** | **Community Standard** |
 
-    ![Methods Explorer](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/side-menu.png)
+---
 
 ## 📂 Repository Structure
 
-*   `packages/core`: The pure Logic/Algorithm for calculating Cognitive Complexity.
-*   `packages/language-server`: LSP implementation that serves complexity data to editors.
-*   `packages/vscode-extension`: The VS Code client extension.
-*   `packages/zed-extension`: The Zed editor extension.
+*   `packages/core`: The analysis engine and language adapters.
+*   `packages/language-server`: The LSP implementation.
+*   `packages/vscode-extension`: Visual Studio Code client.
+*   `packages/visual-studio-extension`: Visual Studio 2022 client.
+*   `packages/zed-extension`: Zed editor client.
 
-## 🛠️ Prerequisites
+---
 
-*   **Runtime**: [Bun](https://bun.sh/) (Required for build scripts)
+## 🚀 Getting Started
+
+### Prerequisites
+*   **Runtime**: [Bun](https://bun.sh/)
 *   **Node.js**: LTS version
-*   **Editors**: VS Code or Zed
-*   **Rust**: Required only if building the Zed extension from source.
 
-## 📦 Build Instructions
-
-### 1. Install Dependencies
-
+### Fast Installation
 ```bash
+# Clone the repository
+git clone https://github.com/AhmmedSamier/cognitive-lens.git
+cd cognitive-lens
+
+# Install and Build
 bun install
 ```
 
-### 2. Build VS Code Extension
+### Documentation
+- [VS Code Extension Guide](./packages/vscode-extension/README.md)
+- [Visual Studio 2022 Guide](./packages/visual-studio-extension/README.md)
+- [Zed Extension Guide](./packages/zed-extension/README.md)
 
-```bash
-cd packages/vscode-extension
-bun run package
-```
-This generates `dist/extension.js` and `dist/server.js`.
-
-To create a `.vsix` installer:
-```bash
-bun run package:vsix
-```
-
-## 🐞 Running in Development
-
-### VS Code
-1.  Open the repository in VS Code.
-2.  Press `F5` to launch a new **Extension Development Host** window.
-3.  Open any TypeScript or C# file to see the extension in action.
-
-### Zed
-1.  Open Zed.
-2.  Navigate to **Extensions** -> **Install Dev Extension**.
-3.  Select the `packages/zed-extension` directory.
-    *   *Note: Ensure you have built the language server first.*
+---
+<p align="center">Made with ❤️ for clean code enthusiasts.</p>

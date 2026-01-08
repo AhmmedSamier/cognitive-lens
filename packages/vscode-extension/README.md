@@ -1,77 +1,76 @@
-# Cognitive Lens for VS Code
+# 🧠 Cognitive Lens for VS Code
 
-**Cognitive Lens** helps you write cleaner, more maintainable code by visualizing **Cognitive Complexity** directly in Visual Studio Code.
+**Transform your coding experience with intuitive complexity visualization.**
 
-It goes beyond simple cyclomatic complexity by assessing how difficult a unit of code is to understand intuitively.
+[Marketplace](https://marketplace.visualstudio.com/items?itemName=AhmedSamir.cognitive-lens) | [GitHub](https://github.com/AhmmedSamier/cognitive-lens) | [Changelog](https://github.com/AhmmedSamier/cognitive-lens/blob/main/CHANGELOG.md)
 
-## ✨ Key Features
+---
 
-### 1. Real-time Visualization
-*   **CodeLens**: Display the cumulative complexity score above methods.
-    
-    ![CodeLens](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/code-lens.png)
+## 🔥 Features at a Glance
 
-*   **Inlay Hints**: Detailed per-line breakdown of what contributes to complexity.
-    *   Example: `if (condition)` -> `+1 (if)`
-    *   Example: Nested logic -> `+2 (nesting)`
-    
-    ![Inlay Hints](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/score-details-per-line.png)
+### 1. The HUD for your Code
+*   **Live Score (CodeLens)**: A floating score above every method tells you exactly how "braindead" easy or "nightmare" hard your code is to read.
+    ![CodeLens](../../images/code-lens.png)
+*   **Deep Dive (Inlay Hints)**: Toggleable, line-specific annotations show the *exact* cost of every branching statement.
+    ![Inlay Hints](../../images/score-details-per-line.png)
+    *   *Green (0-14)*: Accessible logic.
+    *   *Yellow (15-24)*: Consider refactoring.
+    *   *Red (25+)*: High cognitive load.
 
-*   **Gutter Icons**: Traffic light icons in the gutter.
-    
-    ![Gutter Icons](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/gutters.png)
+### 2. Git-Integrated Complexity
+Stop regressions before they are committed. Cognitive Lens monitors your changes and displays a **Delta** decoration:
+![Complexity Deltas](../../images/git-delta.png)
+- `🟢 -5`: Cleaned up a mess.
+- `🔴 +2`: Complexity is creeping in.
 
-### 2. Complexity Deltas (New) 📉
-Track changes in real-time as you edit. Cognitive Lens compares your current code against the Git HEAD:
-*   **🟢 Improvement**: You reduced complexity (e.g., `🟢 -3`).
-*   **🔴 Regression**: You increased complexity (e.g., `🔴 +2`).
+### 3. Smart Advice
+Hover over a complex method to see the **Refactoring Advisory**. It breaks down the biggest complexity contributors (Nesting, Logic, Control Flow) and suggests actionable refactorings.
 
-![Complexity Deltas](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/git-delta.png)
+### 4. Interactive Reports
+Generate a full-screen workspace dashboard with `Cognitive Lens: Generate Project Report`.
+![Project Report](../../images/html-report.png)
+- **Top 10 Most Complex Methods**: Find your biggest technical debt instantly.
+- **Fuzzy Search**: Quickly jump to any method.
+- **Visual Trends**: See the health of your codebase.
 
-### 3. Project Report (New) 📊
-Generate a full-screen, interactive HTML dashboard to analyze your entire project.
-*   **Command**: Run `Cognitive Lens: Generate Project Report`.
-*   **Features**:
-    *   Sort and filter methods by complexity.
-    *   Fuzzy search for specific files or functions.
-    *   Dark/Light mode support.
-
-![Project Report](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/html-report.png)
-
-### 4. Refactoring Assistance 💡
-Hover over any method with high complexity to see a **Refactoring Advisory**:
-*   Breakdown of primary contributors (Loops, If/Else, Nesting).
-*   Actionable tips (e.g., "Consider extracting this loop into a separate function").
-
-### 5. Methods Explorer
-A dedicated **Side Panel** view lists all methods in your workspace, sorted by complexity score, making it easy to hunt down technical debt.
-
-![Methods Explorer](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/packages/vscode-extension/resources/walkthrough/images/side-menu.png)
+---
 
 ## ⚙️ Configuration
 
-Customize the extension in your `settings.json`:
+Tailor the lens to your team's standards:
 
 | Setting | Default | Description |
 | :--- | :--- | :--- |
-| `cognitiveComplexity.threshold.warning` | `15` | Score causing a Warning diagnostic (Yellow). |
-| `cognitiveComplexity.threshold.error` | `25` | Score causing an Error diagnostic (Red). |
-| `cognitiveComplexity.showCodeLens` | `true` | Show score above methods. |
-| `cognitiveComplexity.showInlayHints.details` | `true` | Show line-by-line attribution. |
-| `cognitiveComplexity.showInlayHints.complexityDelta` | `true` | Show complexity changes (Deltas) in inlay hints. |
-| `cognitiveComplexity.showComplexityDeltaDecoration` | `true` | Show colored decorations for deltas. |
-| `cognitiveComplexity.showGutterIcon` | `false` | Show traffic light icons in the gutter. |
+| `cognitiveComplexity.threshold.warning` | `15` | The score where logic becomes "Yellow". |
+| `cognitiveComplexity.threshold.error` | `25` | The score where logic becomes "Red". |
+| `cognitiveComplexity.showCodeLens` | `true` | Show scores above methods. |
+| `cognitiveComplexity.showInlayHints.details` | `true` | Show `+1 (if)` style details. |
+| `cognitiveComplexity.showGutterIcon` | `false` | Traffic lights in the gutter. |
+
+---
 
 ## 📦 Supported Languages
 
-*   **TypeScript** (`.ts`, `.tsx`)
-*   **JavaScript** (`.js`, `.jsx`)
-*   **C#** (`.cs`)
+| Language | Support Level | Alignment |
+| :--- | :--- | :--- |
+| **TypeScript / TSX** | Full | **SonarJS** Compatible |
+| **JavaScript / JSX** | Full | **SonarJS** Compatible |
+| **C# (.cs)** | Full | **SonarSource C#** Compatible |
+
+---
 
 ## 🚀 Installation
 
-Install via the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=AhmedSamir.cognitive-lens).
+1. Open **Extensions** in VS Code (`Ctrl+Shift+X`).
+2. Search for `Cognitive Lens`.
+3. Click **Install**.
 
-## 🤝 Contributing
+---
 
-Issues and Pull Requests are welcome on [GitHub](https://github.com/AhmmedSamier/cognitive-lens).
+## 🤝 Contributing & Support
+
+- **Found a bug?** Open an [Issue](https://github.com/AhmmedSamier/cognitive-lens/issues).
+- **Want to help?** PRs are welcome! Check the root [README](../../README.md) for build instructions.
+
+---
+<p align="center">Writing clean code is hard. Reading it shouldn't be.</p>

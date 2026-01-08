@@ -1,20 +1,20 @@
-# Cognitive Lens for Zed
+# 🧠 Cognitive Lens for Zed
 
-This extension provides Cognitive Complexity metrics for TypeScript and C# in Zed, similar to the VS Code extension.
+Bring the power of **Cognitive Complexity** analysis to the high-performance [Zed](https://zed.dev/) editor.
 
-## Features
+---
 
--   **Inlay Hints**: Shows the cognitive complexity score at the start of methods (mimicking CodeLens).
--   **Diagnostics**: Shows warnings (yellow) and errors (red) when complexity exceeds configured thresholds.
--   **Details**: Shows inline hints for complexity increments (e.g., `+1 if`, `+2 nesting`).
+## ⚡ Features
 
-## Configuration
+-   **Start-of-Method Scores**: Total complexity metrics displayed as inlay hints at the function signature.
+-   **Inline Breakdown**: Line-by-line attribution (e.g., `+1 if`, `+2 nesting`) integrated into the editor's inlay hint system.
+-   **Real-time Diagnostics**: Automatic generation of Warnings and Errors in the project panel and gutter when thresholds are exceeded.
 
-The extension uses the same default configuration as the VS Code extension. You can customize the behavior by adding the following settings to your Zed `settings.json` file.
+---
 
-Open settings with `cmd-,` (or `ctrl-,` on Linux/Windows) or via the command palette (`zed: open settings`).
+## ⚙️ Configuration
 
-### Example Configuration
+Customize the analysis in your Zed `settings.json` (`cmd-,`):
 
 ```json
 {
@@ -26,13 +26,11 @@ Open settings with `cmd-,` (or `ctrl-,` on Linux/Windows) or via the command pal
             "warning": 15,
             "error": 25
           },
-          "showCodeLens": true,
           "showDiagnostics": true,
           "showInlayHints": {
             "methodScore": true,
             "details": true
-          },
-          "totalScorePrefix": "Cognitive Complexity"
+          }
         }
       }
     }
@@ -40,20 +38,29 @@ Open settings with `cmd-,` (or `ctrl-,` on Linux/Windows) or via the command pal
 }
 ```
 
-### Options
+### Options Overview
 
-| Setting | Type | Default | Description |
+| Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `cognitiveComplexity.threshold.warning` | `number` | `15` | Complexity score threshold for showing a warning. |
-| `cognitiveComplexity.threshold.error` | `number` | `25` | Complexity score threshold for showing an error. |
-| `cognitiveComplexity.showCodeLens` | `boolean` | `true` | Enable or disable CodeLens for cognitive complexity. |
-| `cognitiveComplexity.showDiagnostics` | `boolean` | `true` | Enable or disable diagnostics (warnings/errors). |
-| `cognitiveComplexity.showInlayHints.methodScore` | `boolean` | `true` | Enable or disable the total score inlay hint. |
-| `cognitiveComplexity.showInlayHints.details` | `boolean` | `true` | Enable or disable detailed contribution inlay hints. |
-| `cognitiveComplexity.totalScorePrefix` | `string` | `"Cognitive Complexity"` | The prefix text to display before the total complexity score. |
+| `threshold.warning` | `number` | `15` | Metric for yellow warning diagnostics. |
+| `threshold.error` | `number` | `25` | Metric for red error diagnostics. |
+| `showInlayHints.details` | `boolean` | `true` | Show attribution like `+1 if`. |
 
-## Troubleshooting
+---
 
-If you do not see complexity metrics:
-1.  Ensure you are in a supported file (`.ts`, `.tsx`, `.js`, `.jsx`, `.cs`).
-2.  Check the Zed logs (`zed: open log`) for any errors related to `cognitive-complexity-ls`.
+## 🧮 Methodology & Alignment
+
+The analysis engine runs a unified adapter system:
+- **TypeScript/JS**: Direct parity with **SonarJS (S3776)**.
+- **C#**: Aligned with **SonarSource C#** rules.
+*Note: This analyzer aggregates nested logic into the parent method for a complete overview of the logical unit.*
+
+---
+
+## 🚀 Troubleshooting
+
+1.  **Missing Hints**: Ensure the file language is correctly set to `TypeScript`, `TSX`, `JavaScript`, or `C#`.
+2.  **LSP Logs**: Search the Command Palette for `zed: open log` and filter for `cognitive-complexity-ls` to debug server-side issues.
+
+---
+<p align="center">Speed of Zed, Insight of Cognitive Complexity.</p>
