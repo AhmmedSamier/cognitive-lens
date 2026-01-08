@@ -9,26 +9,32 @@
 ## 🔥 Features at a Glance
 
 ### 1. The HUD for your Code
-*   **Live Score (CodeLens)**: A floating score above every method tells you exactly how "braindead" easy or "nightmare" hard your code is to read.
-    ![CodeLens](../../images/code-lens.png)
-*   **Deep Dive (Inlay Hints)**: Toggleable, line-specific annotations show the *exact* cost of every branching statement.
-    ![Inlay Hints](../../images/score-details-per-line.png)
-    *   *Green (0-14)*: Accessible logic.
-    *   *Yellow (15-24)*: Consider refactoring.
-    *   *Red (25+)*: High cognitive load.
+
+- **Live Score (CodeLens)**: A floating score above every method tells you exactly how "braindead" easy or "nightmare" hard your code is to read.
+  ![CodeLens](../../images/code-lens.png)
+- **Deep Dive (Inlay Hints)**: Toggleable, line-specific annotations show the _exact_ cost of every branching statement.
+  ![Inlay Hints](../../images/score-details-per-line.png)
+  - _Green (0-14)_: Accessible logic.
+  - _Yellow (15-24)_: Consider refactoring.
+  - _Red (25+)_: High cognitive load.
 
 ### 2. Git-Integrated Complexity
+
 Stop regressions before they are committed. Cognitive Lens monitors your changes and displays a **Delta** decoration:
 ![Complexity Deltas](../../images/git-delta.png)
+
 - `🟢 -5`: Cleaned up a mess.
 - `🔴 +2`: Complexity is creeping in.
 
 ### 3. Smart Advice
+
 Hover over a complex method to see the **Refactoring Advisory**. It breaks down the biggest complexity contributors (Nesting, Logic, Control Flow) and suggests actionable refactorings.
 
 ### 4. Interactive Reports
+
 Generate a full-screen workspace dashboard with `Cognitive Lens: Generate Project Report`.
 ![Project Report](../../images/html-report.png)
+
 - **Top 10 Most Complex Methods**: Find your biggest technical debt instantly.
 - **Fuzzy Search**: Quickly jump to any method.
 - **Visual Trends**: See the health of your codebase.
@@ -39,23 +45,23 @@ Generate a full-screen workspace dashboard with `Cognitive Lens: Generate Projec
 
 Tailor the lens to your team's standards:
 
-| Setting | Default | Description |
-| :--- | :--- | :--- |
-| `cognitiveComplexity.threshold.warning` | `15` | The score where logic becomes "Yellow". |
-| `cognitiveComplexity.threshold.error` | `25` | The score where logic becomes "Red". |
-| `cognitiveComplexity.showCodeLens` | `true` | Show scores above methods. |
-| `cognitiveComplexity.showInlayHints.details` | `true` | Show `+1 (if)` style details. |
-| `cognitiveComplexity.showGutterIcon` | `false` | Traffic lights in the gutter. |
+| Setting                                      | Default | Description                             |
+| :------------------------------------------- | :------ | :-------------------------------------- |
+| `cognitiveComplexity.threshold.warning`      | `15`    | The score where logic becomes "Yellow". |
+| `cognitiveComplexity.threshold.error`        | `25`    | The score where logic becomes "Red".    |
+| `cognitiveComplexity.showCodeLens`           | `true`  | Show scores above methods.              |
+| `cognitiveComplexity.showInlayHints.details` | `true`  | Show `+1 (if)` style details.           |
+| `cognitiveComplexity.showGutterIcon`         | `false` | Traffic lights in the gutter.           |
 
 ---
 
 ## 📦 Supported Languages
 
-| Language | Support Level | Alignment |
-| :--- | :--- | :--- |
-| **TypeScript / TSX** | Full | **SonarJS** Compatible |
-| **JavaScript / JSX** | Full | **SonarJS** Compatible |
-| **C# (.cs)** | Full | **SonarSource C#** Compatible |
+| Language             | Support Level | Alignment                     |
+| :------------------- | :------------ | :---------------------------- |
+| **TypeScript / TSX** | Full          | **SonarJS** Compatible        |
+| **JavaScript / JSX** | Full          | **SonarJS** Compatible        |
+| **C# (.cs)**         | Full          | **SonarSource C#** Compatible |
 
 ---
 
@@ -73,4 +79,5 @@ Tailor the lens to your team's standards:
 - **Want to help?** PRs are welcome! Check the root [README](../../README.md) for build instructions.
 
 ---
+
 <p align="center">Writing clean code is hard. Reading it shouldn't be.</p>

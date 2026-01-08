@@ -2,101 +2,95 @@ import * as vscode from 'vscode';
 import { MethodComplexity } from './types';
 
 interface WebviewConfig {
-    threshold: {
-        warning: number;
-        error: number;
-    };
+  threshold: {
+    warning: number;
+    error: number;
+  };
 }
 
 export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
-    private _view?: vscode.WebviewView;
-    private _currentComplexities: MethodComplexity[] = [];
-    private _currentConfig: WebviewConfig = { threshold: { warning: 15, error: 25 } };
+  private _view?: vscode.WebviewView;
+  private _currentComplexities: MethodComplexity[] = [];
+  private _currentConfig: WebviewConfig = { threshold: { warning: 15, error: 25 } };
 
-    constructor(
-        private readonly _extensionUri: vscode.Uri,
-    ) { }
+  constructor(private readonly _extensionUri: vscode.Uri) {}
 
-    public get isVisible(): boolean {
-        return this._view ? this._view.visible : false;
-    }
+  public get isVisible(): boolean {
+    return this._view ? this._view.visible : false;
+  }
 
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken,
-    ) {
-        this._view = webviewView;
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ) {
+    this._view = webviewView;
 
-        webviewView.webview.options = {
-            // Allow scripts in the webview
-            enableScripts: true,
-            localResourceRoots: [
-                this._extensionUri
-            ]
-        };
+    webviewView.webview.options = {
+      // Allow scripts in the webview
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri],
+    };
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-        webviewView.webview.onDidReceiveMessage(data => {
-            switch (data.type) {
-                case 'jump':
-                    {
-                        const method = data.value as MethodComplexity;
-                        this._jumpToMethod(method);
-                        break;
-                    }
-                case 'ready':
-                    {
-                        // Webview is ready, send initial data
-                        if (this._currentComplexities.length > 0) {
-                            this.update(this._currentComplexities, this._currentConfig);
-                        }
-                        break;
-                    }
-            }
-        });
-    }
-
-    public update(complexities: MethodComplexity[], config?: WebviewConfig) {
-        this._currentComplexities = complexities;
-        if (config) {
-            this._currentConfig = config;
+    webviewView.webview.onDidReceiveMessage((data) => {
+      switch (data.type) {
+        case 'jump': {
+          const method = data.value as MethodComplexity;
+          this._jumpToMethod(method);
+          break;
         }
-        if (this._view) {
-            this._view.webview.postMessage({
-                type: 'update',
-                body: complexities,
-                config: this._currentConfig
-            });
+        case 'ready': {
+          // Webview is ready, send initial data
+          if (this._currentComplexities.length > 0) {
+            this.update(this._currentComplexities, this._currentConfig);
+          }
+          break;
         }
+      }
+    });
+  }
+
+  public update(complexities: MethodComplexity[], config?: WebviewConfig) {
+    this._currentComplexities = complexities;
+    if (config) {
+      this._currentConfig = config;
     }
-
-    public reveal(method: MethodComplexity) {
-        if (this._view && this._view.visible) {
-            this._view.webview.postMessage({ type: 'reveal', body: method });
-        }
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: 'update',
+        body: complexities,
+        config: this._currentConfig,
+      });
     }
+  }
 
-    private _jumpToMethod(method: MethodComplexity) {
-        const editor = vscode.window.activeTextEditor;
-        if (editor) {
-            const start = editor.document.positionAt(method.startIndex);
-            const end = editor.document.positionAt(method.endIndex);
-            const range = new vscode.Range(start, end);
-
-            editor.selection = new vscode.Selection(start, start);
-            editor.revealRange(range, 1); // TextEditorRevealType.InCenter = 1
-
-            // Focus the editor
-            vscode.window.showTextDocument(editor.document);
-        }
+  public reveal(method: MethodComplexity) {
+    if (this._view && this._view.visible) {
+      this._view.webview.postMessage({ type: 'reveal', body: method });
     }
+  }
 
-    private _getHtmlForWebview(webview: vscode.Webview) {
-        const nonce = getNonce();
+  private _jumpToMethod(method: MethodComplexity) {
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      const start = editor.document.positionAt(method.startIndex);
+      const end = editor.document.positionAt(method.endIndex);
+      const range = new vscode.Range(start, end);
 
-        return `<!DOCTYPE html>
+      editor.selection = new vscode.Selection(start, start);
+      editor.revealRange(range, 1); // TextEditorRevealType.InCenter = 1
+
+      // Focus the editor
+      vscode.window.showTextDocument(editor.document);
+    }
+  }
+
+  private _getHtmlForWebview(webview: vscode.Webview) {
+    const nonce = getNonce();
+
+    return `<!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
@@ -511,14 +505,14 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
                 </script>
             </body>
             </html>`;
-    }
+  }
 }
 
 function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
+  let text = '';
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
 }

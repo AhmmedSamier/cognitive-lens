@@ -1,175 +1,202 @@
-import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import { LanguageClient } from 'vscode-languageclient/node';
 import { ProjectAnalysisResult, generateHtmlReport } from '@cognitive-complexity/core';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { LanguageClient } from 'vscode-languageclient/node';
 import { MethodComplexity } from '../types';
 
-export async function generateProjectReport(client: LanguageClient, context: vscode.ExtensionContext) {
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) {
-        vscode.window.showErrorMessage('No workspace folder open');
-        return;
-    }
+export async function generateProjectReport(
+  client: LanguageClient,
+  context: vscode.ExtensionContext,
+) {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) {
+    vscode.window.showErrorMessage('No workspace folder open');
+    return;
+  }
 
-    try {
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: "Generating Cognitive Complexity Report",
-            cancellable: true
-        }, async (progress, token) => {
-            progress.report({ message: "Finding files..." });
+  try {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Generating Cognitive Complexity Report',
+        cancellable: true,
+      },
+      async (progress, token) => {
+        progress.report({ message: 'Finding files...' });
 
-            // Read Favicon
-            let faviconBase64 = '';
-            try {
-                const iconUri = vscode.Uri.file(context.asAbsolutePath('resources/icon.png'));
-                const iconBuffer = await vscode.workspace.fs.readFile(iconUri);
-                faviconBase64 = `data:image/png;base64,${Buffer.from(iconBuffer).toString('base64')}`;
-            } catch (e) {
-                console.error('Failed to read report icon:', e);
-            }
+        // Read Favicon
+        let faviconBase64 = '';
+        try {
+          const iconUri = vscode.Uri.file(context.asAbsolutePath('resources/icon.png'));
+          const iconBuffer = await vscode.workspace.fs.readFile(iconUri);
+          faviconBase64 = `data:image/png;base64,${Buffer.from(iconBuffer).toString('base64')}`;
+        } catch (e) {
+          console.error('Failed to read report icon:', e);
+        }
 
-            // CRITICAL OPTIMIZATION: Use a restricted search with common excludes
-            // This prevents VS Code from scanning massive node_modules or build folders 
-            // even if they aren't in the user's settings.
-            const excludePattern = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/.*/**}';
-            let files = await vscode.workspace.findFiles('**/*.{ts,tsx,js,jsx,cs}', excludePattern, undefined, token);
+        // CRITICAL OPTIMIZATION: Use a restricted search with common excludes
+        // This prevents VS Code from scanning massive node_modules or build folders
+        // even if they aren't in the user's settings.
+        const excludePattern = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/.*/**}';
+        let files = await vscode.workspace.findFiles(
+          '**/*.{ts,tsx,js,jsx,cs}',
+          excludePattern,
+          undefined,
+          token,
+        );
 
-            if (files.length === 0) {
-                // Try again without restricted excludes if nothing found? 
-                // No, better to trust the sensible defaults for performance.
-                vscode.window.showInformationMessage('No supported files found in workspace (checked ts, tsx, js, jsx, cs).');
-                return;
-            }
+        if (files.length === 0) {
+          // Try again without restricted excludes if nothing found?
+          // No, better to trust the sensible defaults for performance.
+          vscode.window.showInformationMessage(
+            'No supported files found in workspace (checked ts, tsx, js, jsx, cs).',
+          );
+          return;
+        }
 
-            if (token.isCancellationRequested) return;
+        if (token.isCancellationRequested) return;
 
-            progress.report({ message: `Filtering ${files.length} files...` });
+        progress.report({ message: `Filtering ${files.length} files...` });
 
-            progress.report({ message: `Filtering ${files.length} files...` });
+        progress.report({ message: `Filtering ${files.length} files...` });
 
-            const filePaths = files.map(f => f.fsPath);
-            const filteredPaths = await client.sendRequest<string[]>('cognitive-complexity/filterIgnored', { filePaths });
+        const filePaths = files.map((f) => f.fsPath);
+        const filteredPaths = await client.sendRequest<string[]>(
+          'cognitive-complexity/filterIgnored',
+          { filePaths },
+        );
 
-            const validPaths = new Set(filteredPaths.map(p => p.toLowerCase()));
-            files = files.filter(f => validPaths.has(f.fsPath.toLowerCase()));
+        const validPaths = new Set(filteredPaths.map((p) => p.toLowerCase()));
+        files = files.filter((f) => validPaths.has(f.fsPath.toLowerCase()));
 
-            if (files.length === 0) {
-                vscode.window.showInformationMessage('No source files found (all were ignored by git).');
-                return;
-            }
+        if (files.length === 0) {
+          vscode.window.showInformationMessage('No source files found (all were ignored by git).');
+          return;
+        }
 
-            const reportData: ProjectAnalysisResult = {
-                files: [],
-                totalScore: 0,
-                favicon: faviconBase64
-            };
+        const reportData: ProjectAnalysisResult = {
+          files: [],
+          totalScore: 0,
+          favicon: faviconBase64,
+        };
 
-            const total = files.length;
-            let analyzedCount = 0;
+        const total = files.length;
+        let analyzedCount = 0;
 
-            // OPTIMIZATION: Parallel Analysis
-            // Process files in chunks to avoid overwhelming the server but still gain speed.
-            // Increased concurrency since we now avoid blocking I/O on the server side by passing content.
-            const concurrency = 30;
-            const chunks: vscode.Uri[][] = [];
-            for (let i = 0; i < files.length; i += concurrency) {
-                chunks.push(files.slice(i, i + concurrency));
-            }
+        // OPTIMIZATION: Parallel Analysis
+        // Process files in chunks to avoid overwhelming the server but still gain speed.
+        // Increased concurrency since we now avoid blocking I/O on the server side by passing content.
+        const concurrency = 30;
+        const chunks: vscode.Uri[][] = [];
+        for (let i = 0; i < files.length; i += concurrency) {
+          chunks.push(files.slice(i, i + concurrency));
+        }
 
-            for (const chunk of chunks) {
-                if (token.isCancellationRequested) break;
+        for (const chunk of chunks) {
+          if (token.isCancellationRequested) break;
 
-                const results = await Promise.all(chunk.map(async (file) => {
-                    try {
-                        const relativePath = vscode.workspace.asRelativePath(file).split(/[\/\\]/).join('/');
+          const results = await Promise.all(
+            chunk.map(async (file) => {
+              try {
+                const relativePath = vscode.workspace
+                  .asRelativePath(file)
+                  .split(/[\/\\]/)
+                  .join('/');
 
-                        // Determine language ID
-                        let languageId = 'typescript';
-                        const ext = path.extname(file.fsPath).toLowerCase();
-                        if (ext === '.cs') languageId = 'csharp';
-                        else if (ext === '.js') languageId = 'javascript';
-                        else if (ext === '.jsx') languageId = 'javascriptreact';
-                        else if (ext === '.tsx') languageId = 'typescriptreact';
+                // Determine language ID
+                let languageId = 'typescript';
+                const ext = path.extname(file.fsPath).toLowerCase();
+                if (ext === '.cs') languageId = 'csharp';
+                else if (ext === '.js') languageId = 'javascript';
+                else if (ext === '.jsx') languageId = 'javascriptreact';
+                else if (ext === '.tsx') languageId = 'typescriptreact';
 
-                        // Read content first (async I/O on client side)
-                        const contentBuffer = await vscode.workspace.fs.readFile(file);
-                        const content = Buffer.from(contentBuffer).toString('utf8');
+                // Read content first (async I/O on client side)
+                const contentBuffer = await vscode.workspace.fs.readFile(file);
+                const content = Buffer.from(contentBuffer).toString('utf8');
 
-                        // Skip auto-generated C# files
-                        if (languageId === 'csharp' && content.trimStart().startsWith('// <auto-generated')) {
-                            return null;
-                        }
-
-                        // Send content to server to avoid double I/O and server-side blocking read
-                        const complexities = await client.sendRequest<MethodComplexity[]>('cognitive-complexity/analyzeFile', {
-                            uri: file.toString(),
-                            languageId: languageId,
-                            content: content
-                        });
-
-                        return { file, relativePath, complexities, content };
-                    } catch (e) {
-                        console.error(`Failed to analyze ${file.fsPath}:`, e);
-                        return null;
-                    }
-                }));
-
-                for (const res of results) {
-                    if (res && res.complexities && res.complexities.length > 0) {
-                        const fileScore = res.complexities
-                            .filter(c => c.isRoot)
-                            .reduce((acc, curr) => acc + curr.score, 0);
-                        reportData.files.push({
-                            path: res.relativePath,
-                            content: res.content,
-                            methods: (res.complexities as any[]).map(c => ({
-                                name: c.name,
-                                score: c.score,
-                                startLine: c.startLine,
-                                isCallback: !!c.isCallback,
-                                details: (c.details || []).map((d: any) => ({
-                                    line: d.line,
-                                    score: d.score,
-                                    message: d.message
-                                }))
-                            })),
-                            totalScore: fileScore
-                        });
-                        reportData.totalScore += fileScore;
-                    }
+                // Skip auto-generated C# files
+                if (
+                  languageId === 'csharp' &&
+                  content.trimStart().startsWith('// <auto-generated')
+                ) {
+                  return null;
                 }
 
-                analyzedCount += chunk.length;
-                progress.report({
-                    message: `Analyzed ${Math.min(analyzedCount, total)}/${total} files...`,
-                    increment: (chunk.length / total) * 100
-                });
+                // Send content to server to avoid double I/O and server-side blocking read
+                const complexities = await client.sendRequest<MethodComplexity[]>(
+                  'cognitive-complexity/analyzeFile',
+                  {
+                    uri: file.toString(),
+                    languageId: languageId,
+                    content: content,
+                  },
+                );
+
+                return { file, relativePath, complexities, content };
+              } catch (e) {
+                console.error(`Failed to analyze ${file.fsPath}:`, e);
+                return null;
+              }
+            }),
+          );
+
+          for (const res of results) {
+            if (res && res.complexities && res.complexities.length > 0) {
+              const fileScore = res.complexities
+                .filter((c) => c.isRoot)
+                .reduce((acc, curr) => acc + curr.score, 0);
+              reportData.files.push({
+                path: res.relativePath,
+                content: res.content,
+                methods: (res.complexities as any[]).map((c) => ({
+                  name: c.name,
+                  score: c.score,
+                  startLine: c.startLine,
+                  isCallback: !!c.isCallback,
+                  details: (c.details || []).map((d: any) => ({
+                    line: d.line,
+                    score: d.score,
+                    message: d.message,
+                  })),
+                })),
+                totalScore: fileScore,
+              });
+              reportData.totalScore += fileScore;
             }
+          }
 
-            if (token.isCancellationRequested) return;
+          analyzedCount += chunk.length;
+          progress.report({
+            message: `Analyzed ${Math.min(analyzedCount, total)}/${total} files...`,
+            increment: (chunk.length / total) * 100,
+          });
+        }
 
-            if (reportData.files.length === 0) {
-                vscode.window.showInformationMessage('No complexity found in any of the analyzed files.');
-                return;
-            }
+        if (token.isCancellationRequested) return;
 
-            progress.report({ message: "Generating HTML report..." });
-            const html = generateHtmlReport(reportData);
-            const reportPath = path.join(folder.uri.fsPath, 'cognitive-complexity-report.html');
+        if (reportData.files.length === 0) {
+          vscode.window.showInformationMessage('No complexity found in any of the analyzed files.');
+          return;
+        }
 
-            await fs.promises.writeFile(reportPath, html, 'utf8');
-            const selection = await vscode.window.showInformationMessage(
-                `Report saved to ${path.basename(reportPath)}`,
-                'Open in Browser'
-            );
+        progress.report({ message: 'Generating HTML report...' });
+        const html = generateHtmlReport(reportData);
+        const reportPath = path.join(folder.uri.fsPath, 'cognitive-complexity-report.html');
 
-            if (selection === 'Open in Browser') {
-                await vscode.env.openExternal(vscode.Uri.file(reportPath));
-            }
-        });
-    } catch (e) {
-        vscode.window.showErrorMessage(`An error occurred: ${e}`);
-    }
+        await fs.promises.writeFile(reportPath, html, 'utf8');
+        const selection = await vscode.window.showInformationMessage(
+          `Report saved to ${path.basename(reportPath)}`,
+          'Open in Browser',
+        );
+
+        if (selection === 'Open in Browser') {
+          await vscode.env.openExternal(vscode.Uri.file(reportPath));
+        }
+      },
+    );
+  } catch (e) {
+    vscode.window.showErrorMessage(`An error occurred: ${e}`);
+  }
 }

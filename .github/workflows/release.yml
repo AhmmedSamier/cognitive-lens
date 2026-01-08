@@ -125,7 +125,7 @@ jobs:
       - name: Rename Visual Studio Artifact
         shell: bash
         run: |
-           mv packages/visual-studio-extension/bin/Release/net8.0-windows/CognitiveComplexity.vsix packages/visual-studio-extension/bin/Release/net8.0-windows/cognitive-lens-visualstudio-${{ github.ref_name }}.vsix
+          mv packages/visual-studio-extension/bin/Release/net8.0-windows/CognitiveComplexity.vsix packages/visual-studio-extension/bin/Release/net8.0-windows/cognitive-lens-visualstudio-${{ github.ref_name }}.vsix
 
       # Release - Upload Windows Artifacts
       - name: Upload Windows Artifacts to Release

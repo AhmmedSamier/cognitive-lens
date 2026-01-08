@@ -10,3 +10,5 @@ packages/visual-studio-extension/Resources/
 bin/
 obj/
 extension.wasm
+.eslintcache
+.prettier-cache

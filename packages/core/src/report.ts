@@ -1,49 +1,47 @@
-import { MethodComplexity } from './types';
-import { zlibSync, strToU8 } from 'fflate';
+import { strToU8, zlibSync } from 'fflate';
 // Assets are now loaded via CDN in the generated HTML
 
-
 export interface FileAnalysisResult {
-    path: string;
-    content: string;
-    methods: any[];
-    totalScore: number;
+  path: string;
+  content: string;
+  methods: any[];
+  totalScore: number;
 }
 
 export interface ProjectAnalysisResult {
-    files: FileAnalysisResult[];
-    totalScore: number;
-    favicon?: string;
+  files: FileAnalysisResult[];
+  totalScore: number;
+  favicon?: string;
 }
 
 interface TreeNode {
-    id: string;
-    name: string;
-    fullPath: string;
-    type: 'file' | 'folder' | 'method';
-    score: number;
-    children?: TreeNode[];
-    methods?: any[];
-    // For UI state (not strictly part of the data model, but useful to initialize)
-    isExpanded?: boolean;
+  id: string;
+  name: string;
+  fullPath: string;
+  type: 'file' | 'folder' | 'method';
+  score: number;
+  children?: TreeNode[];
+  methods?: any[];
+  // For UI state (not strictly part of the data model, but useful to initialize)
+  isExpanded?: boolean;
 }
 
 export function generateHtmlReport(result: ProjectAnalysisResult): string {
-    const date = new Date().toLocaleString();
+  const date = new Date().toLocaleString();
 
-    // We construct the tree on the server side (Node) to pass a clean JSON structure to Vue
-    const tree = buildFileTree(result.files);
+  // We construct the tree on the server side (Node) to pass a clean JSON structure to Vue
+  const tree = buildFileTree(result.files);
 
-    // Compress project files and tree to reduce report size
-    const projectFilesBuf = strToU8(JSON.stringify(result.files));
-    const compressedProjectFiles = zlibSync(projectFilesBuf, { level: 9 });
-    const projectFilesBase64 = Buffer.from(compressedProjectFiles).toString('base64');
+  // Compress project files and tree to reduce report size
+  const projectFilesBuf = strToU8(JSON.stringify(result.files));
+  const compressedProjectFiles = zlibSync(projectFilesBuf, { level: 9 });
+  const projectFilesBase64 = Buffer.from(compressedProjectFiles).toString('base64');
 
-    const treeBuf = strToU8(JSON.stringify(tree));
-    const compressedTree = zlibSync(treeBuf, { level: 9 });
-    const treeBase64 = Buffer.from(compressedTree).toString('base64');
+  const treeBuf = strToU8(JSON.stringify(tree));
+  const compressedTree = zlibSync(treeBuf, { level: 9 });
+  const treeBase64 = Buffer.from(compressedTree).toString('base64');
 
-    return /*html*/ `
+  return /*html*/ `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1000,70 +998,70 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
 }
 
 function buildFileTree(files: FileAnalysisResult[]): TreeNode {
-    const root: TreeNode = {
-        id: 'root',
-        name: 'root',
-        fullPath: '',
-        type: 'folder',
-        score: 0,
-        children: []
-    };
+  const root: TreeNode = {
+    id: 'root',
+    name: 'root',
+    fullPath: '',
+    type: 'folder',
+    score: 0,
+    children: [],
+  };
 
-    let idCounter = 0;
-    const map = new Map<string, TreeNode>();
-    map.set('', root);
+  let idCounter = 0;
+  const map = new Map<string, TreeNode>();
+  map.set('', root);
 
-    // Build tree
-    for (const file of files) {
-        const parts = file.path.split('/');
-        let currentPath = '';
-        let parent = root;
+  // Build tree
+  for (const file of files) {
+    const parts = file.path.split('/');
+    let currentPath = '';
+    let parent = root;
 
-        for (let i = 0; i < parts.length - 1; i++) {
-            const part = parts[i];
-            const nextPath = currentPath ? `${currentPath}/${part}` : part;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      const nextPath = currentPath ? `${currentPath}/${part}` : part;
 
-            if (!map.has(nextPath)) {
-                const newFolder: TreeNode = {
-                    id: `dir-${idCounter++}`,
-                    name: part,
-                    fullPath: nextPath,
-                    type: 'folder',
-                    score: 0,
-                    children: []
-                };
-                map.set(nextPath, newFolder);
-                parent.children!.push(newFolder);
-            }
-            parent = map.get(nextPath)!;
-            currentPath = nextPath;
-        }
-
-        const fileName = parts[parts.length - 1];
-        parent.children!.push({
-            id: `file-${idCounter++}`,
-            name: fileName,
-            fullPath: file.path,
-            type: 'file',
-            score: file.totalScore,
-            children: [],
-            methods: file.methods.filter(m => !m.isCallback)
-        });
+      if (!map.has(nextPath)) {
+        const newFolder: TreeNode = {
+          id: `dir-${idCounter++}`,
+          name: part,
+          fullPath: nextPath,
+          type: 'folder',
+          score: 0,
+          children: [],
+        };
+        map.set(nextPath, newFolder);
+        parent.children!.push(newFolder);
+      }
+      parent = map.get(nextPath)!;
+      currentPath = nextPath;
     }
 
-    // Calculate scores
-    function calcScore(node: TreeNode): number {
-        if (node.type === 'file') return node.score;
-        let total = 0;
-        if (node.children) {
-            for (const child of node.children) {
-                total += calcScore(child);
-            }
-        }
-        node.score = total;
-        return total;
-    }
-    calcScore(root);
+    const fileName = parts[parts.length - 1];
+    parent.children!.push({
+      id: `file-${idCounter++}`,
+      name: fileName,
+      fullPath: file.path,
+      type: 'file',
+      score: file.totalScore,
+      children: [],
+      methods: file.methods.filter((m) => !m.isCallback),
+    });
+  }
 
-    return root;
+  // Calculate scores
+  function calcScore(node: TreeNode): number {
+    if (node.type === 'file') return node.score;
+    let total = 0;
+    if (node.children) {
+      for (const child of node.children) {
+        total += calcScore(child);
+      }
+    }
+    node.score = total;
+    return total;
+  }
+  calcScore(root);
+
+  return root;
 }

@@ -4,7 +4,15 @@ export default defineConfig({
   entry: ['src/extension.ts', 'src/server.ts'],
   format: ['cjs'],
   external: ['vscode'],
-  noExternal: ['vscode-languageclient', 'vscode-languageserver', 'vscode-languageserver-textdocument', 'vscode-languageserver-protocol', 'vscode-jsonrpc', 'web-tree-sitter', '@cognitive-complexity/core'],
+  noExternal: [
+    'vscode-languageclient',
+    'vscode-languageserver',
+    'vscode-languageserver-textdocument',
+    'vscode-languageserver-protocol',
+    'vscode-jsonrpc',
+    'web-tree-sitter',
+    '@cognitive-complexity/core',
+  ],
   splitting: false,
   sourcemap: false,
   clean: true,
@@ -12,7 +20,7 @@ export default defineConfig({
   publicDir: 'public',
   shims: true,
   loader: {
-      '.wasm': 'file'
+    '.wasm': 'file',
   },
-  onSuccess: 'bun run copy:wasm'
+  onSuccess: 'bun run copy:wasm',
 });

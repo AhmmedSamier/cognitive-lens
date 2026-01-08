@@ -6,9 +6,9 @@ Bring the power of **Cognitive Complexity** analysis to the high-performance [Ze
 
 ## ⚡ Features
 
--   **Start-of-Method Scores**: Total complexity metrics displayed as inlay hints at the function signature.
--   **Inline Breakdown**: Line-by-line attribution (e.g., `+1 if`, `+2 nesting`) integrated into the editor's inlay hint system.
--   **Real-time Diagnostics**: Automatic generation of Warnings and Errors in the project panel and gutter when thresholds are exceeded.
+- **Start-of-Method Scores**: Total complexity metrics displayed as inlay hints at the function signature.
+- **Inline Breakdown**: Line-by-line attribution (e.g., `+1 if`, `+2 nesting`) integrated into the editor's inlay hint system.
+- **Real-time Diagnostics**: Automatic generation of Warnings and Errors in the project panel and gutter when thresholds are exceeded.
 
 ---
 
@@ -40,20 +40,21 @@ Customize the analysis in your Zed `settings.json` (`cmd-,`):
 
 ### Options Overview
 
-| Key | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `threshold.warning` | `number` | `15` | Metric for yellow warning diagnostics. |
-| `threshold.error` | `number` | `25` | Metric for red error diagnostics. |
-| `showInlayHints.details` | `boolean` | `true` | Show attribution like `+1 if`. |
+| Key                      | Type      | Default | Description                            |
+| :----------------------- | :-------- | :------ | :------------------------------------- |
+| `threshold.warning`      | `number`  | `15`    | Metric for yellow warning diagnostics. |
+| `threshold.error`        | `number`  | `25`    | Metric for red error diagnostics.      |
+| `showInlayHints.details` | `boolean` | `true`  | Show attribution like `+1 if`.         |
 
 ---
 
 ## 🧮 Methodology & Alignment
 
 The analysis engine runs a unified adapter system:
+
 - **TypeScript/JS**: Direct parity with **SonarJS (S3776)**.
 - **C#**: Aligned with **SonarSource C#** rules.
-*Note: This analyzer aggregates nested logic into the parent method for a complete overview of the logical unit.*
+  _Note: This analyzer aggregates nested logic into the parent method for a complete overview of the logical unit._
 
 ---
 
@@ -63,4 +64,5 @@ The analysis engine runs a unified adapter system:
 2.  **LSP Logs**: Search the Command Palette for `zed: open log` and filter for `cognitive-complexity-ls` to debug server-side issues.
 
 ---
+
 <p align="center">Speed of Zed, Insight of Cognitive Complexity.</p>

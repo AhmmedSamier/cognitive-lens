@@ -1,18 +1,18 @@
 export interface ComplexityDetail {
-    line: number;
-    score: number;
-    message: string;
+  line: number;
+  score: number;
+  message: string;
 }
 
 export interface MethodComplexity {
-    name: string;
-    score: number;
-    details: ComplexityDetail[];
-    startIndex: number;
-    endIndex: number;
-    startLine: number;
-    endLine: number;
-    isCallback?: boolean;
-    isRoot?: boolean;
-    complexityDelta?: number;
+  name: string;
+  score: number;
+  details: ComplexityDetail[];
+  startIndex: number;
+  endIndex: number;
+  startLine: number;
+  endLine: number;
+  isCallback?: boolean;
+  isRoot?: boolean;
+  complexityDelta?: number;
 }

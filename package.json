@@ -9,10 +9,20 @@
     "test": "bun test",
     "build:zed": "bun run scripts/build-zed.ts",
     "package:zed": "bun run scripts/package-zed.ts",
-    "build:vs": "bun run scripts/build-vs.ts"
+    "build:vs": "bun run scripts/build-vs.ts",
+    "lint": "eslint . --cache",
+    "format": "prettier --write . --cache"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
-    "adm-zip": "^0.5.16"
+    "@typescript-eslint/eslint-plugin": "^8.52.0",
+    "@typescript-eslint/parser": "^8.52.0",
+    "adm-zip": "^0.5.16",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-sonarjs": "^3.0.5",
+    "prettier": "^3.7.4",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "typescript-eslint": "^8.52.0"
   }
 }

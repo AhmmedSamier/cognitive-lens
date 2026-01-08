@@ -9,10 +9,7 @@
     "web-tree-sitter": "^0.25.10"
   },
   "devDependencies": {
-    "bun-types": "latest",
-    "eslint": "^9.0.0",
-    "eslint-plugin-sonarjs": "^3.0.0",
-    "@typescript-eslint/parser": "^8.0.0"
+    "bun-types": "latest"
   },
   "scripts": {
     "benchmark": "bun run benchmark/index.ts"

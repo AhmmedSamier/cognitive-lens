@@ -1,3 +1,3 @@
 export * from './complexity';
-export * from './types';
 export * from './report';
+export * from './types';
