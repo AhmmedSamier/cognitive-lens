@@ -8,7 +8,8 @@ const VSCODE_DIST_DIR = path.join(VSCODE_EXT_DIR, 'dist');
 const filesToCopy = [
     'server.js',
     'tree-sitter.wasm',
-    'tree-sitter-c_sharp.wasm'
+    'tree-sitter-c_sharp.wasm',
+    'tree-sitter-dart.wasm'
 ];
 
 console.log('Building Zed extension artifacts...');

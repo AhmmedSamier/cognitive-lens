@@ -17,7 +17,8 @@
     "onLanguage:typescriptreact",
     "onLanguage:javascript",
     "onLanguage:javascriptreact",
-    "onLanguage:csharp"
+    "onLanguage:csharp",
+    "onLanguage:dart"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -166,7 +167,7 @@
     "vscode:prepublish": "bun run package",
     "compile": "bun run package",
     "package": "tsup",
-    "copy:wasm": "cp ../../node_modules/web-tree-sitter/tree-sitter.wasm dist/ && cp tree-sitter-c_sharp.wasm dist/ && cp public/tree-sitter-typescript.wasm dist/ && cp public/tree-sitter-tsx.wasm dist/",
+    "copy:wasm": "cp ../../node_modules/web-tree-sitter/tree-sitter.wasm dist/ && cp tree-sitter-c_sharp.wasm dist/ && cp tree-sitter-dart.wasm dist/ && cp public/tree-sitter-typescript.wasm dist/ && cp public/tree-sitter-tsx.wasm dist/",
     "package:vsix": "vsce package --no-dependencies"
   },
   "dependencies": {
