@@ -2,6 +2,7 @@ import { Parser, Tree } from 'web-tree-sitter';
 import { MethodComplexity } from './types';
 import { calculateTypeScriptComplexity } from './calculators/typescript';
 import { calculateCSharpComplexity } from './calculators/csharp';
+import { calculateDartComplexity } from './calculators/dart';
 
 export * from './types';
 
@@ -9,7 +10,8 @@ type ComplexityCalculator = (tree: Tree) => MethodComplexity[];
 
 const calculators: Record<string, ComplexityCalculator> = {
     'typescript': calculateTypeScriptComplexity,
-    'csharp': calculateCSharpComplexity
+    'csharp': calculateCSharpComplexity,
+    'dart': calculateDartComplexity
 };
 
 export async function calculateComplexity(

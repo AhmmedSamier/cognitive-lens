@@ -50,6 +50,7 @@ let hasDiagnosticRelatedInformationCapability = false;
 let csharpParser: Parser | undefined;
 let typescriptParser: Parser | undefined;
 let tsxParser: Parser | undefined;
+let dartParser: Parser | undefined;
 let parserInitialized = false;
 let initPromise: Promise<void> | undefined;
 
@@ -94,10 +95,18 @@ async function initParser() {
             const tsxLang = await Language.load(tsxWasmPath);
             tsxParser.setLanguage(tsxLang);
 
+            // Load Dart
+            dartParser = new Parser();
+            const dartWasmPath = path.resolve(__dirname, 'tree-sitter-dart.wasm');
+            connection.console.log(`Loading Dart grammar from ${dartWasmPath}`);
+            const dartLang = await Language.load(dartWasmPath);
+            dartParser.setLanguage(dartLang);
+
             incrementalParser = new IncrementalParser({
                 csharp: csharpParser,
                 typescript: typescriptParser,
-                tsx: tsxParser
+                tsx: tsxParser,
+                dart: dartParser
             });
 
             parserInitialized = true;
@@ -287,6 +296,8 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
                 const languageId = textDocument.languageId.toLowerCase();
                 if (languageId === 'csharp') {
                     complexities = await calculateComplexity(tree, 'csharp');
+                } else if (languageId === 'dart') {
+                    complexities = await calculateComplexity(tree, 'dart');
                 } else if (languageId === 'typescript' || languageId === 'javascript' ||
                     languageId === 'typescriptreact' || languageId === 'javascriptreact') {
                     complexities = await calculateComplexity(tree, 'typescript');
@@ -498,6 +509,8 @@ async function analyzeContent(text: string, languageId: string): Promise<MethodC
 
     if (normalizedLangId === 'csharp') {
         parser = csharpParser;
+    } else if (normalizedLangId === 'dart') {
+        parser = dartParser;
     } else if (['typescript', 'javascript'].includes(normalizedLangId)) {
         parser = typescriptParser;
     } else if (['typescriptreact', 'javascriptreact'].includes(normalizedLangId)) {
@@ -513,6 +526,8 @@ async function analyzeContent(text: string, languageId: string): Promise<MethodC
 
         if (normalizedLangId === 'csharp') {
             complexities = await calculateComplexity(tree, 'csharp');
+        } else if (normalizedLangId === 'dart') {
+            complexities = await calculateComplexity(tree, 'dart');
         } else {
             complexities = await calculateComplexity(tree, 'typescript');
         }
