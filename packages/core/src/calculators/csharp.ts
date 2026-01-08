@@ -17,8 +17,8 @@ class CSharpAdapter extends BaseLanguageAdapter {
 
     getMethodName(node: SyntaxNode): string {
         if (node.type === 'method_declaration' || node.type === 'local_function_statement' || node.type === 'constructor_declaration') {
-             const nameNode = node.childForFieldName('name');
-             if (nameNode) return nameNode.text;
+            const nameNode = node.childForFieldName('name');
+            if (nameNode) return nameNode.text;
         }
         return 'anonymous';
     }
@@ -57,7 +57,8 @@ class CSharpAdapter extends BaseLanguageAdapter {
     }
 
     getBinaryOperator(node: SyntaxNode): string | undefined {
-        const operatorNode = node.children.find(c => c.type === '&&' || c.type === '||');
+        // SonarJS only counts && sequences, not || or ??
+        const operatorNode = node.children.find(c => c.type === '&&');
         return operatorNode?.type;
     }
 
@@ -72,12 +73,12 @@ class CSharpAdapter extends BaseLanguageAdapter {
 
     shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean {
         if (parent.type === 'if_statement') {
-             const alternative = parent.childForFieldName('alternative');
-             // Flatten if the child is the 'else' branch.
-             // Whether it is 'else if' or just 'else', it shouldn't inherit the 'if's nesting.
-             if (alternative && child.equals(alternative)) {
-                 return true;
-             }
+            const alternative = parent.childForFieldName('alternative');
+            // Flatten if the child is the 'else' branch.
+            // Whether it is 'else if' or just 'else', it shouldn't inherit the 'if's nesting.
+            if (alternative && child.equals(alternative)) {
+                return true;
+            }
         }
         return false;
     }
