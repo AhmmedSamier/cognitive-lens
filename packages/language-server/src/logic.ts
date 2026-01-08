@@ -97,6 +97,17 @@ export function normalizeSettings(input: any): CognitiveComplexitySettings {
                 else settings.showInlayHints.complexityDelta = Boolean(input[key]);
             }
             if (cleanKey === 'totalScorePrefix') settings.totalScorePrefix = String(input[key]);
+
+            // Visual Studio specific keys
+            if (key === 'cognitiveComplexityThresholdWarning') settings.threshold.warning = Number(input[key]);
+            if (key === 'cognitiveComplexityThresholdError') settings.threshold.error = Number(input[key]);
+            if (key === 'cognitiveComplexityShowCodeLens') settings.showCodeLens = Boolean(input[key]);
+            if (key === 'cognitiveComplexityShowGutterIcon') settings.showGutterIcon = Boolean(input[key]); // Not used by LS but consistent
+            if (key === 'cognitiveComplexityShowDiagnostics') settings.showDiagnostics = Boolean(input[key]);
+            if (key === 'cognitiveComplexityShowInlayHintsMethodScore') settings.showInlayHints.methodScore = Boolean(input[key]);
+            if (key === 'cognitiveComplexityShowInlayHintsDetails') settings.showInlayHints.details = Boolean(input[key]);
+            if (key === 'cognitiveComplexityShowInlayHintsComplexityDelta') settings.showInlayHints.complexityDelta = Boolean(input[key]);
+            if (key === 'cognitiveComplexityTotalScorePrefix') settings.totalScorePrefix = String(input[key]);
         });
     }
 
