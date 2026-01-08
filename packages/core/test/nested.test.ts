@@ -33,11 +33,14 @@ describe("Nested Functions Aggregation", () => {
         const outer = results.find(r => r.name === 'outer');
         const inner = results.find(r => r.name === 'inner');
 
-        // Inner should be 1.
-        expect(inner!.score).toBe(1);
+        // Inner: nesting level 2 (inherited from outer(0) -> if(1) + 1).
+        // if(true) -> 1 + 2 = 3.
+        expect(inner!.score).toBe(3);
 
-        // Outer should be 1 (own) + 1 (inner) = 2.
-        expect(outer!.score).toBe(2);
+        // Outer: nesting 0.
+        // if(true) -> 1 + 0 = 1.
+        // Total Outer = 1 (own) + 3 (inner) = 4.
+        expect(outer!.score).toBe(4);
     });
 
     test("Deep nesting aggregation", async () => {
@@ -58,12 +61,18 @@ describe("Nested Functions Aggregation", () => {
         const B = results.find(r => r.name === 'B');
         const C = results.find(r => r.name === 'C');
 
-        expect(C!.score).toBe(1);
+        // C: nesting level 2 (inherited from B(1) + 1).
+        // if(c) -> 1 + 2 = 3.
+        expect(C!.score).toBe(3);
 
-        // B = 1 (own) + 1 (C) = 2
-        expect(B!.score).toBe(2);
+        // B: nesting level 1 (inherited from A(0) + 1).
+        // if(b) -> 1 + 1 = 2.
+        // Total B = 2 (own) + 3 (C) = 5.
+        expect(B!.score).toBe(5);
 
-        // A = 1 (own) + 1 (B own) + 1 (C own) = 3
-        expect(A!.score).toBe(3);
+        // A: nesting level 0.
+        // if(a) -> 1 + 0 = 1.
+        // Total A = 1 (own) + 5 (B) = 6.
+        expect(A!.score).toBe(6);
     });
 });

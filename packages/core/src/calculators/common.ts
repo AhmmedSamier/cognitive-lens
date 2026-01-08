@@ -93,9 +93,11 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
 
             // Switch context:
             // - activeMethod becomes the new method
-            // - activeNesting resets to 0
+            // - activeNesting:
+            //   - For root method: resets to 0
+            //   - For nested methods (callbacks/lambdas): inherits parent nesting + 1
             activeMethod = newMethod;
-            activeNesting = 0;
+            activeNesting = methodStack.length > 1 ? currentNesting + 1 : 0;
 
             // Note: We do NOT process the method node itself as a complexity contributor (e.g. IF/ELSE logic)
             // for the parent method, nor for the new method.
