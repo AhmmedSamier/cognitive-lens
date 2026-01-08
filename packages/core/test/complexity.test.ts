@@ -80,7 +80,7 @@ describe("Cognitive Complexity", () => {
         expect(results[0].score).toBe(3);
         const details = results[0].details;
         const scores = details.map(d => d.score);
-        expect(scores.reduce((a,b)=>a+b, 0)).toBe(3);
+        expect(scores.reduce((a, b) => a + b, 0)).toBe(3);
         expect(details.length).toBe(3); // if, if, nesting
     });
 
@@ -99,12 +99,12 @@ describe("Cognitive Complexity", () => {
     test("Binary operators mixed", async () => {
         const code = `
         function test(a, b, c) {
-            if (a && b || c) { // +1 (if), +1 (&&), +1 (||) = 3
+            if (a && b || c) { // SonarJS: +1 (if), +1 (&&) = 2 (|| is NOT counted)
                 return true;
             }
         }`;
         const tree = createTree(code);
         const results = await calculateComplexity(tree, 'typescript');
-        expect(results[0].score).toBe(3);
+        expect(results[0].score).toBe(2);
     });
 });

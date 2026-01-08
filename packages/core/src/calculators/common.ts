@@ -62,19 +62,47 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
     }
 }
 
+/**
+ * Internal tracking for second-level functions (SonarJS behavior)
+ */
+interface SecondLevelFunction {
+    method: MethodComplexity;
+    // Complexity if this function is treated as nested (+1 nesting from parent)
+    complexityIfNested: number;
+    // Complexity if this function is treated as top-level (no nesting penalty)
+    complexityIfTopLevel: number;
+}
+
+/**
+ * Calculates cognitive complexity using SonarJS-compatible algorithm.
+ * 
+ * Key SonarJS behavior implemented:
+ * - If a top-level function has NO structural complexity in its own body,
+ *   second-level functions (callbacks) are treated as independent top-level functions.
+ * - This means their internal complexity doesn't include nesting from the parent.
+ */
 export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter): MethodComplexity[] {
     const methods: MethodComplexity[] = [];
-    // Stack of ancestors (methods) that are currently being visited.
-    const methodStack: MethodComplexity[] = [];
 
-    function visit(node: SyntaxNode, currentMethod: MethodComplexity | undefined, currentNesting: number) {
-        let activeMethod = currentMethod;
-        let activeNesting = currentNesting;
+    // Stack of method contexts
+    interface MethodContext {
+        method: MethodComplexity;
+        depth: number;  // 0 = top-level, 1 = second-level, 2+ = deeper
+        hasStructuralComplexity: boolean;  // For top-level: does it have structural nodes in its own body?
+        secondLevelFunctions: SecondLevelFunction[];  // Only used for top-level
+        // For second-level functions: track complexity both ways
+        ownComplexityIfNested: number;
+        ownComplexityIfTopLevel: number;
+    }
 
+    const contextStack: MethodContext[] = [];
+
+    function visit(node: SyntaxNode, currentNesting: number) {
         // 1. Check if we are entering a new method definition
         if (adapter.isMethod(node)) {
             const name = adapter.getMethodName(node);
             const isCallback = adapter.isCallback(node);
+            const depth = contextStack.length;
 
             const newMethod: MethodComplexity = {
                 name,
@@ -85,26 +113,79 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                 startLine: node.startPosition.row,
                 endLine: node.endPosition.row,
                 isCallback,
-                isRoot: methodStack.length === 0
+                isRoot: depth === 0
             };
 
             methods.push(newMethod);
-            methodStack.push(newMethod);
 
-            // Switch context:
-            // - activeMethod becomes the new method
-            // - activeNesting:
-            //   - For root method: resets to 0
-            //   - For nested methods (callbacks/lambdas): inherits parent nesting + 1
-            activeMethod = newMethod;
-            activeNesting = methodStack.length > 1 ? currentNesting + 1 : 0;
+            const newContext: MethodContext = {
+                method: newMethod,
+                depth,
+                hasStructuralComplexity: false,
+                secondLevelFunctions: [],
+                ownComplexityIfNested: 0,
+                ownComplexityIfTopLevel: 0
+            };
 
-            // Note: We do NOT process the method node itself as a complexity contributor (e.g. IF/ELSE logic)
-            // for the parent method, nor for the new method.
-            // But we must process its children.
+            contextStack.push(newContext);
+
+            // Determine nesting for children:
+            // - Root method (depth 0): nesting starts at 0
+            // - Second-level (depth 1): we'll compute both ways, but pass 0 for now
+            // - Deeper (depth 2+): inherit parent nesting + 1
+            let childNesting = 0;
+            if (depth >= 2) {
+                childNesting = currentNesting + 1;
+            }
+
+            // Visit children
+            let child = node.firstChild;
+            while (child) {
+                visit(child, childNesting);
+                child = child.nextSibling;
+            }
+
+            // Leaving this function
+            contextStack.pop();
+
+            if (depth === 0) {
+                // Top-level function: finalize second-level function complexity
+                let totalComplexity = newMethod.score;  // Own direct complexity
+
+                for (const secondLevel of newContext.secondLevelFunctions) {
+                    if (newContext.hasStructuralComplexity) {
+                        // Parent has structure, so callbacks count as nested
+                        totalComplexity += secondLevel.complexityIfNested;
+                        secondLevel.method.score = secondLevel.complexityIfNested;
+                    } else {
+                        // Parent has no structure, so callbacks count as independent
+                        totalComplexity += secondLevel.complexityIfTopLevel;
+                        secondLevel.method.score = secondLevel.complexityIfTopLevel;
+                    }
+                }
+
+                newMethod.score = totalComplexity;
+            } else if (depth === 1) {
+                // Second-level function: register with parent
+                const parentContext = contextStack[0];  // Top-level is always at index 0
+                parentContext.secondLevelFunctions.push({
+                    method: newMethod,
+                    complexityIfNested: newContext.ownComplexityIfNested,
+                    complexityIfTopLevel: newContext.ownComplexityIfTopLevel
+                });
+                // Don't add to parent score yet - will be decided when top-level exits
+            } else {
+                // Deeper nested: add to parent's score directly
+                const parentContext = contextStack[contextStack.length - 1];
+                parentContext.method.score += newMethod.score;
+            }
+
+            return;  // Don't process further, we handled children above
         }
-        else if (activeMethod) {
-            // 2. We are inside a method, check if this node contributes to complexity
+
+        // 2. Check if this node contributes to complexity
+        const currentContext = contextStack[contextStack.length - 1];
+        if (currentContext) {
             let structural = 0;
             let increasesNesting = false;
             let label = '';
@@ -136,7 +217,7 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
                     case 'TERNARY':
                         label = 'ternary';
                         structural = 1;
-                        increasesNesting = false;
+                        increasesNesting = true;
                         break;
                     case 'ELSE':
                         if (!adapter.isElseIf(node)) {
@@ -160,100 +241,68 @@ export function calculateGenericComplexity(tree: Tree, adapter: LanguageAdapter)
             }
 
             if (structural > 0) {
-                const score = structural + (increasesNesting ? activeNesting : 0);
-
-                // Add score to the immediate method
-                activeMethod.score += score;
+                const score = structural + (increasesNesting ? currentNesting : 0);
                 const line = node.startPosition.row;
-                activeMethod.details.push({ line, score: structural, message: label }); // Detail usually just shows structural
-                if (increasesNesting && activeNesting > 0) {
-                    activeMethod.details.push({ line, score: activeNesting, message: 'nesting' });
+
+                // Mark that this level has structural complexity
+                if (currentContext.depth === 0) {
+                    currentContext.hasStructuralComplexity = true;
                 }
 
-                // Add score to all *other* ancestors in the stack (propagate complexity)
-                // Note: The top of the stack is activeMethod, which we just updated.
-                for (let i = 0; i < methodStack.length - 1; i++) {
-                    methodStack[i].score += score;
-                }
-            }
+                // Add score based on depth
+                if (currentContext.depth === 0) {
+                    // Top-level: add directly to own score
+                    currentContext.method.score += score;
+                    currentContext.method.details.push({ line, score: structural, message: label });
+                    if (increasesNesting && currentNesting > 0) {
+                        currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
+                    }
+                } else if (currentContext.depth === 1) {
+                    // Second-level: track both ways
+                    const scoreIfTopLevel = structural;  // No nesting penalty
+                    const scoreIfNested = structural + (increasesNesting ? (currentNesting + 1) : 0);  // +1 for being in callback
 
-            // Update nesting for children
-            if (increasesNesting) {
-                activeNesting++;
+                    currentContext.ownComplexityIfTopLevel += scoreIfTopLevel;
+                    currentContext.ownComplexityIfNested += scoreIfNested;
+
+                    // Temporarily store in method for detail tracking
+                    currentContext.method.details.push({ line, score: structural, message: label });
+                    if (increasesNesting && currentNesting > 0) {
+                        currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
+                    }
+                } else {
+                    // Deeper: add score with full nesting
+                    currentContext.method.score += score;
+                    currentContext.method.details.push({ line, score: structural, message: label });
+                    if (increasesNesting && currentNesting > 0) {
+                        currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
+                    }
+                }
+
+                // Update nesting for children
+                if (increasesNesting) {
+                    currentNesting++;
+                }
             }
         }
 
         // 3. Recurse into children
         let child = node.firstChild;
         while (child) {
-            let nextNesting = activeNesting;
+            let nextNesting = currentNesting;
 
             // Handle flattening (e.g. IF -> ELSE IF)
-            // Note: This logic applies within the context of the *current* method (activeMethod).
-            // If we just entered a new method, flattening logic between ParentNode and ChildNode
-            // might not apply if ParentNode was outside the method?
-            // Actually, `shouldFlattenNesting` takes parent and child.
-            // If `node` is the method definition, and `child` is the first statement...
-            // `shouldFlattenNesting` usually checks structural nodes (IF, ELSE).
-            // A method definition is not usually involved in flattening logic.
-
-            if (activeMethod && adapter.shouldFlattenNesting(node, child)) {
-                // If flattening, revert to the nesting level *before* the increment
-                // The `activeNesting` was potentially incremented above.
-                // We need the `currentNesting` passed to this function?
-                // No, `activeNesting` is the nesting level *inside* `node`.
-                // If `node` was IF, `activeNesting` is `currentNesting + 1`.
-                // If we flatten, we want `currentNesting`.
-
-                // Wait, let's trace:
-                // visit(IF, nest=0) -> structural=1, increases=true -> activeNesting becomes 1.
-                // child is ELSE_CLAUSE.
-                // shouldFlatten(IF, ELSE) -> true.
-                // nextNesting = currentNesting (0).
-
-                // But `activeNesting` variable is modified.
-                // We need to be careful. `activeNesting` represents the nesting for children generally.
-                // But for *specific* children we might override.
-
-                // We should reconstruct `activeNesting` from `currentNesting` logic to be safe?
-                // Or just use `currentNesting` if flatten is true.
-
-                // If `node` was a method definition, `currentNesting` was the *parent's* nesting.
-                // `activeNesting` became 0.
-                // We should not use `currentNesting` (parent's) for flattening inside the method.
-                // But `shouldFlattenNesting` won't be true for MethodDef -> Child.
-
-                // So: if we flattened, we want `activeNesting - 1` (assuming it increased)?
-                // Or simply `currentNesting` (if we are in the same method context).
-
-                // If `activeMethod === currentMethod` (we didn't switch context),
-                // then `activeNesting` is `currentNesting + (increasesNesting ? 1 : 0)`.
-                // If we flatten, we want `currentNesting`.
-
-                // What if we switched context?
-                // `activeMethod != currentMethod`. `activeNesting` = 0.
-                // `node` is MethodDef. `increasesNesting` = false (MethodDef is not structural).
-                // `activeNesting` = 0.
-                // `flatten` is false.
-
-                // So this only applies when `activeMethod === currentMethod`.
-
-                if (activeMethod === currentMethod) {
-                    nextNesting = currentNesting;
-                }
+            if (currentContext && adapter.shouldFlattenNesting(node, child)) {
+                // For else-if chains, don't increase nesting
+                nextNesting = Math.max(0, currentNesting - 1);
             }
 
-            visit(child, activeMethod, nextNesting);
+            visit(child, nextNesting);
             child = child.nextSibling;
-        }
-
-        // 4. Cleanup
-        if (adapter.isMethod(node)) {
-            methodStack.pop();
         }
     }
 
-    visit(tree.rootNode, undefined, 0);
+    visit(tree.rootNode, 0);
 
     return methods;
 }

@@ -50,8 +50,10 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
 
     getBinaryOperator(node: SyntaxNode): string | undefined {
         let child = node.firstChild;
-        while(child) {
-            if (child.type === '&&' || child.type === '||') {
+        while (child) {
+            // SonarJS only counts && sequences, not || or ?? 
+            // See S3776/rule.ts: current.operator !== '||' && current.operator !== '??'
+            if (child.type === '&&') {
                 return child.type;
             }
             child = child.nextSibling;
@@ -75,7 +77,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
         // The else_clause itself (if not else-if) will add +1 score,
         // but it shouldn't inherit the nesting penalty from the parent IF.
         if (parent.type === 'if_statement' && child.type === 'else_clause') {
-             return true;
+            return true;
         }
         return false;
     }
