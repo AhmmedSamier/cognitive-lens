@@ -19,7 +19,7 @@ async function main() {
         external: ['vscode', 'module', 'url'],
         logLevel: 'info',
         alias: {
-            'web-tree-sitter': path.resolve(__dirname, '../../node_modules/web-tree-sitter/web-tree-sitter.cjs'),
+            'web-tree-sitter': path.resolve(__dirname, '../language-server/node_modules/web-tree-sitter/tree-sitter.cjs'),
         },
         loader: {
             '.wasm': 'file',
