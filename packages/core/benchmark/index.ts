@@ -47,7 +47,7 @@ async function runBenchmark() {
 
   // Measure Parsing (Full)
   const startParse = performance.now();
-  let tree = parser.parse(code);
+  const tree = parser.parse(code);
   const endParse = performance.now();
   console.log(`Full Parsing time: ${(endParse - startParse).toFixed(2)} ms`);
 

@@ -32,6 +32,7 @@ export class GitService {
       const content = await this.execGit(['show', `HEAD:${relativePath}`], repoRoot);
       return content;
     } catch (error) {
+      console.warn('Failed to retrieve git head content', error);
       return null;
     }
   }
@@ -43,7 +44,18 @@ export class GitService {
   public async filterIgnored(filePaths: string[]): Promise<string[]> {
     if (filePaths.length === 0) return [];
 
-    const validFiles: string[] = [];
+    const { filesByRoot, filesNotInGit } = await this.groupFilesByRoot(filePaths);
+    const validFiles: string[] = [...filesNotInGit];
+
+    for (const [root, files] of filesByRoot) {
+      const keptFiles = await this.checkIgnoreForRoot(root, files);
+      validFiles.push(...keptFiles);
+    }
+
+    return validFiles;
+  }
+
+  private async groupFilesByRoot(filePaths: string[]) {
     const filesNotInGit: string[] = [];
     const filesByRoot = new Map<string, string[]>();
 
@@ -73,44 +85,39 @@ export class GitService {
         filesNotInGit.push(filePath);
       }
     }
+    return { filesByRoot, filesNotInGit };
+  }
 
-    validFiles.push(...filesNotInGit);
+  private async checkIgnoreForRoot(root: string, files: string[]): Promise<string[]> {
+    const relativePaths = files.map((f) => path.relative(root, f).split(path.sep).join('/'));
+    const input = relativePaths.join('\0');
+    const ignoredSet = new Set<string>();
 
-    for (const [root, files] of filesByRoot) {
-      const relativePaths = files.map((f) => path.relative(root, f).split(path.sep).join('/'));
-      const input = relativePaths.join('\0');
-
-      const ignoredSet = new Set<string>();
-      try {
-        const outputBuffer = await this.execGit(['check-ignore', '-z', '--stdin'], root, input);
-
-        if (outputBuffer) {
-          let start = 0;
-          for (let i = 0; i < outputBuffer.length; i++) {
-            if (outputBuffer[i] === 0) {
-              // \0
-              const pathStr = outputBuffer.subarray(start, i).toString('utf8');
-              ignoredSet.add(pathStr);
-              start = i + 1;
-            }
-          }
-          if (start < outputBuffer.length) {
-            const pathStr = outputBuffer.subarray(start).toString('utf8');
-            ignoredSet.add(pathStr);
-          }
-        }
-      } catch (e) {
-        console.error('Git check-ignore failed', e);
+    try {
+      const outputBuffer = await this.execGit(['check-ignore', '-z', '--stdin'], root, input);
+      if (outputBuffer) {
+        this.parseCheckIgnoreOutput(outputBuffer, ignoredSet);
       }
-
-      for (let i = 0; i < files.length; i++) {
-        if (!ignoredSet.has(relativePaths[i])) {
-          validFiles.push(files[i]);
-        }
-      }
+    } catch (e) {
+      console.error('Git check-ignore failed', e);
     }
 
-    return validFiles;
+    return files.filter((_, i) => !ignoredSet.has(relativePaths[i]));
+  }
+
+  private parseCheckIgnoreOutput(outputBuffer: Buffer, ignoredSet: Set<string>) {
+    let start = 0;
+    for (let i = 0; i < outputBuffer.length; i++) {
+      if (outputBuffer[i] === 0) {
+        const pathStr = outputBuffer.subarray(start, i).toString('utf8');
+        ignoredSet.add(pathStr);
+        start = i + 1;
+      }
+    }
+    if (start < outputBuffer.length) {
+      const pathStr = outputBuffer.subarray(start).toString('utf8');
+      ignoredSet.add(pathStr);
+    }
   }
 
   private async getRepoRoot(dir: string): Promise<string | null> {
@@ -133,14 +140,16 @@ export class GitService {
           return root;
         }
       }
-    } catch (e) {
+       
+    } catch {
       // Not a git repo
     }
     return null;
   }
 
   private execGit(args: string[], cwd: string, input?: string): Promise<Buffer | null> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
+      // eslint-disable-next-line sonarjs/no-os-command-from-path
       const child = cp.spawn('git', args, { cwd });
       const chunks: Buffer[] = [];
 

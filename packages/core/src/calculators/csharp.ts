@@ -1,6 +1,5 @@
-import { SyntaxNode, Tree } from 'web-tree-sitter';
 import { MethodComplexity } from '../types';
-import { BaseLanguageAdapter, calculateGenericComplexity, ComplexityNodeType } from './common';
+import { BaseLanguageAdapter, calculateGenericComplexity, ComplexityNodeType, SyntaxNode, Tree } from './common';
 
 class CSharpAdapter extends BaseLanguageAdapter {
   // SonarSource C# always increases nesting for lambdas (unlike SonarJS)
@@ -56,7 +55,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
         return 'ELSE';
       case 'goto_statement':
         return 'GOTO'; // SonarSource C#: goto adds +1 + nesting
-      default:
+      default: {
         // Check for implicit else (alternative field which is not else_clause)
         // C# 'if' structure: if (cond) con alternative
         const alternative = node.parent?.childForFieldName('alternative');
@@ -68,19 +67,20 @@ class CSharpAdapter extends BaseLanguageAdapter {
           }
         }
         return undefined;
+      }
     }
   }
 
   getBinaryOperator(node: SyntaxNode): string | undefined {
     // SonarSource C# counts BOTH && and || (unlike SonarJS which only counts &&)
     // See: sonar-dotnet/CSharpCognitiveComplexityMetric.cs VisitBinaryExpression
-    const operatorNode = node.children.find((c) => c.type === '&&' || c.type === '||');
+    const operatorNode = node.children.find((c: SyntaxNode) => c.type === '&&' || c.type === '||');
     return operatorNode?.type;
   }
 
   isElseIf(node: SyntaxNode): boolean {
     if (node.type === 'else_clause') {
-      return node.children.some((c) => c.type === 'if_statement');
+      return node.children.some((c: SyntaxNode) => c.type === 'if_statement');
     }
     // For inferred ELSE (blocks), they don't wrap 'if' in the same way 'else_clause' does.
     // Even if a block contains an IF, it's nesting, not 'else if' structure.

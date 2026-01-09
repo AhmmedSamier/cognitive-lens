@@ -1,4 +1,7 @@
-import { SyntaxNode, Tree } from 'web-tree-sitter';
+// eslint-disable-next-line sonarjs/redundant-type-aliases
+export type SyntaxNode = any;
+// eslint-disable-next-line sonarjs/redundant-type-aliases
+export type Tree = any;
 import { MethodComplexity } from '../types';
 
 export type ComplexityNodeType =
@@ -15,27 +18,11 @@ export interface LanguageAdapter {
   isMethod(node: SyntaxNode): boolean;
   getMethodName(node: SyntaxNode): string;
   isCallback(node: SyntaxNode): boolean;
-
-  // Returns the complexity type of the node. undefined if it doesn't contribute.
   getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined;
-
-  // Used for BINARY nodes to determine the operator label (e.g. "&&")
   getBinaryOperator(node: SyntaxNode): string | undefined;
-
-  // Checks if this node is a continuation of a binary sequence (e.g. a && b && c)
-  // If true, it receives no score.
   isBinaryContinuation(node: SyntaxNode): boolean;
-
-  // Checks if this node is an 'else if' style clause that shouldn't receive the ELSE penalty
-  // (Usually handled by checking if it contains an IF child)
   isElseIf(node: SyntaxNode): boolean;
-
-  // Checks if the nesting should be flattened for a specific child
-  // (e.g. parent is IF, child is ELSE IF -> don't increase nesting for the child)
   shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
-
-  // If true, lambdas/callbacks ALWAYS increase nesting (SonarSource C# behavior).
-  // If false, uses second-level function handling (SonarJS behavior).
   lambdaAlwaysNested: boolean;
 }
 
@@ -47,9 +34,6 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract getBinaryOperator(node: SyntaxNode): string | undefined;
   abstract isElseIf(node: SyntaxNode): boolean;
   abstract shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
-
-  // Default: SonarJS behavior (second-level function handling)
-  // Override to true for C# behavior (lambdas always nest)
   lambdaAlwaysNested: boolean = false;
 
   isBinaryContinuation(node: SyntaxNode): boolean {
@@ -71,263 +55,245 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   }
 }
 
-/**
- * Internal tracking for second-level functions (SonarJS behavior)
- */
 interface SecondLevelFunction {
   method: MethodComplexity;
-  // Complexity if this function is treated as nested (+1 nesting from parent)
   complexityIfNested: number;
-  // Complexity if this function is treated as top-level (no nesting penalty)
   complexityIfTopLevel: number;
 }
 
-/**
- * Calculates cognitive complexity using SonarJS-compatible algorithm.
- *
- * Key SonarJS behavior implemented:
- * - If a top-level function has NO structural complexity in its own body,
- *   second-level functions (callbacks) are treated as independent top-level functions.
- * - This means their internal complexity doesn't include nesting from the parent.
- */
+interface MethodContext {
+  method: MethodComplexity;
+  depth: number;
+  hasStructuralComplexity: boolean;
+  secondLevelFunctions: SecondLevelFunction[];
+  ownComplexityIfNested: number;
+  ownComplexityIfTopLevel: number;
+}
+
+class ComplexityCalculator {
+  private methods: MethodComplexity[] = [];
+  private contextStack: MethodContext[] = [];
+
+  constructor(private adapter: LanguageAdapter) {}
+
+  public calculate(tree: Tree): MethodComplexity[] {
+    this.visit(tree.rootNode, 0);
+    return this.methods;
+  }
+
+  private visit(node: SyntaxNode, currentNesting: number) {
+    if (this.adapter.isMethod(node)) {
+      this.handleMethodEntry(node, currentNesting);
+    } else {
+      const nextNesting = this.handleStructuralNode(node, currentNesting);
+      this.visitChildren(node, nextNesting);
+    }
+  }
+
+  private handleMethodEntry(node: SyntaxNode, currentNesting: number) {
+    const depth = this.contextStack.length;
+    const newMethod: MethodComplexity = {
+      name: this.adapter.getMethodName(node),
+      score: 0,
+      details: [],
+      startIndex: node.startIndex,
+      endIndex: node.endIndex,
+      startLine: node.startPosition.row,
+      endLine: node.endPosition.row,
+      isCallback: this.adapter.isCallback(node),
+      isRoot: depth === 0,
+    };
+
+    this.methods.push(newMethod);
+
+    const newContext: MethodContext = {
+      method: newMethod,
+      depth,
+      hasStructuralComplexity: false,
+      secondLevelFunctions: [],
+      ownComplexityIfNested: 0,
+      ownComplexityIfTopLevel: 0,
+    };
+
+    this.contextStack.push(newContext);
+
+    const childNesting = this.calculateChildNesting(depth, currentNesting);
+    this.visitChildren(node, childNesting);
+
+    this.contextStack.pop();
+    this.finalizeMethodComplexity(newMethod, newContext, depth);
+  }
+
+  private calculateChildNesting(depth: number, currentNesting: number): number {
+    if (this.adapter.lambdaAlwaysNested) {
+      return depth >= 1 ? currentNesting + 1 : 0;
+    } else {
+      return depth >= 2 ? currentNesting + 1 : 0;
+    }
+  }
+
+  private finalizeMethodComplexity(
+    newMethod: MethodComplexity,
+    newContext: MethodContext,
+    depth: number,
+  ) {
+    if (depth === 0) {
+      this.finalizeTopLevelMethod(newMethod, newContext);
+    } else if (depth === 1 && !this.adapter.lambdaAlwaysNested) {
+      this.registerSecondLevelFunction(newMethod, newContext);
+    } else {
+      this.addToParentScore(newMethod);
+    }
+  }
+
+  private finalizeTopLevelMethod(newMethod: MethodComplexity, newContext: MethodContext) {
+    let totalComplexity = newMethod.score;
+    for (const secondLevel of newContext.secondLevelFunctions) {
+      if (newContext.hasStructuralComplexity) {
+        totalComplexity += secondLevel.complexityIfNested;
+        secondLevel.method.score = secondLevel.complexityIfNested;
+      } else {
+        totalComplexity += secondLevel.complexityIfTopLevel;
+        secondLevel.method.score = secondLevel.complexityIfTopLevel;
+      }
+    }
+    newMethod.score = totalComplexity;
+  }
+
+  private registerSecondLevelFunction(newMethod: MethodComplexity, newContext: MethodContext) {
+    const parentContext = this.contextStack[0];
+    parentContext.secondLevelFunctions.push({
+      method: newMethod,
+      complexityIfNested: newContext.ownComplexityIfNested,
+      complexityIfTopLevel: newContext.ownComplexityIfTopLevel,
+    });
+  }
+
+  private addToParentScore(newMethod: MethodComplexity) {
+    const parentContext = this.contextStack[this.contextStack.length - 1];
+    parentContext.method.score += newMethod.score;
+  }
+
+  private handleStructuralNode(node: SyntaxNode, currentNesting: number): number {
+    const currentContext = this.contextStack[this.contextStack.length - 1];
+    if (!currentContext) return currentNesting;
+
+    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(node);
+
+    if (structural > 0) {
+      const score = structural + (increasesNesting ? currentNesting : 0);
+      const line = node.startPosition.row;
+
+      if (currentContext.depth === 0) {
+        currentContext.hasStructuralComplexity = true;
+      }
+
+      this.addScore(
+        currentContext,
+        score,
+        structural,
+        increasesNesting,
+        currentNesting,
+        label,
+        line,
+      );
+
+      if (increasesNesting) {
+        return currentNesting + 1;
+      }
+    }
+    return currentNesting;
+  }
+
+  private analyzeNodeComplexity(node: SyntaxNode) {
+    const type = this.adapter.getComplexityType(node);
+    if (!type) return { structural: 0, increasesNesting: false, label: '' };
+
+    if (type === 'BINARY') {
+      return this.analyzeBinary(node);
+    }
+    if (type === 'ELSE') {
+      return this.analyzeElse(node);
+    }
+    return this.analyzeSimpleStruct(type);
+  }
+
+  private analyzeBinary(node: SyntaxNode) {
+    const op = this.adapter.getBinaryOperator(node);
+    if (op && !this.adapter.isBinaryContinuation(node)) {
+      return { structural: 1, increasesNesting: false, label: op };
+    }
+    return { structural: 0, increasesNesting: false, label: '' };
+  }
+
+  private analyzeElse(node: SyntaxNode) {
+    if (!this.adapter.isElseIf(node)) {
+      return { structural: 1, increasesNesting: true, label: 'else' };
+    }
+    return { structural: 0, increasesNesting: false, label: '' };
+  }
+
+  private analyzeSimpleStruct(type: ComplexityNodeType) {
+    switch (type) {
+      case 'IF':
+        return { structural: 1, increasesNesting: true, label: 'if' };
+      case 'SWITCH':
+        return { structural: 1, increasesNesting: true, label: 'switch' };
+      case 'LOOP':
+        return { structural: 1, increasesNesting: true, label: 'loop' };
+      case 'CATCH':
+        return { structural: 1, increasesNesting: true, label: 'catch' };
+      case 'TERNARY':
+        return { structural: 1, increasesNesting: true, label: 'ternary' };
+      case 'GOTO':
+        return { structural: 1, increasesNesting: true, label: 'goto' };
+      default:
+        return { structural: 0, increasesNesting: false, label: '' };
+    }
+  }
+
+  private addScore(
+    context: MethodContext,
+    score: number,
+    structural: number,
+    increasesNesting: boolean,
+    currentNesting: number,
+    label: string,
+    line: number,
+  ) {
+    const recordDetails = (target: MethodComplexity) => {
+      target.details.push({ line, score: structural, message: label });
+      if (increasesNesting && currentNesting > 0) {
+        target.details.push({ line, score: currentNesting, message: 'nesting' });
+      }
+    };
+
+    if (context.depth === 1 && !this.adapter.lambdaAlwaysNested) {
+      context.ownComplexityIfTopLevel += structural;
+      context.ownComplexityIfNested += structural + (increasesNesting ? currentNesting + 1 : 0);
+      recordDetails(context.method);
+    } else {
+      context.method.score += score;
+      recordDetails(context.method);
+    }
+  }
+
+  private visitChildren(node: SyntaxNode, currentNesting: number) {
+    let child = node.firstChild;
+    while (child) {
+      let nextNesting = currentNesting;
+      if (this.contextStack.length > 0 && this.adapter.shouldFlattenNesting(node, child)) {
+        nextNesting = Math.max(0, currentNesting - 1);
+      }
+      this.visit(child, nextNesting);
+      child = child.nextSibling;
+    }
+  }
+}
+
 export function calculateGenericComplexity(
   tree: Tree,
   adapter: LanguageAdapter,
 ): MethodComplexity[] {
-  const methods: MethodComplexity[] = [];
-
-  // Stack of method contexts
-  interface MethodContext {
-    method: MethodComplexity;
-    depth: number; // 0 = top-level, 1 = second-level, 2+ = deeper
-    hasStructuralComplexity: boolean; // For top-level: does it have structural nodes in its own body?
-    secondLevelFunctions: SecondLevelFunction[]; // Only used for top-level
-    // For second-level functions: track complexity both ways
-    ownComplexityIfNested: number;
-    ownComplexityIfTopLevel: number;
-  }
-
-  const contextStack: MethodContext[] = [];
-
-  function visit(node: SyntaxNode, currentNesting: number) {
-    // 1. Check if we are entering a new method definition
-    if (adapter.isMethod(node)) {
-      const name = adapter.getMethodName(node);
-      const isCallback = adapter.isCallback(node);
-      const depth = contextStack.length;
-
-      const newMethod: MethodComplexity = {
-        name,
-        score: 0,
-        details: [],
-        startIndex: node.startIndex,
-        endIndex: node.endIndex,
-        startLine: node.startPosition.row,
-        endLine: node.endPosition.row,
-        isCallback,
-        isRoot: depth === 0,
-      };
-
-      methods.push(newMethod);
-
-      const newContext: MethodContext = {
-        method: newMethod,
-        depth,
-        hasStructuralComplexity: false,
-        secondLevelFunctions: [],
-        ownComplexityIfNested: 0,
-        ownComplexityIfTopLevel: 0,
-      };
-
-      contextStack.push(newContext);
-
-      // Determine nesting for children:
-      // - Root method (depth 0): nesting starts at 0
-      // - For lambdaAlwaysNested=true (C#): all nested functions inherit nesting + 1
-      // - For lambdaAlwaysNested=false (JS): second-level uses special handling
-      let childNesting = 0;
-      if (adapter.lambdaAlwaysNested) {
-        // C# behavior: lambdas always add nesting
-        if (depth >= 1) {
-          childNesting = currentNesting + 1;
-        }
-      } else {
-        // JS behavior: only depth 2+ inherits nesting
-        if (depth >= 2) {
-          childNesting = currentNesting + 1;
-        }
-      }
-
-      // Visit children
-      let child = node.firstChild;
-      while (child) {
-        visit(child, childNesting);
-        child = child.nextSibling;
-      }
-
-      // Leaving this function
-      contextStack.pop();
-
-      if (depth === 0) {
-        // Top-level function: finalize second-level function complexity
-        let totalComplexity = newMethod.score; // Own direct complexity
-
-        for (const secondLevel of newContext.secondLevelFunctions) {
-          if (newContext.hasStructuralComplexity) {
-            // Parent has structure, so callbacks count as nested
-            totalComplexity += secondLevel.complexityIfNested;
-            secondLevel.method.score = secondLevel.complexityIfNested;
-          } else {
-            // Parent has no structure, so callbacks count as independent
-            totalComplexity += secondLevel.complexityIfTopLevel;
-            secondLevel.method.score = secondLevel.complexityIfTopLevel;
-          }
-        }
-
-        newMethod.score = totalComplexity;
-      } else if (depth === 1 && !adapter.lambdaAlwaysNested) {
-        // Second-level function (SonarJS behavior): register with parent
-        const parentContext = contextStack[0]; // Top-level is always at index 0
-        parentContext.secondLevelFunctions.push({
-          method: newMethod,
-          complexityIfNested: newContext.ownComplexityIfNested,
-          complexityIfTopLevel: newContext.ownComplexityIfTopLevel,
-        });
-        // Don't add to parent score yet - will be decided when top-level exits
-      } else {
-        // Deeper nested OR lambdaAlwaysNested: add to parent's score directly
-        const parentContext = contextStack[contextStack.length - 1];
-        parentContext.method.score += newMethod.score;
-      }
-
-      return; // Don't process further, we handled children above
-    }
-
-    // 2. Check if this node contributes to complexity
-    const currentContext = contextStack[contextStack.length - 1];
-    if (currentContext) {
-      let structural = 0;
-      let increasesNesting = false;
-      let label = '';
-
-      const type = adapter.getComplexityType(node);
-
-      if (type) {
-        switch (type) {
-          case 'IF':
-            label = 'if';
-            structural = 1;
-            increasesNesting = true;
-            break;
-          case 'SWITCH':
-            label = 'switch';
-            structural = 1;
-            increasesNesting = true;
-            break;
-          case 'LOOP':
-            label = 'loop';
-            structural = 1;
-            increasesNesting = true;
-            break;
-          case 'CATCH':
-            label = 'catch';
-            structural = 1;
-            increasesNesting = true;
-            break;
-          case 'TERNARY':
-            label = 'ternary';
-            structural = 1;
-            increasesNesting = true;
-            break;
-          case 'ELSE':
-            if (!adapter.isElseIf(node)) {
-              label = 'else';
-              structural = 1;
-              increasesNesting = true;
-            } else {
-              structural = 0;
-              increasesNesting = false;
-            }
-            break;
-          case 'BINARY':
-            const op = adapter.getBinaryOperator(node);
-            if (op && !adapter.isBinaryContinuation(node)) {
-              label = op;
-              structural = 1;
-              increasesNesting = false;
-            }
-            break;
-          case 'GOTO':
-            label = 'goto';
-            structural = 1;
-            increasesNesting = true; // SonarSource C#: goto adds nesting penalty
-            break;
-        }
-      }
-
-      if (structural > 0) {
-        const score = structural + (increasesNesting ? currentNesting : 0);
-        const line = node.startPosition.row;
-
-        // Mark that this level has structural complexity
-        if (currentContext.depth === 0) {
-          currentContext.hasStructuralComplexity = true;
-        }
-
-        // Add score based on depth
-        if (currentContext.depth === 0) {
-          // Top-level: add directly to own score
-          currentContext.method.score += score;
-          currentContext.method.details.push({ line, score: structural, message: label });
-          if (increasesNesting && currentNesting > 0) {
-            currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
-          }
-        } else if (currentContext.depth === 1 && !adapter.lambdaAlwaysNested) {
-          // Second-level (SonarJS): track both ways for later decision
-          const scoreIfTopLevel = structural; // No nesting penalty
-          const scoreIfNested = structural + (increasesNesting ? currentNesting + 1 : 0); // +1 for being in callback
-
-          currentContext.ownComplexityIfTopLevel += scoreIfTopLevel;
-          currentContext.ownComplexityIfNested += scoreIfNested;
-
-          // Temporarily store in method for detail tracking
-          currentContext.method.details.push({ line, score: structural, message: label });
-          if (increasesNesting && currentNesting > 0) {
-            currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
-          }
-        } else {
-          // Deeper OR lambdaAlwaysNested (C#): add score with full nesting
-          currentContext.method.score += score;
-          currentContext.method.details.push({ line, score: structural, message: label });
-          if (increasesNesting && currentNesting > 0) {
-            currentContext.method.details.push({ line, score: currentNesting, message: 'nesting' });
-          }
-        }
-
-        // Update nesting for children
-        if (increasesNesting) {
-          currentNesting++;
-        }
-      }
-    }
-
-    // 3. Recurse into children
-    let child = node.firstChild;
-    while (child) {
-      let nextNesting = currentNesting;
-
-      // Handle flattening (e.g. IF -> ELSE IF)
-      if (currentContext && adapter.shouldFlattenNesting(node, child)) {
-        // For else-if chains, don't increase nesting
-        nextNesting = Math.max(0, currentNesting - 1);
-      }
-
-      visit(child, nextNesting);
-      child = child.nextSibling;
-    }
-  }
-
-  visit(tree.rootNode, 0);
-
-  return methods;
+  return new ComplexityCalculator(adapter).calculate(tree);
 }

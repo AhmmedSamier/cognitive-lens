@@ -39,7 +39,6 @@ const gitService = new GitService();
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
-let hasDiagnosticRelatedInformationCapability = false;
 
 let csharpParser: Parser | undefined;
 let typescriptParser: Parser | undefined;
@@ -119,7 +118,7 @@ async function initParser() {
 
 connection.onInitialize(async (params: InitializeParams) => {
   // Start parser init
-  initParser().catch((e) => {
+  initParser().catch(() => {
     // Logged inside
   });
 
@@ -128,11 +127,6 @@ connection.onInitialize(async (params: InitializeParams) => {
   hasConfigurationCapability = !!(capabilities.workspace && !!capabilities.workspace.configuration);
   hasWorkspaceFolderCapability = !!(
     capabilities.workspace && !!capabilities.workspace.workspaceFolders
-  );
-  hasDiagnosticRelatedInformationCapability = !!(
-    capabilities.textDocument &&
-    capabilities.textDocument.publishDiagnostics &&
-    capabilities.textDocument.publishDiagnostics.relatedInformation
   );
 
   const result: InitializeResult = {
@@ -170,7 +164,9 @@ connection.onInitialized(async () => {
 
   // Check if git is available
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { execSync } = require('child_process');
+    // eslint-disable-next-line sonarjs/no-os-command-from-path
     const gitVersion = execSync('git --version').toString().trim();
     connection.console.log(`[LSP] Git detected: ${gitVersion}`);
     connection.console.log(
@@ -244,6 +240,7 @@ function validateTextDocumentDebounced(textDocument: TextDocument) {
   ); // 500ms delay
 }
 
+
 async function getComplexity(textDocument: TextDocument): Promise<MethodComplexity[]> {
   const cached = complexityCache.get(textDocument.uri);
   if (cached && cached.version === textDocument.version) {
@@ -256,19 +253,20 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
     return pending.promise;
   }
 
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   const promise = (async () => {
     if (!parserInitialized) {
       if (initPromise) {
         try {
           await initPromise;
-        } catch (e) {
+        } catch {
           return [];
         }
       } else {
         await initParser(); // Await initParser
         try {
           await initPromise;
-        } catch (e) {
+        } catch {
           return [];
         }
       }
@@ -491,7 +489,6 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
   try {
     const document = documents.get(params.textDocument.uri);
     if (!document) {
-      // connection.console.log(`Document not found: ${params.textDocument.uri}`);
       return [];
     }
 
@@ -514,19 +511,20 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
   }
 });
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 async function analyzeContent(text: string, languageId: string): Promise<MethodComplexity[]> {
   if (!parserInitialized) {
     if (initPromise) {
       try {
         await initPromise;
-      } catch (e) {
+      } catch {
         return [];
       }
     } else {
       await initParser();
       try {
         await initPromise;
-      } catch (e) {
+      } catch {
         return [];
       }
     }

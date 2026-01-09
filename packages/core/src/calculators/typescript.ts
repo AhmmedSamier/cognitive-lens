@@ -1,6 +1,11 @@
-import { SyntaxNode, Tree } from 'web-tree-sitter';
 import { MethodComplexity } from '../types';
-import { BaseLanguageAdapter, calculateGenericComplexity, ComplexityNodeType } from './common';
+import {
+  BaseLanguageAdapter,
+  calculateGenericComplexity,
+  ComplexityNodeType,
+  SyntaxNode,
+  Tree,
+} from './common';
 
 class TypeScriptAdapter extends BaseLanguageAdapter {
   isMethod(node: SyntaxNode): boolean {
@@ -92,10 +97,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     // Flatten nesting for any else_clause.
     // The else_clause itself (if not else-if) will add +1 score,
     // but it shouldn't inherit the nesting penalty from the parent IF.
-    if (parent.type === 'if_statement' && child.type === 'else_clause') {
-      return true;
-    }
-    return false;
+    return parent.type === 'if_statement' && child.type === 'else_clause';
   }
 }
 

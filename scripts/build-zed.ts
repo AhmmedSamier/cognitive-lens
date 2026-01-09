@@ -14,12 +14,15 @@ const filesToCopy = [
 
 console.log('Building Zed extension artifacts...');
 
-const child_process = require('child_process');
+import * as child_process from 'child_process';
+
 try {
   console.log('Running build in packages/vscode-extension...');
   // Ensure dependencies are installed first if not already (skipping here as assumed)
-  child_process.execSync('bun run package', { cwd: VSCODE_EXT_DIR, stdio: 'inherit' });
-} catch (e) {
+  const npmCmd = process.platform === 'win32' ? 'bun.cmd' : 'bun';
+  // eslint-disable-next-line sonarjs/os-command
+  child_process.execSync(`${npmCmd} run package`, { cwd: VSCODE_EXT_DIR, stdio: 'inherit' });
+} catch {
   console.error('Failed to build vscode-extension');
   process.exit(1);
 }

@@ -25,8 +25,10 @@ if (!fs.existsSync(VS_RESOURCES_DIR)) {
 try {
   console.log('Building language server (using vscode-extension build)...');
   // We reuse the vscode extension build process to generate the bundled server.js
-  child_process.execSync('bun run package', { cwd: VSCODE_EXT_DIR, stdio: 'inherit' });
-} catch (e) {
+  const npmCmd = process.platform === 'win32' ? 'bun.cmd' : 'bun';
+  // eslint-disable-next-line sonarjs/os-command
+  child_process.execSync(`${npmCmd} run package`, { cwd: VSCODE_EXT_DIR, stdio: 'inherit' });
+} catch {
   console.error('Failed to build vscode-extension (language server)');
   process.exit(1);
 }

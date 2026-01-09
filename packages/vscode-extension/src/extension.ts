@@ -10,6 +10,7 @@ import {
   Uri,
   window,
   workspace,
+  WorkspaceConfiguration,
 } from 'vscode';
 import {
   LanguageClient,
@@ -291,35 +292,17 @@ function updateDecorations(uri: string, complexities: MethodComplexity[]) {
   }
 }
 
-async function updateBaseComplexity(editor: TextEditor) {
-  // Logic moved to LSP
+function clearGutterDecorations(editor: TextEditor) {
+  if (greenDecorationType) editor.setDecorations(greenDecorationType, []);
+  if (yellowDecorationType) editor.setDecorations(yellowDecorationType, []);
+  if (redDecorationType) editor.setDecorations(redDecorationType, []);
 }
 
-function updateEditorDecorations(editor: TextEditor, complexities: MethodComplexity[]) {
-  const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
-
-  // Update Delta Decorations - using deltas already present in complexities from LSP
-  updateDeltaDecorations(editor, complexities);
-
-  const deltas = complexities.filter(
-    (c) => !c.isCallback && c.complexityDelta !== undefined && c.complexityDelta !== 0,
-  ).length;
-  if (deltas > 0) {
-    window.setStatusBarMessage(`$(git-branch) Cognitive Lens: ${deltas} deltas detected`, 5000);
-  }
-
-  if (!config.get<boolean>('showGutterIcon', true)) {
-    // Clear gutter decorations if disabled for this resource
-    if (greenDecorationType) editor.setDecorations(greenDecorationType, []);
-    if (yellowDecorationType) editor.setDecorations(yellowDecorationType, []);
-    if (redDecorationType) editor.setDecorations(redDecorationType, []);
-    return;
-  }
-
-  // Ensure decorations exist (global check, but good to be safe)
-  if (!greenDecorationType) createDecorations();
-  if (!greenDecorationType) return; // Still disabled or failed
-
+function calculateDecorationRanges(
+  complexities: MethodComplexity[],
+  config: WorkspaceConfiguration,
+  editor: TextEditor,
+) {
   const warningThreshold = config.get<number>('threshold.warning', 15);
   const errorThreshold = config.get<number>('threshold.error', 25);
 
@@ -331,7 +314,6 @@ function updateEditorDecorations(editor: TextEditor, complexities: MethodComplex
     if (method.isCallback) continue;
 
     const startPos = editor.document.positionAt(method.startIndex);
-    // We only want the gutter icon on the first line of the method
     const range = new Range(startPos, startPos);
 
     if (method.score >= errorThreshold) {
@@ -345,7 +327,38 @@ function updateEditorDecorations(editor: TextEditor, complexities: MethodComplex
     }
   }
 
-  // Force non-null assertion since we checked earlier
+  return { greenRanges, yellowRanges, redRanges };
+}
+
+function updateStatusBar(complexities: MethodComplexity[]) {
+  const deltas = complexities.filter(
+    (c) => !c.isCallback && c.complexityDelta !== undefined && c.complexityDelta !== 0,
+  ).length;
+  if (deltas > 0) {
+    window.setStatusBarMessage(`$(git-branch) Cognitive Lens: ${deltas} deltas detected`, 5000);
+  }
+}
+
+function updateEditorDecorations(editor: TextEditor, complexities: MethodComplexity[]) {
+  const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
+
+  updateDeltaDecorations(editor, complexities);
+  updateStatusBar(complexities);
+
+  if (!config.get<boolean>('showGutterIcon', true)) {
+    clearGutterDecorations(editor);
+    return;
+  }
+
+  if (!greenDecorationType) createDecorations();
+  if (!greenDecorationType) return;
+
+  const { greenRanges, yellowRanges, redRanges } = calculateDecorationRanges(
+    complexities,
+    config,
+    editor,
+  );
+
   editor.setDecorations(greenDecorationType!, greenRanges);
   editor.setDecorations(yellowDecorationType!, yellowRanges);
   editor.setDecorations(redDecorationType!, redRanges);

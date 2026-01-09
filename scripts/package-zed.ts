@@ -22,8 +22,10 @@ console.log('Packaging Zed extension...');
 // 1. Run the build script to ensure files are up to date
 console.log('Running build:zed...');
 try {
-  execSync('bun run build:zed', { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' });
-} catch (e) {
+  const npmCmd = process.platform === 'win32' ? 'bun.cmd' : 'bun';
+  // eslint-disable-next-line sonarjs/os-command
+  execSync(`${npmCmd} run build:zed`, { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' });
+} catch {
   console.error('Failed to run build:zed');
   process.exit(1);
 }

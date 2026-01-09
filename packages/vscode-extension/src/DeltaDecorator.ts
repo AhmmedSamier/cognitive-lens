@@ -16,65 +16,65 @@ export function updateDeltaDecorations(
   editor: TextEditor,
   currentComplexities: MethodComplexity[],
 ) {
-  // Check configuration
   const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
   if (!config.get<boolean>('showComplexityDeltaDecoration', true)) {
     clearDecorations(editor);
     return;
   }
 
-  if (!improvedDecorationType || !regressedDecorationType) {
-    createDecorationTypes();
-  }
+  ensureDecorationTypes();
 
   const improvedRanges: { range: Range; renderOptions: any }[] = [];
   const regressedRanges: { range: Range; renderOptions: any }[] = [];
 
-  let deltaCount = 0;
   for (const current of currentComplexities) {
-    if (current.isCallback) continue;
-    const delta = current.complexityDelta;
-
-    if (delta !== undefined && delta !== 0) {
-      deltaCount++;
-      const startPos = editor.document.positionAt(current.startIndex);
-      // Place it at the end of the first line of the method.
-      const line = editor.document.lineAt(startPos.line);
-      const range = new Range(line.range.end, line.range.end);
-
-      const sign = delta > 0 ? '+' : '';
-      const text = ` ${sign}${delta} Complexity`;
-
-      if (delta > 0) {
-        // Regression (Red)
-        const renderOptions = {
-          after: {
-            contentText: text,
-            margin: '0 0 0 10px',
-            fontWeight: 'bold',
-            color: new ThemeColor('charts.red'),
-          },
-        };
-        regressedRanges.push({ range, renderOptions });
-      } else {
-        // Improvement (Green)
-        const renderOptions = {
-          after: {
-            contentText: text,
-            margin: '0 0 0 10px',
-            fontWeight: 'bold',
-            color: new ThemeColor('charts.green'),
-          },
-        };
-        improvedRanges.push({ range, renderOptions });
-      }
-    }
+    processDelta(editor, current, improvedRanges, regressedRanges);
   }
-
-  // console.log(`[Cognitive Lens] Applied ${deltaCount} delta decorations to ${editor.document.fileName}`);
 
   if (improvedDecorationType) editor.setDecorations(improvedDecorationType, improvedRanges);
   if (regressedDecorationType) editor.setDecorations(regressedDecorationType, regressedRanges);
+}
+
+function ensureDecorationTypes() {
+  if (!improvedDecorationType || !regressedDecorationType) {
+    createDecorationTypes();
+  }
+}
+
+function processDelta(
+  editor: TextEditor,
+  method: MethodComplexity,
+  improvedRanges: { range: Range; renderOptions: any }[],
+  regressedRanges: { range: Range; renderOptions: any }[],
+) {
+  if (method.isCallback) return;
+  const delta = method.complexityDelta;
+
+  if (delta !== undefined && delta !== 0) {
+    const startPos = editor.document.positionAt(method.startIndex);
+    const line = editor.document.lineAt(startPos.line);
+    const range = new Range(line.range.end, line.range.end);
+    const decoration = createDecorationOption(delta);
+
+    if (delta > 0) {
+      regressedRanges.push({ range, renderOptions: decoration });
+    } else {
+      improvedRanges.push({ range, renderOptions: decoration });
+    }
+  }
+}
+
+function createDecorationOption(delta: number) {
+  const sign = delta > 0 ? '+' : '';
+  const text = ` ${sign}${delta} Complexity`;
+  return {
+    after: {
+      contentText: text,
+      margin: '0 0 0 10px',
+      fontWeight: 'bold',
+      color: delta > 0 ? new ThemeColor('charts.red') : new ThemeColor('charts.green'),
+    },
+  };
 }
 
 function createDecorationTypes() {

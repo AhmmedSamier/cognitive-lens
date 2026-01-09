@@ -68,7 +68,7 @@ export class IncrementalParser {
 
   public handleChange(params: DidChangeTextDocumentParams): void {
     const uri = params.textDocument.uri;
-    let entry = this.cache.get(uri);
+    const entry = this.cache.get(uri);
 
     if (!entry) return;
 

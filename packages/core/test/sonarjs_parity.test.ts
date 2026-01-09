@@ -4,11 +4,10 @@
  */
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { Linter } from 'eslint';
+import sonarjs from 'eslint-plugin-sonarjs';
 import * as path from 'path';
 import { Language, Parser } from 'web-tree-sitter';
 import { calculateComplexity } from '../src/complexity';
-// @ts-ignore - ESM import
-import sonarjs from 'eslint-plugin-sonarjs';
 
 let parser: Parser;
 
@@ -24,7 +23,7 @@ beforeAll(async () => {
 });
 
 function createTree(code: string) {
-  return parser.parse(code);
+  return parser.parse(code) as any;
 }
 
 interface SonarComplexity {
