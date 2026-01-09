@@ -40,7 +40,6 @@ export const defaultSettings: CognitiveComplexitySettings = {
   totalScorePrefix: 'Cognitive Complexity',
 };
 
-// eslint-disable-next-line sonarjs/cognitive-complexity
 export function normalizeSettings(input: any): CognitiveComplexitySettings {
   if (!input) return defaultSettings;
 
@@ -48,88 +47,103 @@ export function normalizeSettings(input: any): CognitiveComplexitySettings {
   // and that we have all required fields.
   const settings: CognitiveComplexitySettings = JSON.parse(JSON.stringify(defaultSettings));
 
-  // First, if input has top-level keys that match our interface, copy them.
-  // This handles the VS Code case where we get a nested object.
   if (typeof input === 'object') {
-    if (input.threshold) {
-      if (typeof input.threshold.warning === 'number')
-        settings.threshold.warning = input.threshold.warning;
-      if (typeof input.threshold.error === 'number')
-        settings.threshold.error = input.threshold.error;
-    }
-    if (typeof input.showCodeLens === 'boolean') settings.showCodeLens = input.showCodeLens;
-    if (typeof input.showDiagnostics === 'boolean')
-      settings.showDiagnostics = input.showDiagnostics;
-    if (input.showInlayHints) {
-      if (typeof input.showInlayHints.methodScore === 'boolean')
-        settings.showInlayHints.methodScore = input.showInlayHints.methodScore;
-      if (typeof input.showInlayHints.complexityDelta === 'boolean')
-        settings.showInlayHints.complexityDelta = input.showInlayHints.complexityDelta;
-      if (typeof input.showInlayHints.details === 'boolean')
-        settings.showInlayHints.details = input.showInlayHints.details;
-    }
-    if (typeof input.totalScorePrefix === 'string')
-      settings.totalScorePrefix = input.totalScorePrefix;
-
-    // Second, scan for flat dot-notation keys.
-    // This handles the Visual Studio case or flat JSON configs.
-    // We look for keys starting with 'cognitiveComplexity.' or just matching our structure.
-    // The LSP section passed might be just the object under 'cognitiveComplexity',
-    // so we check for keys like 'threshold.warning'.
-    // eslint-disable-next-line sonarjs/cognitive-complexity
-    const processFlatKey = (key: string) => {
-      // Remove 'cognitiveComplexity.' prefix if present (though usually the section requested has stripped it)
-      const cleanKey = key.replace(/^cognitiveComplexity\./, '');
-
-      // Allow-list of known flat keys to map
-      if (cleanKey === 'threshold.warning') settings.threshold.warning = Number(input[key]);
-      if (cleanKey === 'threshold.error') settings.threshold.error = Number(input[key]);
-      if (cleanKey === 'showCodeLens') {
-        if (typeof input[key] === 'string') settings.showCodeLens = input[key] === 'true';
-        else settings.showCodeLens = Boolean(input[key]);
-      }
-      if (cleanKey === 'showDiagnostics') {
-        if (typeof input[key] === 'string') settings.showDiagnostics = input[key] === 'true';
-        else settings.showDiagnostics = Boolean(input[key]);
-      }
-      if (cleanKey === 'showInlayHints.methodScore') {
-        if (typeof input[key] === 'string')
-          settings.showInlayHints.methodScore = input[key] === 'true';
-        else settings.showInlayHints.methodScore = Boolean(input[key]);
-      }
-      if (cleanKey === 'showInlayHints.details') {
-        if (typeof input[key] === 'string') settings.showInlayHints.details = input[key] === 'true';
-        else settings.showInlayHints.details = Boolean(input[key]);
-      }
-      if (cleanKey === 'showInlayHints.complexityDelta') {
-        if (typeof input[key] === 'string')
-          settings.showInlayHints.complexityDelta = input[key] === 'true';
-        else settings.showInlayHints.complexityDelta = Boolean(input[key]);
-      }
-      if (cleanKey === 'totalScorePrefix') settings.totalScorePrefix = String(input[key]);
-
-      // Visual Studio specific keys
-      if (key === 'cognitiveComplexityThresholdWarning')
-        settings.threshold.warning = Number(input[key]);
-      if (key === 'cognitiveComplexityThresholdError')
-        settings.threshold.error = Number(input[key]);
-      if (key === 'cognitiveComplexityShowCodeLens') settings.showCodeLens = Boolean(input[key]);
-      if (key === 'cognitiveComplexityShowDiagnostics')
-        settings.showDiagnostics = Boolean(input[key]);
-      if (key === 'cognitiveComplexityShowInlayHintsMethodScore')
-        settings.showInlayHints.methodScore = Boolean(input[key]);
-      if (key === 'cognitiveComplexityShowInlayHintsDetails')
-        settings.showInlayHints.details = Boolean(input[key]);
-      if (key === 'cognitiveComplexityShowInlayHintsComplexityDelta')
-        settings.showInlayHints.complexityDelta = Boolean(input[key]);
-      if (key === 'cognitiveComplexityTotalScorePrefix')
-        settings.totalScorePrefix = String(input[key]);
-    };
-
-    Object.keys(input).forEach(processFlatKey);
+    processNestedSettings(settings, input);
+    Object.keys(input).forEach((key) => processFlatKey(settings, input, key));
   }
 
   return settings;
+}
+
+function processNestedSettings(settings: CognitiveComplexitySettings, input: any) {
+  if (input.threshold) {
+    if (typeof input.threshold.warning === 'number')
+      settings.threshold.warning = input.threshold.warning;
+    if (typeof input.threshold.error === 'number')
+      settings.threshold.error = input.threshold.error;
+  }
+  if (typeof input.showCodeLens === 'boolean') settings.showCodeLens = input.showCodeLens;
+  if (typeof input.showDiagnostics === 'boolean')
+    settings.showDiagnostics = input.showDiagnostics;
+  if (input.showInlayHints) {
+    if (typeof input.showInlayHints.methodScore === 'boolean')
+      settings.showInlayHints.methodScore = input.showInlayHints.methodScore;
+    if (typeof input.showInlayHints.complexityDelta === 'boolean')
+      settings.showInlayHints.complexityDelta = input.showInlayHints.complexityDelta;
+    if (typeof input.showInlayHints.details === 'boolean')
+      settings.showInlayHints.details = input.showInlayHints.details;
+  }
+  if (typeof input.totalScorePrefix === 'string')
+    settings.totalScorePrefix = input.totalScorePrefix;
+}
+
+function processFlatKey(settings: CognitiveComplexitySettings, input: any, key: string) {
+  // Remove 'cognitiveComplexity.' prefix if present
+  const cleanKey = key.replace(/^cognitiveComplexity\./, '');
+
+  switch (cleanKey) {
+    case 'threshold.warning':
+      settings.threshold.warning = Number(input[key]);
+      break;
+    case 'threshold.error':
+      settings.threshold.error = Number(input[key]);
+      break;
+    case 'showCodeLens':
+      settings.showCodeLens = parseBoolean(input[key]);
+      break;
+    case 'showDiagnostics':
+      settings.showDiagnostics = parseBoolean(input[key]);
+      break;
+    case 'showInlayHints.methodScore':
+      settings.showInlayHints.methodScore = parseBoolean(input[key]);
+      break;
+    case 'showInlayHints.details':
+      settings.showInlayHints.details = parseBoolean(input[key]);
+      break;
+    case 'showInlayHints.complexityDelta':
+      settings.showInlayHints.complexityDelta = parseBoolean(input[key]);
+      break;
+    case 'totalScorePrefix':
+      settings.totalScorePrefix = String(input[key]);
+      break;
+  }
+
+  // Visual Studio specific keys
+  processVSKeys(settings, input, key);
+}
+
+function processVSKeys(settings: CognitiveComplexitySettings, input: any, key: string) {
+  switch (key) {
+    case 'cognitiveComplexityThresholdWarning':
+      settings.threshold.warning = Number(input[key]);
+      break;
+    case 'cognitiveComplexityThresholdError':
+      settings.threshold.error = Number(input[key]);
+      break;
+    case 'cognitiveComplexityShowCodeLens':
+      settings.showCodeLens = Boolean(input[key]);
+      break;
+    case 'cognitiveComplexityShowDiagnostics':
+      settings.showDiagnostics = Boolean(input[key]);
+      break;
+    case 'cognitiveComplexityShowInlayHintsMethodScore':
+      settings.showInlayHints.methodScore = Boolean(input[key]);
+      break;
+    case 'cognitiveComplexityShowInlayHintsDetails':
+      settings.showInlayHints.details = Boolean(input[key]);
+      break;
+    case 'cognitiveComplexityShowInlayHintsComplexityDelta':
+      settings.showInlayHints.complexityDelta = Boolean(input[key]);
+      break;
+    case 'cognitiveComplexityTotalScorePrefix':
+      settings.totalScorePrefix = String(input[key]);
+      break;
+  }
+}
+
+function parseBoolean(value: any): boolean {
+  if (typeof value === 'string') return value === 'true';
+  return Boolean(value);
 }
 
 

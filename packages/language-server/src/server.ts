@@ -253,128 +253,128 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
     return pending.promise;
   }
 
-  // eslint-disable-next-line sonarjs/cognitive-complexity
-  const promise = (async () => {
-    if (!parserInitialized) {
-      if (initPromise) {
-        try {
-          await initPromise;
-        } catch {
-          return [];
-        }
-      } else {
-        await initParser(); // Await initParser
-        try {
-          await initPromise;
-        } catch {
-          return [];
-        }
-      }
-    }
-
-    if (!parserInitialized || !incrementalParser) return [];
-
-    let complexities: MethodComplexity[] = [];
-
-    try {
-      // Retrieve tree from IncrementalParser
-      // It should be up-to-date if onDidChangeTextDocument was handled
-      let tree = incrementalParser.getTree(textDocument.uri);
-      const treeVersion = incrementalParser.getVersion(textDocument.uri);
-
-      // Check if tree is missing OR if it's out of sync (version mismatch)
-      // Note: treeVersion might be undefined if tree is missing.
-      if (!tree || (treeVersion !== undefined && treeVersion !== textDocument.version)) {
-        // Try to recover by simulating handleOpen.
-        // This can happen if didOpen was missed/failed OR if didChange wasn't processed correctly.
-        connection.console.warn(
-          `Tree not found or out of sync for ${textDocument.uri} (TreeVer: ${treeVersion}, DocVer: ${textDocument.version}). Recovering...`,
-        );
-        await incrementalParser.handleOpen({
-          textDocument: {
-            uri: textDocument.uri,
-            languageId: textDocument.languageId,
-            version: textDocument.version,
-            text: textDocument.getText(),
-          },
-        });
-        tree = incrementalParser.getTree(textDocument.uri);
-      }
-
-      if (tree) {
-        // Calculate complexity using the cached (and incrementally updated) tree
-        const languageId = textDocument.languageId.toLowerCase();
-        if (languageId === 'csharp') {
-          complexities = await calculateComplexity(tree, 'csharp');
-        } else if (languageId === 'dart') {
-          complexities = await calculateComplexity(tree, 'dart');
-        } else if (
-          languageId === 'typescript' ||
-          languageId === 'javascript' ||
-          languageId === 'typescriptreact' ||
-          languageId === 'javascriptreact'
-        ) {
-          complexities = await calculateComplexity(tree, 'typescript');
-        }
-      }
-    } catch (e) {
-      connection.console.error(`Error calculating complexity: ${e}`);
-    }
-
-    complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
-
-    // Calculate deltas if not already cached
-    try {
-      if (textDocument.uri.startsWith('file://')) {
-        const fsPath = fileURLToPath(textDocument.uri);
-        if (!baseComplexityCache.has(textDocument.uri)) {
-          connection.console.log(`[Git] Fetching base complexity for ${fsPath}`);
-          const baseContentBuffer = await gitService.getGitHeadContent(fsPath);
-          if (baseContentBuffer) {
-            const baseContent = baseContentBuffer.toString('utf8');
-            const baseComplexities = await analyzeContent(baseContent, textDocument.languageId);
-            baseComplexityCache.set(textDocument.uri, baseComplexities);
-            connection.console.log(
-              `[Git] Cached base complexity for ${fsPath} (${baseComplexities.length} methods)`,
-            );
-          } else {
-            connection.console.log(`[Git] No base content found for ${fsPath}`);
-            baseComplexityCache.set(textDocument.uri, []);
-          }
-        }
-
-        const baseComplexities = baseComplexityCache.get(textDocument.uri) || [];
-        if (baseComplexities.length > 0) {
-          let deltasCalculated = 0;
-          complexities.forEach((current) => {
-            if (current.isCallback) return;
-            const base = baseComplexities.find((b) => b.name === current.name);
-            if (base) {
-              current.complexityDelta = current.score - base.score;
-              if (current.complexityDelta !== 0) deltasCalculated++;
-            }
-          });
-          if (deltasCalculated > 0) {
-            connection.console.log(
-              `[Git] Calculated ${deltasCalculated} non-zero deltas for ${fsPath}`,
-            );
-          }
-        }
-      }
-    } catch (e) {
-      connection.console.error(`[Git] Error calculating deltas for ${textDocument.uri}: ${e}`);
-      baseComplexityCache.set(textDocument.uri, []);
-    }
-
-    const currentPending = complexityPromises.get(textDocument.uri);
-    if (currentPending && currentPending.version === textDocument.version) {
-      complexityPromises.delete(textDocument.uri);
-    }
-    return complexities;
-  })();
+  const promise = performComplexityCalculation(textDocument);
 
   complexityPromises.set(textDocument.uri, { version: textDocument.version, promise });
   return promise;
+}
+
+async function performComplexityCalculation(textDocument: TextDocument): Promise<MethodComplexity[]> {
+  if (!(await ensureParserForAnalysis())) {
+    return [];
+  }
+
+  if (!incrementalParser) return [];
+
+  let complexities: MethodComplexity[] = [];
+
+  try {
+    const tree = await getOrRecoverTree(textDocument);
+    if (!tree) return [];
+
+    const languageId = textDocument.languageId.toLowerCase();
+
+    // We already have a switch for this in analyzeContent, but here we work on 'tree'
+    // Reuse the calc logic if possible, but tree is already parsed here.
+    if (languageId === 'csharp') {
+      complexities = await calculateComplexity(tree, 'csharp');
+    } else if (languageId === 'dart') {
+      complexities = await calculateComplexity(tree, 'dart');
+    } else if (
+      languageId === 'typescript' ||
+      languageId === 'javascript' ||
+      languageId === 'typescriptreact' ||
+      languageId === 'javascriptreact'
+    ) {
+      complexities = await calculateComplexity(tree, 'typescript');
+    }
+  } catch (e) {
+    connection.console.error(`Error calculating complexity: ${e}`);
+  }
+
+  complexityCache.set(textDocument.uri, { version: textDocument.version, complexities });
+
+  // Calculate deltas if not already cached
+  await calculateGitDeltas(textDocument, complexities);
+
+  const currentPending = complexityPromises.get(textDocument.uri);
+  if (currentPending && currentPending.version === textDocument.version) {
+    complexityPromises.delete(textDocument.uri);
+  }
+  return complexities;
+}
+
+async function getOrRecoverTree(textDocument: TextDocument): Promise<any> {
+  if (!incrementalParser) return null;
+
+  // Retrieve tree from IncrementalParser
+  // It should be up-to-date if onDidChangeTextDocument was handled
+  let tree = incrementalParser.getTree(textDocument.uri);
+  const treeVersion = incrementalParser.getVersion(textDocument.uri);
+
+  // Check if tree is missing OR if it's out of sync (version mismatch)
+  // Note: treeVersion might be undefined if tree is missing.
+  if (!tree || (treeVersion !== undefined && treeVersion !== textDocument.version)) {
+    // Try to recover by simulating handleOpen.
+    // This can happen if didOpen was missed/failed OR if didChange wasn't processed correctly.
+    connection.console.warn(
+      `Tree not found or out of sync for ${textDocument.uri} (TreeVer: ${treeVersion}, DocVer: ${textDocument.version}). Recovering...`,
+    );
+    await incrementalParser.handleOpen({
+      textDocument: {
+        uri: textDocument.uri,
+        languageId: textDocument.languageId,
+        version: textDocument.version,
+        text: textDocument.getText(),
+      },
+    });
+    tree = incrementalParser.getTree(textDocument.uri);
+  }
+  return tree;
+}
+
+async function calculateGitDeltas(textDocument: TextDocument, complexities: MethodComplexity[]) {
+  try {
+    if (textDocument.uri.startsWith('file://')) {
+      const fsPath = fileURLToPath(textDocument.uri);
+      if (!baseComplexityCache.has(textDocument.uri)) {
+        connection.console.log(`[Git] Fetching base complexity for ${fsPath}`);
+        const baseContentBuffer = await gitService.getGitHeadContent(fsPath);
+        if (baseContentBuffer) {
+          const baseContent = baseContentBuffer.toString('utf8');
+          const baseComplexities = await analyzeContent(baseContent, textDocument.languageId);
+          baseComplexityCache.set(textDocument.uri, baseComplexities);
+          connection.console.log(
+            `[Git] Cached base complexity for ${fsPath} (${baseComplexities.length} methods)`,
+          );
+        } else {
+          connection.console.log(`[Git] No base content found for ${fsPath}`);
+          baseComplexityCache.set(textDocument.uri, []);
+        }
+      }
+
+      const baseComplexities = baseComplexityCache.get(textDocument.uri) || [];
+      if (baseComplexities.length > 0) {
+        let deltasCalculated = 0;
+        complexities.forEach((current) => {
+          if (current.isCallback) return;
+          const base = baseComplexities.find((b) => b.name === current.name);
+          if (base) {
+            current.complexityDelta = current.score - base.score;
+            if (current.complexityDelta !== 0) deltasCalculated++;
+          }
+        });
+        if (deltasCalculated > 0) {
+          connection.console.log(
+            `[Git] Calculated ${deltasCalculated} non-zero deltas for ${fsPath}`,
+          );
+        }
+      }
+    }
+  } catch (e) {
+    connection.console.error(`[Git] Error calculating deltas for ${textDocument.uri}: ${e}`);
+    baseComplexityCache.set(textDocument.uri, []);
+  }
 }
 
 connection.onDidChangeConfiguration((change) => {
@@ -511,56 +511,66 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
   }
 });
 
-// eslint-disable-next-line sonarjs/cognitive-complexity
+
 async function analyzeContent(text: string, languageId: string): Promise<MethodComplexity[]> {
+  if (!(await ensureParserForAnalysis())) {
+    return [];
+  }
+
+  const parser = selectParser(languageId);
+  if (!parser) return [];
+
+  return executeAnalysis(parser, text, languageId);
+}
+
+async function ensureParserForAnalysis(): Promise<boolean> {
   if (!parserInitialized) {
     if (initPromise) {
       try {
         await initPromise;
       } catch {
-        return [];
+        return false;
       }
     } else {
       await initParser();
       try {
         await initPromise;
       } catch {
-        return [];
+        return false;
       }
     }
   }
+  return parserInitialized;
+}
 
-  if (!parserInitialized) return [];
-
-  let parser: Parser | undefined;
+function selectParser(languageId: string): Parser | undefined {
   const normalizedLangId = languageId.toLowerCase();
 
-  if (normalizedLangId === 'csharp') {
-    parser = csharpParser;
-  } else if (normalizedLangId === 'dart') {
-    parser = dartParser;
-  } else if (['typescript', 'javascript'].includes(normalizedLangId)) {
-    parser = typescriptParser;
-  } else if (['typescriptreact', 'javascriptreact'].includes(normalizedLangId)) {
-    parser = tsxParser;
-  }
+  if (normalizedLangId === 'csharp') return csharpParser;
+  if (normalizedLangId === 'dart') return dartParser;
+  if (['typescript', 'javascript'].includes(normalizedLangId)) return typescriptParser;
+  if (['typescriptreact', 'javascriptreact'].includes(normalizedLangId)) return tsxParser;
 
-  if (!parser) return [];
+  return undefined;
+}
 
+async function executeAnalysis(
+  parser: Parser,
+  text: string,
+  languageId: string
+): Promise<MethodComplexity[]> {
   let tree: any;
   try {
     tree = parser.parse(text);
-    let complexities: MethodComplexity[] = [];
+    const normalizedLangId = languageId.toLowerCase();
 
     if (normalizedLangId === 'csharp') {
-      complexities = await calculateComplexity(tree, 'csharp');
+      return await calculateComplexity(tree, 'csharp');
     } else if (normalizedLangId === 'dart') {
-      complexities = await calculateComplexity(tree, 'dart');
+      return await calculateComplexity(tree, 'dart');
     } else {
-      complexities = await calculateComplexity(tree, 'typescript');
+      return await calculateComplexity(tree, 'typescript');
     }
-
-    return complexities;
   } catch (e) {
     connection.console.error(`Error in analyzeContent: ${e}`);
     return [];
