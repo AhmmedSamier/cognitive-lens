@@ -138,7 +138,7 @@
   "scripts": {
     "vscode:prepublish": "bun run package",
     "compile": "bun run package",
-    "package": "tsup",
+    "package": "bun esbuild.js",
     "copy:wasm": "cp ../../node_modules/web-tree-sitter/web-tree-sitter.wasm dist/tree-sitter.wasm && cp tree-sitter-c_sharp.wasm dist/ && cp tree-sitter-dart.wasm dist/ && cp public/tree-sitter-typescript.wasm dist/ && cp public/tree-sitter-tsx.wasm dist/",
     "package:vsix": "vsce package --no-dependencies"
   },
@@ -148,9 +148,10 @@
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",
+    "bun-types": "latest",
+    "esbuild": "^0.27.2",
     "tsup": "^8.0.0",
-    "vsce": "^2.15.0",
-    "bun-types": "latest"
+    "vsce": "^2.15.0"
   },
   "bin": {
     "cognitive-complexity-ls": "./dist/server.js"
