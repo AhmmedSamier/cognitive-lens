@@ -1,9 +1,11 @@
 import * as cp from 'child_process';
+import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export class GitService {
+export class GitService extends EventEmitter {
   private repoRoots = new Map<string, string>();
+  private watchers = new Map<string, fs.FSWatcher>();
 
   /**
    * Retrieves the content of the file at HEAD for the given file path.
@@ -137,6 +139,7 @@ export class GitService {
         const root = path.normalize(rootBuffer.toString().trim());
         if (root) {
           this.repoRoots.set(root.toLowerCase(), root);
+          this.startWatching(root);
           return root;
         }
       }
@@ -145,6 +148,55 @@ export class GitService {
       // Not a git repo
     }
     return null;
+  }
+
+  private startWatching(root: string) {
+    if (this.watchers.has(root)) return;
+
+    try {
+      const gitPath = path.join(root, '.git');
+      if (!fs.existsSync(gitPath)) return;
+
+      let gitDir = gitPath;
+
+      const stats = fs.statSync(gitPath);
+      if (stats.isFile()) {
+        try {
+          // Handling git submodules or worktrees where .git is a file
+          // Content: "gitdir: <path>"
+          const content = fs.readFileSync(gitPath, 'utf8');
+          const match = content.match(/^gitdir:\s*(.*)$/m);
+          if (match) {
+            const rawGitDir = match[1].trim();
+            // gitDir can be relative or absolute
+            gitDir = path.resolve(root, rawGitDir);
+          }
+        } catch (e) {
+          console.warn(`Failed to resolve gitdir for ${root}:`, e);
+          return;
+        }
+      }
+
+      // Watch the directory containing HEAD (gitDir) to handle atomic updates (renames)
+      if (fs.existsSync(gitDir)) {
+        const watcher = fs.watch(gitDir, (eventType, filename) => {
+          if (filename === 'HEAD') {
+            this.emit('headChanged', root);
+          }
+        });
+        watcher.on('error', (e) => console.error(`Watcher error for ${gitDir}:`, e));
+        this.watchers.set(root, watcher);
+      }
+    } catch (e) {
+      console.error(`Failed to watch git HEAD for ${root}:`, e);
+    }
+  }
+
+  public dispose() {
+    for (const watcher of this.watchers.values()) {
+      watcher.close();
+    }
+    this.watchers.clear();
   }
 
   private execGit(args: string[], cwd: string, input?: string): Promise<Buffer | null> {
