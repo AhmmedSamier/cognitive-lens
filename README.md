@@ -74,15 +74,24 @@ Our calculation engine is meticulously tuned to match industry-standard rules wh
 - **Runtime**: [Bun](https://bun.sh/)
 - **Node.js**: LTS version
 
-### Fast Installation
+### Installation & Build
 
 ```bash
 # Clone the repository
 git clone https://github.com/AhmmedSamier/cognitive-lens.git
 cd cognitive-lens
 
-# Install and Build
+# Install Dependencies
 bun install
+
+# Build for VS Code
+cd packages/vscode-extension
+bun run package
+# Or to create a VSIX:
+bun run package:vsix
+
+# Build for Zed
+bun run build:zed
 ```
 
 ### Documentation
