@@ -11,9 +11,9 @@
 ### 1. The HUD for your Code
 
 - **Live Score (CodeLens)**: A floating score above every method tells you exactly how "braindead" easy or "nightmare" hard your code is to read.
-  ![CodeLens](../../images/code-lens.png)
+  ![CodeLens](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/images/code-lens.png)
 - **Deep Dive (Inlay Hints)**: Toggleable, line-specific annotations show the _exact_ cost of every branching statement.
-  ![Inlay Hints](../../images/score-details-per-line.png)
+  ![Inlay Hints](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/images/score-details-per-line.png)
   - _Green (0-14)_: Accessible logic.
   - _Yellow (15-24)_: Consider refactoring.
   - _Red (25+)_: High cognitive load.
@@ -21,7 +21,7 @@
 ### 2. Git-Integrated Complexity
 
 Stop regressions before they are committed. Cognitive Lens monitors your changes and displays a **Delta** decoration:
-![Complexity Deltas](../../images/git-delta.png)
+![Complexity Deltas](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/images/git-delta.png)
 
 - `🟢 -5`: Cleaned up a mess.
 - `🔴 +2`: Complexity is creeping in.
@@ -33,7 +33,7 @@ Hover over a complex method to see the **Refactoring Advisory**. It breaks down 
 ### 4. Interactive Reports
 
 Generate a full-screen workspace dashboard with `Cognitive Lens: Generate Project Report`.
-![Project Report](../../images/html-report.png)
+![Project Report](https://raw.githubusercontent.com/AhmmedSamier/cognitive-lens/main/images/html-report.png)
 
 - **Top 10 Most Complex Methods**: Find your biggest technical debt instantly.
 - **Fuzzy Search**: Quickly jump to any method.
@@ -82,7 +82,7 @@ Tailor the lens to your team's standards:
 ## 🤝 Contributing & Support
 
 - **Found a bug?** Open an [Issue](https://github.com/AhmmedSamier/cognitive-lens/issues).
-- **Want to help?** PRs are welcome! Check the root [README](../../README.md) for build instructions.
+- **Want to help?** PRs are welcome! Check the root [README](https://github.com/AhmmedSamier/cognitive-lens/blob/main/README.md) for build instructions.
 
 ---
 
