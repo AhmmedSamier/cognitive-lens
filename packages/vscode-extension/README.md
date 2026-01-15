@@ -45,13 +45,18 @@ Generate a full-screen workspace dashboard with `Cognitive Lens: Generate Projec
 
 Tailor the lens to your team's standards:
 
-| Setting                                      | Default | Description                             |
-| :------------------------------------------- | :------ | :-------------------------------------- |
-| `cognitiveComplexity.threshold.warning`      | `15`    | The score where logic becomes "Yellow". |
-| `cognitiveComplexity.threshold.error`        | `25`    | The score where logic becomes "Red".    |
-| `cognitiveComplexity.showCodeLens`           | `true`  | Show scores above methods.              |
-| `cognitiveComplexity.showInlayHints.details` | `true`  | Show `+1 (if)` style details.           |
-| `cognitiveComplexity.showGutterIcon`         | `false` | Traffic lights in the gutter.           |
+| Setting                                             | Default                | Description                                      |
+| :-------------------------------------------------- | :--------------------- | :----------------------------------------------- |
+| `cognitiveComplexity.threshold.warning`             | `15`                   | The score where logic becomes "Yellow".          |
+| `cognitiveComplexity.threshold.error`               | `25`                   | The score where logic becomes "Red".             |
+| `cognitiveComplexity.showCodeLens`                  | `true`                 | Show scores above methods.                       |
+| `cognitiveComplexity.showInlayHints.details`        | `true`                 | Show `+1 (if)` style details.                    |
+| `cognitiveComplexity.showInlayHints.methodScore`    | `false`                | Show the total score as an inlay hint.           |
+| `cognitiveComplexity.showInlayHints.complexityDelta`| `false`                | Show the score delta as an inlay hint.           |
+| `cognitiveComplexity.showGutterIcon`                | `false`                | Traffic lights in the gutter.                    |
+| `cognitiveComplexity.showDiagnostics`               | `true`                 | Show warnings/errors for high complexity.        |
+| `cognitiveComplexity.showComplexityDeltaDecoration` | `true`                 | Show colored delta decoration (VS Code).         |
+| `cognitiveComplexity.totalScorePrefix`              | `"Cognitive Complexity"` | Prefix text for the total score.                 |
 
 ---
 
@@ -62,6 +67,7 @@ Tailor the lens to your team's standards:
 | **TypeScript / TSX** | Full          | **SonarJS** Compatible        |
 | **JavaScript / JSX** | Full          | **SonarJS** Compatible        |
 | **C# (.cs)**         | Full          | **SonarSource C#** Compatible |
+| **Dart**             | Full          | **Community Standard**        |
 
 ---
 
