@@ -190,6 +190,14 @@ const validationTimers = new Map<string, NodeJS.Timeout>();
 const settingsCache = new Map<string, Promise<CognitiveComplexitySettings>>();
 const baseComplexityCache = new Map<string, MethodComplexity[]>();
 
+gitService.on('headChanged', (root) => {
+  connection.console.log(
+    `[Git] Branch/HEAD change detected in ${root}. Clearing base complexity cache.`,
+  );
+  baseComplexityCache.clear();
+  documents.all().forEach(validateTextDocumentDebounced);
+});
+
 // Handle document lifecycle for incremental parsing
 connection.onDidOpenTextDocument(async (params: DidOpenTextDocumentParams) => {
   if (!parserInitialized) await initParser();
