@@ -87,7 +87,7 @@ export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
   });
 
   const startIncParse = performance.now();
-  const newTree = parser.parse(newCode, tree);
+  parser.parse(newCode, tree);
   const endIncParse = performance.now();
   const incParseTime = endIncParse - startIncParse;
   console.log(`[Core] Incremental Parsing time: ${incParseTime.toFixed(2)} ms`);
