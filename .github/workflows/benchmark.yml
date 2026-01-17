@@ -31,3 +31,4 @@ jobs:
         with:
           name: benchmark-report
           path: benchmark-report.md
+          compression-level: 0

@@ -11,6 +11,27 @@ export interface BenchmarkResult {
   metrics: { [key: string]: number | string };
 }
 
+async function measure(name: string, fn: () => Promise<void> | void, iterations: number = 50): Promise<BenchmarkResult> {
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) {
+    await fn();
+  }
+  const end = performance.now();
+  const totalTime = end - start;
+  const averageTime = totalTime / iterations;
+
+  console.log(`[${name}] Average: ${averageTime.toFixed(2)}ms | Total: ${totalTime.toFixed(2)}ms (${iterations} runs)`);
+
+  return {
+    name,
+    metrics: {
+      averageTimeMs: averageTime,
+      totalTimeMs: totalTime,
+      iterations: iterations
+    }
+  };
+}
+
 export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
   // 1. Initialize Parsers
   await Parser.init();
@@ -29,11 +50,7 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
   }
 
   // Paths relative to packages/language-server/benchmark/index.ts
-  // We are in packages/language-server/benchmark/
-  // VSCode ext root is ../../vscode-extension/
-
   parsers.typescript = await loadLang('typescript', '../../vscode-extension/public/tree-sitter-typescript.wasm');
-  // Add other languages if needed, but TypeScript is enough for logic benchmark
 
   const incrementalParser = new IncrementalParser(parsers);
 
@@ -55,70 +72,67 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
   const textDocument = TextDocument.create(uri, 'typescript', 1, code);
 
   // Measure IncrementalParser.handleOpen
-  const startOpen = performance.now();
-  await incrementalParser.handleOpen({ textDocument: { uri, languageId: 'typescript', version: 1, text: code } });
-  const endOpen = performance.now();
-  const openTime = endOpen - startOpen;
-  console.log(`[LSP] Handle Open time: ${openTime.toFixed(2)} ms`);
+  const openResult = await measure('LSP: Handle Open', async () => {
+    // We reuse version 1 to simulate re-opening or just initial open cost
+    await incrementalParser.handleOpen({ textDocument: { uri, languageId: 'typescript', version: 1, text: code } });
+  }, 20);
 
   // Measure Complexity Calculation (Logic integration)
   const tree = incrementalParser.getTree(uri);
-  const startCalc = performance.now();
-  const complexities = await calculateComplexity(tree, 'typescript');
-  const endCalc = performance.now();
-  const calcTime = endCalc - startCalc;
-  console.log(`[LSP] Complexity Calc time: ${calcTime.toFixed(2)} ms`);
+  // We need to ensure tree exists. handleOpen should have created it.
+
+  let complexities: any[] = [];
+  const calcResult = await measure('LSP: Complexity Calc', async () => {
+    complexities = await calculateComplexity(tree, 'typescript');
+  }, 20);
 
   // Measure Compute CodeLens
-  const startLens = performance.now();
-  const lenses = computeCodeLenses(textDocument, complexities, defaultSettings);
-  const endLens = performance.now();
-  const lensTime = endLens - startLens;
-  console.log(`[LSP] Compute CodeLens time: ${lensTime.toFixed(2)} ms`);
+  let lenses: any[] = [];
+  const lensResult = await measure('LSP: CodeLens', () => {
+    lenses = computeCodeLenses(textDocument, complexities, defaultSettings);
+  }, 20);
 
   // Measure Compute InlayHints
-  const startHints = performance.now();
-  const hints = computeInlayHints(textDocument, complexities, defaultSettings, { start: { line: 0, character: 0 }, end: { line: textDocument.lineCount, character: 0 } });
-  const endHints = performance.now();
-  const hintsTime = endHints - startHints;
-  console.log(`[LSP] Compute InlayHints time: ${hintsTime.toFixed(2)} ms`);
+  let hints: any[] = [];
+  const hintsResult = await measure('LSP: InlayHints', () => {
+    hints = computeInlayHints(textDocument, complexities, defaultSettings, { start: { line: 0, character: 0 }, end: { line: textDocument.lineCount, character: 0 } });
+  }, 20);
 
   // Measure Incremental Update
-
-  // Create a new text with the change applied
-  const newText = ' ' + code;
-
-  const startUpdate = performance.now();
-  incrementalParser.handleChange({
-      textDocument: { uri, version: 2 },
-      contentChanges: [{ text: newText }]
-  });
-  const endUpdate = performance.now();
-  const updateTime = endUpdate - startUpdate;
-  console.log(`[LSP] Handle Change time: ${updateTime.toFixed(2)} ms`);
+  let currentText = code;
+  let currentVersion = 2;
+  const updateResult = await measure('LSP: Handle Change', async () => {
+      // Prepend space
+      const newText = ' ' + currentText;
+      await incrementalParser.handleChange({
+          textDocument: { uri, version: ++currentVersion },
+          contentChanges: [{ text: newText }]
+      });
+      currentText = newText;
+  }, 20);
 
   const memoryUsage = process.memoryUsage();
 
   return [
     {
         name: 'LSP: Handle Open',
-        metrics: { timeMs: openTime }
+        metrics: { ...openResult.metrics }
     },
     {
         name: 'LSP: Complexity Calc',
-        metrics: { timeMs: calcTime, methods: complexities.length }
+        metrics: { ...calcResult.metrics, methods: complexities.length }
     },
     {
         name: 'LSP: CodeLens',
-        metrics: { timeMs: lensTime, count: lenses.length }
+        metrics: { ...lensResult.metrics, count: lenses.length }
     },
     {
         name: 'LSP: InlayHints',
-        metrics: { timeMs: hintsTime, count: hints.length }
+        metrics: { ...hintsResult.metrics, count: hints.length }
     },
     {
         name: 'LSP: Handle Change',
-        metrics: { timeMs: updateTime }
+        metrics: { ...updateResult.metrics }
     },
     {
         name: 'LSP: Memory Usage',

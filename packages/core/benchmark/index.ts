@@ -7,6 +7,27 @@ export interface BenchmarkResult {
   metrics: { [key: string]: number | string };
 }
 
+async function measure(name: string, fn: () => Promise<void> | void, iterations: number = 50): Promise<BenchmarkResult> {
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) {
+    await fn();
+  }
+  const end = performance.now();
+  const totalTime = end - start;
+  const averageTime = totalTime / iterations;
+
+  console.log(`[${name}] Average: ${averageTime.toFixed(2)}ms | Total: ${totalTime.toFixed(2)}ms (${iterations} runs)`);
+
+  return {
+    name,
+    metrics: {
+      averageTimeMs: averageTime,
+      totalTimeMs: totalTime,
+      iterations: iterations
+    }
+  };
+}
+
 export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
   await Parser.init();
   const parser = new Parser();
@@ -52,45 +73,39 @@ export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
   parser.parse(baseFunction);
 
   // Measure Parsing (Full)
-  const startParse = performance.now();
-  const tree = parser.parse(code);
-  const endParse = performance.now();
-  const parseTime = (endParse - startParse);
-  console.log(`[Core] Full Parsing time: ${parseTime.toFixed(2)} ms`);
+  const fullParsingResult = await measure('Core: Full Parsing', () => {
+    parser.parse(code);
+  }, 20);
 
   // Measure Complexity Calculation
-  const startCalc = performance.now();
-  const results = await calculateComplexity(tree, 'typescript');
-  const endCalc = performance.now();
-  const calcTime = (endCalc - startCalc);
-  console.log(`[Core] Complexity calculation time: ${calcTime.toFixed(2)} ms`);
-
-  console.log(`[Core] Total methods processed: ${results.length}`);
+  const tree = parser.parse(code);
+  let methodsProcessed = 0;
+  const complexityResult = await measure('Core: Complexity Calculation', async () => {
+    const results = await calculateComplexity(tree, 'typescript');
+    methodsProcessed = results.length;
+  }, 20);
 
   // Measure Incremental Parsing
-  const editStartIndex = 10;
-  const oldEndIndex = 10;
-  const newEndIndex = 11;
-  const startPosition = { row: 0, column: 10 };
-  const oldEndPosition = { row: 0, column: 10 };
-  const newEndPosition = { row: 0, column: 11 };
+  // We will simulate typing ' ' at index 10 repeatedly
+  let currentTree = tree;
+  let currentCode = code;
 
-  const newCode = code.slice(0, 10) + ' ' + code.slice(10);
+  const incrementalResult = await measure('Core: Incremental Parsing', () => {
+    const insertIndex = 10;
+    const newCode = currentCode.slice(0, insertIndex) + ' ' + currentCode.slice(insertIndex);
 
-  tree.edit({
-    startIndex: editStartIndex,
-    oldEndIndex: oldEndIndex,
-    newEndIndex: newEndIndex,
-    startPosition: startPosition,
-    oldEndPosition: oldEndPosition,
-    newEndPosition: newEndPosition,
-  });
+    currentTree.edit({
+      startIndex: insertIndex,
+      oldEndIndex: insertIndex,
+      newEndIndex: insertIndex + 1,
+      startPosition: { row: 0, column: insertIndex },
+      oldEndPosition: { row: 0, column: insertIndex },
+      newEndPosition: { row: 0, column: insertIndex + 1 },
+    });
 
-  const startIncParse = performance.now();
-  const newTree = parser.parse(newCode, tree);
-  const endIncParse = performance.now();
-  const incParseTime = (endIncParse - startIncParse);
-  console.log(`[Core] Incremental Parsing time: ${incParseTime.toFixed(2)} ms`);
+    currentTree = parser.parse(newCode, currentTree);
+    currentCode = newCode;
+  }, 50);
 
   // Memory Usage
   const memoryUsage = process.memoryUsage();
@@ -99,21 +114,21 @@ export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
     {
         name: 'Core: Full Parsing',
         metrics: {
-            timeMs: parseTime,
+            ...fullParsingResult.metrics,
             codeSizeMB: codeSizeMB,
         }
     },
     {
         name: 'Core: Complexity Calculation',
         metrics: {
-            timeMs: calcTime,
-            methodsProcessed: results.length,
+            ...complexityResult.metrics,
+            methodsProcessed: methodsProcessed,
         }
     },
     {
         name: 'Core: Incremental Parsing',
         metrics: {
-            timeMs: incParseTime,
+            ...incrementalResult.metrics
         }
     },
     {

@@ -1,17 +1,30 @@
 # Cognitive Complexity Extensions Benchmark Report
 
-Date: 2026-01-17T19:50:44.285Z
+Date: 2026-01-17T20:41:51.091Z
 
-| Name | Metrics |
-|---|---|
-| Core: Full Parsing | **timeMs**: 450.20665799999995<br>**codeSizeMB**: 0.94 |
-| Core: Complexity Calculation | **timeMs**: 1036.9738310000002<br>**methodsProcessed**: 2000 |
-| Core: Incremental Parsing | **timeMs**: 6.977333000000044 |
-| Core: Memory Usage | **rssMB**: 192.66<br>**heapUsedMB**: 70.92 |
-| LSP: Handle Open | **timeMs**: 95.94108900000015 |
-| LSP: Complexity Calc | **timeMs**: 143.8540230000001<br>**methods**: 500 |
-| LSP: CodeLens | **timeMs**: 4.4848839999999655<br>**count**: 500 |
-| LSP: InlayHints | **timeMs**: 10.291704000000209<br>**count**: 2000 |
-| LSP: Handle Change | **timeMs**: 45.54544899999996 |
-| LSP: Memory Usage | **rssMB**: 244.65<br>**heapUsedMB**: 135.63 |
-| VS Code Extension | **note**: Skipped - Requires VS Code Environment |
+## Language Server
+
+| Benchmark | Average Time | Total Time | Iterations |
+|---|---|---|---|
+| Core: Full Parsing | 540.70 ms | 10.81 s | 20 |
+| Core: Complexity Calculation | 1.85 s | 37.08 s | 20 |
+| Core: Incremental Parsing | 19.78 ms | 988.95 ms | 50 |
+| LSP: Handle Open | 65.52 ms | 1.31 s | 20 |
+| LSP: Complexity Calc | 129.96 ms | 2.60 s | 20 |
+| LSP: CodeLens | 724.30 µs | 14.49 ms | 20 |
+| LSP: InlayHints | 6.74 ms | 134.79 ms | 20 |
+| LSP: Handle Change | 40.26 ms | 805.25 ms | 20 |
+
+### Memory Usage
+
+| Component | RSS | Heap Used |
+|---|---|---|
+| Core: Memory Usage | 1905.13 MB | 1666.70 MB |
+| LSP: Memory Usage | 1825.29 MB | 1254.07 MB |
+
+## VS Code Extension
+
+| Benchmark | Average Time | Total Time |
+|---|---|---|
+| Activation | - | Skipped |
+| Complexity Calculation | - | Skipped |
