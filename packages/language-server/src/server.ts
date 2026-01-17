@@ -26,6 +26,7 @@ import { IncrementalParser } from './IncrementalParser';
 import { GitService } from './gitService';
 import {
   CognitiveComplexitySettings,
+  calculateDeltas,
   computeCodeLenses,
   computeDiagnostics,
   computeHover,
@@ -363,15 +364,7 @@ async function calculateGitDeltas(textDocument: TextDocument, complexities: Meth
 
       const baseComplexities = baseComplexityCache.get(textDocument.uri) || [];
       if (baseComplexities.length > 0) {
-        let deltasCalculated = 0;
-        complexities.forEach((current) => {
-          if (current.isCallback) return;
-          const base = baseComplexities.find((b) => b.name === current.name);
-          if (base) {
-            current.complexityDelta = current.score - base.score;
-            if (current.complexityDelta !== 0) deltasCalculated++;
-          }
-        });
+        const deltasCalculated = calculateDeltas(complexities, baseComplexities);
         if (deltasCalculated > 0) {
           connection.console.log(
             `[Git] Calculated ${deltasCalculated} non-zero deltas for ${fsPath}`,

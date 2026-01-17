@@ -4,6 +4,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DiagnosticSeverity } from 'vscode-languageserver/node';
 import {
   CognitiveComplexitySettings,
+  calculateDeltas,
   computeCodeLenses,
   computeDiagnostics,
   computeInlayHints,
@@ -127,5 +128,105 @@ describe('Language Server Logic', () => {
 
     expect(hints.some((h) => h.label.toString().includes('Complexity: 6'))).toBe(true);
     expect(hints.some((h) => h.label.toString().includes('Cognitive Complexity: 6'))).toBe(false);
+  });
+
+  test('calculateDeltas correctly matches duplicate method names in order', () => {
+    const current: MethodComplexity[] = [
+      {
+        name: 'test',
+        score: 5,
+        details: [],
+        startIndex: 0,
+        endIndex: 10,
+        startLine: 0,
+        endLine: 1,
+      },
+      {
+        name: 'test',
+        score: 10,
+        details: [],
+        startIndex: 20,
+        endIndex: 30,
+        startLine: 5,
+        endLine: 6,
+      },
+    ];
+
+    const base: MethodComplexity[] = [
+      {
+        name: 'test',
+        score: 5,
+        details: [],
+        startIndex: 0,
+        endIndex: 10,
+        startLine: 0,
+        endLine: 1,
+      },
+      {
+        name: 'test',
+        score: 10,
+        details: [],
+        startIndex: 20,
+        endIndex: 30,
+        startLine: 5,
+        endLine: 6,
+      },
+    ];
+
+    const deltaCount = calculateDeltas(current, base);
+
+    expect(deltaCount).toBe(0);
+    expect(current[0].complexityDelta).toBe(0);
+    expect(current[1].complexityDelta).toBe(0);
+  });
+
+  test('calculateDeltas reports correct deltas when scores change for duplicate methods', () => {
+    const current: MethodComplexity[] = [
+      {
+        name: 'test',
+        score: 6, // Increased from 5
+        details: [],
+        startIndex: 0,
+        endIndex: 10,
+        startLine: 0,
+        endLine: 1,
+      },
+      {
+        name: 'test',
+        score: 10, // Same
+        details: [],
+        startIndex: 20,
+        endIndex: 30,
+        startLine: 5,
+        endLine: 6,
+      },
+    ];
+
+    const base: MethodComplexity[] = [
+      {
+        name: 'test',
+        score: 5,
+        details: [],
+        startIndex: 0,
+        endIndex: 10,
+        startLine: 0,
+        endLine: 1,
+      },
+      {
+        name: 'test',
+        score: 10,
+        details: [],
+        startIndex: 20,
+        endIndex: 30,
+        startLine: 5,
+        endLine: 6,
+      },
+    ];
+
+    const deltaCount = calculateDeltas(current, base);
+
+    expect(deltaCount).toBe(1);
+    expect(current[0].complexityDelta).toBe(1);
+    expect(current[1].complexityDelta).toBe(0);
   });
 });

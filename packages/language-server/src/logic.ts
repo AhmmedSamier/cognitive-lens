@@ -523,3 +523,30 @@ export function computeHover(
     },
   };
 }
+
+export function calculateDeltas(
+  currentComplexities: MethodComplexity[],
+  baseComplexities: MethodComplexity[],
+): number {
+  if (!baseComplexities || baseComplexities.length === 0) return 0;
+
+  let deltasCalculated = 0;
+  // Create a copy of base complexities to consume matches
+  const basePool = [...baseComplexities];
+
+  currentComplexities.forEach((current) => {
+    if (current.isCallback) return;
+
+    const baseIndex = basePool.findIndex((b) => b.name === current.name);
+    if (baseIndex !== -1) {
+      const base = basePool[baseIndex];
+      current.complexityDelta = current.score - base.score;
+      if (current.complexityDelta !== 0) deltasCalculated++;
+
+      // Remove the matched method from the pool so it's not reused
+      basePool.splice(baseIndex, 1);
+    }
+  });
+
+  return deltasCalculated;
+}
