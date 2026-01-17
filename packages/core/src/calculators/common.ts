@@ -2,6 +2,20 @@
 export type SyntaxNode = any;
 // eslint-disable-next-line sonarjs/redundant-type-aliases
 export type Tree = any;
+
+export interface TreeCursor {
+  nodeType: string;
+  currentFieldName: string | null;
+  currentNode: SyntaxNode;
+  startPosition: { row: number; column: number };
+  endPosition: { row: number; column: number };
+  startIndex: number;
+  endIndex: number;
+  gotoParent(): boolean;
+  gotoFirstChild(): boolean;
+  gotoNextSibling(): boolean;
+}
+
 import { MethodComplexity } from '../types';
 
 export type ComplexityNodeType =
@@ -15,25 +29,25 @@ export type ComplexityNodeType =
   | 'GOTO';
 
 export interface LanguageAdapter {
-  isMethod(node: SyntaxNode): boolean;
+  isMethodType(nodeType: string): boolean;
   getMethodName(node: SyntaxNode): string;
   isCallback(node: SyntaxNode): boolean;
-  getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined;
+  getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode): string | undefined;
   isBinaryContinuation(node: SyntaxNode): boolean;
   isElseIf(node: SyntaxNode): boolean;
-  shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
+  shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean;
 }
 
 export abstract class BaseLanguageAdapter implements LanguageAdapter {
-  abstract isMethod(node: SyntaxNode): boolean;
+  abstract isMethodType(nodeType: string): boolean;
   abstract getMethodName(node: SyntaxNode): string;
   abstract isCallback(node: SyntaxNode): boolean;
-  abstract getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined;
+  abstract getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   abstract getBinaryOperator(node: SyntaxNode): string | undefined;
   abstract isElseIf(node: SyntaxNode): boolean;
-  abstract shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean;
+  abstract shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean = false;
 
   isBinaryContinuation(node: SyntaxNode): boolean {
@@ -77,29 +91,80 @@ class ComplexityCalculator {
   constructor(private adapter: LanguageAdapter) {}
 
   public calculate(tree: Tree): MethodComplexity[] {
-    this.visit(tree.rootNode, 0);
+    const cursor = tree.walk();
+    // Assuming root has no parent, we start with a dummy parentType or handle root specially.
+    // Root type is typically 'program' or similar.
+    // We can pass the root node type.
+    this.visit(cursor, cursor.nodeType, 0);
     return this.methods;
   }
 
-  private visit(node: SyntaxNode, currentNesting: number) {
-    if (this.adapter.isMethod(node)) {
-      this.handleMethodEntry(node, currentNesting);
+  private visit(cursor: TreeCursor, parentType: string, currentNesting: number) {
+    const nodeType = cursor.nodeType;
+    const fieldName = cursor.currentFieldName;
+
+    let nextNesting = currentNesting;
+    let pushedContext = false;
+
+    if (this.adapter.isMethodType(nodeType)) {
+      // For method checks, we need the node
+      const node = cursor.currentNode;
+      this.handleMethodEntry(node, cursor, parentType, currentNesting);
+      // handleMethodEntry pushes context and calls visitChildren logic internally?
+      // No, we should avoid recursion in handleMethodEntry if we want to stick to cursor logic.
+      // But we are using recursive visit(cursor).
+      // So handleMethodEntry should just set up the state.
+      pushedContext = true;
+
+      // Calculate child nesting for the NEW context
+      // The context was pushed in handleMethodEntry.
+      // We need to determine the nesting for children of this method.
+      const depth = this.contextStack.length - 1; // 0-based
+      nextNesting = this.calculateChildNesting(depth, currentNesting);
+
     } else {
-      const nextNesting = this.handleStructuralNode(node, currentNesting);
-      this.visitChildren(node, nextNesting);
+      nextNesting = this.handleStructuralNode(cursor, parentType, currentNesting);
+    }
+
+    // Visit Children
+    if (cursor.gotoFirstChild()) {
+      do {
+        let childNesting = nextNesting;
+        // Check flattening based on CURRENT node (which is parent of children)
+        // and CHILD node (which is current cursor position in loop).
+        // Wait, 'parentType' argument to visit is the type of the node that CALLED visit.
+        // So 'nodeType' here is the parent of the children we are about to visit.
+
+        if (this.contextStack.length > 0 && this.adapter.shouldFlattenNesting(nodeType, cursor.nodeType, cursor.currentFieldName)) {
+           childNesting = Math.max(0, nextNesting - 1);
+        }
+
+        this.visit(cursor, nodeType, childNesting);
+      } while (cursor.gotoNextSibling());
+      cursor.gotoParent();
+    }
+
+    if (pushedContext) {
+        const context = this.contextStack.pop();
+        if (context) {
+             const method = context.method;
+             // We need to finalize. Depth is whatever it was.
+             // We can store depth in context.
+             this.finalizeMethodComplexity(method, context, context.depth);
+        }
     }
   }
 
-  private handleMethodEntry(node: SyntaxNode, currentNesting: number) {
+  private handleMethodEntry(node: SyntaxNode, cursor: TreeCursor, parentType: string, currentNesting: number) {
     const depth = this.contextStack.length;
     const newMethod: MethodComplexity = {
       name: this.adapter.getMethodName(node),
       score: 0,
       details: [],
-      startIndex: node.startIndex,
-      endIndex: node.endIndex,
-      startLine: node.startPosition.row,
-      endLine: node.endPosition.row,
+      startIndex: cursor.startIndex,
+      endIndex: cursor.endIndex,
+      startLine: cursor.startPosition.row,
+      endLine: cursor.endPosition.row,
       isCallback: this.adapter.isCallback(node),
       isRoot: depth === 0,
     };
@@ -116,12 +181,6 @@ class ComplexityCalculator {
     };
 
     this.contextStack.push(newContext);
-
-    const childNesting = this.calculateChildNesting(depth, currentNesting);
-    this.visitChildren(node, childNesting);
-
-    this.contextStack.pop();
-    this.finalizeMethodComplexity(newMethod, newContext, depth);
   }
 
   private calculateChildNesting(depth: number, currentNesting: number): number {
@@ -174,15 +233,15 @@ class ComplexityCalculator {
     parentContext.method.score += newMethod.score;
   }
 
-  private handleStructuralNode(node: SyntaxNode, currentNesting: number): number {
+  private handleStructuralNode(cursor: TreeCursor, parentType: string, currentNesting: number): number {
     const currentContext = this.contextStack[this.contextStack.length - 1];
     if (!currentContext) return currentNesting;
 
-    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(node);
+    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(cursor);
 
     if (structural > 0) {
       const score = structural + (increasesNesting ? currentNesting : 0);
-      const line = node.startPosition.row;
+      const line = cursor.startPosition.row;
 
       if (currentContext.depth === 0) {
         currentContext.hasStructuralComplexity = true;
@@ -205,15 +264,16 @@ class ComplexityCalculator {
     return currentNesting;
   }
 
-  private analyzeNodeComplexity(node: SyntaxNode) {
-    const type = this.adapter.getComplexityType(node);
+  private analyzeNodeComplexity(cursor: TreeCursor) {
+    const type = this.adapter.getComplexityType(cursor.nodeType, cursor.currentFieldName);
     if (!type) return { structural: 0, increasesNesting: false, label: '' };
 
+    // Instantiate node only if needed for detailed analysis
     if (type === 'BINARY') {
-      return this.analyzeBinary(node);
+      return this.analyzeBinary(cursor.currentNode);
     }
     if (type === 'ELSE') {
-      return this.analyzeElse(node);
+      return this.analyzeElse(cursor.currentNode);
     }
     return this.analyzeSimpleStruct(type);
   }
@@ -275,18 +335,6 @@ class ComplexityCalculator {
     } else {
       context.method.score += score;
       recordDetails(context.method);
-    }
-  }
-
-  private visitChildren(node: SyntaxNode, currentNesting: number) {
-    let child = node.firstChild;
-    while (child) {
-      let nextNesting = currentNesting;
-      if (this.contextStack.length > 0 && this.adapter.shouldFlattenNesting(node, child)) {
-        nextNesting = Math.max(0, currentNesting - 1);
-      }
-      this.visit(child, nextNesting);
-      child = child.nextSibling;
     }
   }
 }

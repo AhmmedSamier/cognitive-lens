@@ -24,8 +24,8 @@ const SIGNATURE_TYPES = new Set([
 ]);
 
 class DartAdapter extends BaseLanguageAdapter {
-  isMethod(node: SyntaxNode): boolean {
-    return node.type === 'function_body';
+  isMethodType(nodeType: string): boolean {
+    return nodeType === 'function_body';
   }
 
   getMethodName(node: SyntaxNode): string {
@@ -91,16 +91,15 @@ class DartAdapter extends BaseLanguageAdapter {
     return !!(p && (p.type === 'argument' || p.type === 'named_argument'));
   }
 
-  getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, _currentFieldName?: string | null): ComplexityNodeType | undefined {
     // Map node types to ComplexityNodeType
-    const type = node.type;
-    if (this.isLoop(type)) return 'LOOP';
-    if (this.isCatch(type)) return 'CATCH';
-    if (this.isBinary(type)) return 'BINARY';
-    if (this.isTernary(type)) return 'TERNARY';
-    if (type === 'if_statement' || type === 'if_element') return 'IF';
-    if (type === 'switch_statement') return 'SWITCH';
-    if (type === 'else_clause' || type === 'else') return 'ELSE';
+    if (this.isLoop(nodeType)) return 'LOOP';
+    if (this.isCatch(nodeType)) return 'CATCH';
+    if (this.isBinary(nodeType)) return 'BINARY';
+    if (this.isTernary(nodeType)) return 'TERNARY';
+    if (nodeType === 'if_statement' || nodeType === 'if_element') return 'IF';
+    if (nodeType === 'switch_statement') return 'SWITCH';
+    if (nodeType === 'else_clause' || nodeType === 'else') return 'ELSE';
 
     return undefined;
   }
@@ -144,13 +143,13 @@ class DartAdapter extends BaseLanguageAdapter {
     return false;
   }
 
-  shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean {
-    if (parent.type === 'if_statement' || parent.type === 'if_element') {
-      if (child.type === 'else' || child.type === 'else_clause') {
+  shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean {
+    if (parentType === 'if_statement' || parentType === 'if_element') {
+      if (nodeType === 'else' || nodeType === 'else_clause') {
         return true;
       }
-      const alternative = parent.childForFieldName('alternative');
-      if (alternative && child.equals(alternative)) {
+      const alternative = currentFieldName;
+      if (alternative === 'alternative') {
         return true;
       }
     }
