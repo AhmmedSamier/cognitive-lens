@@ -20,8 +20,9 @@ const METHOD_TYPES = new Set([
 class CSharpAdapter extends BaseLanguageAdapter {
   // SonarSource C# always increases nesting for lambdas (unlike SonarJS)
   override lambdaAlwaysNested = true;
-  isMethod(node: SyntaxNode): boolean {
-    return METHOD_TYPES.has(node.type);
+
+  isMethodType(nodeType: string): boolean {
+    return METHOD_TYPES.has(nodeType);
   }
 
   getMethodName(node: SyntaxNode): string {
@@ -40,8 +41,8 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return !!(node.parent && node.parent.type === 'argument');
   }
 
-  getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined {
-    switch (node.type) {
+  getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined {
+    switch (nodeType) {
       case 'if_statement':
         return 'IF';
       case 'switch_statement':
@@ -66,13 +67,10 @@ class CSharpAdapter extends BaseLanguageAdapter {
       default: {
         // Check for implicit else (alternative field which is not else_clause)
         // C# 'if' structure: if (cond) con alternative
-        const alternative = node.parent?.childForFieldName('alternative');
-        if (alternative && node.equals(alternative)) {
-          // If the alternative is an 'if_statement', it's an "else if", so it will be handled as IF.
-          // If it is NOT an 'if_statement', it is a pure ELSE branch (e.g. a block).
-          if (node.type !== 'if_statement') {
+        // If currentFieldName is 'alternative' and nodeType is NOT 'if_statement',
+        // it is a pure ELSE branch (e.g. a block).
+        if (currentFieldName === 'alternative' && nodeType !== 'if_statement') {
             return 'ELSE';
-          }
         }
         return undefined;
       }
@@ -95,12 +93,11 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return false;
   }
 
-  shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean {
-    if (parent.type === 'if_statement') {
-      const alternative = parent.childForFieldName('alternative');
-      // Flatten if the child is the 'else' branch.
+  shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean {
+    if (parentType === 'if_statement') {
+      // Flatten if the child is the 'else' branch (alternative field).
       // Whether it is 'else if' or just 'else', it shouldn't inherit the 'if's nesting.
-      if (alternative && child.equals(alternative)) {
+      if (currentFieldName === 'alternative') {
         return true;
       }
     }

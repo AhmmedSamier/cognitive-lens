@@ -16,8 +16,8 @@ const METHOD_TYPES = new Set([
 ]);
 
 class TypeScriptAdapter extends BaseLanguageAdapter {
-  isMethod(node: SyntaxNode): boolean {
-    return METHOD_TYPES.has(node.type);
+  isMethodType(nodeType: string): boolean {
+    return METHOD_TYPES.has(nodeType);
   }
 
   getMethodName(node: SyntaxNode): string {
@@ -45,8 +45,8 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return !!(node.parent && node.parent.type === 'arguments');
   }
 
-  getComplexityType(node: SyntaxNode): ComplexityNodeType | undefined {
-    switch (node.type) {
+  getComplexityType(nodeType: string, _currentFieldName?: string | null): ComplexityNodeType | undefined {
+    switch (nodeType) {
       case 'if_statement':
         return 'IF';
       case 'switch_statement':
@@ -95,11 +95,11 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return false;
   }
 
-  shouldFlattenNesting(parent: SyntaxNode, child: SyntaxNode): boolean {
+  shouldFlattenNesting(parentType: string, nodeType: string, _currentFieldName?: string | null): boolean {
     // Flatten nesting for any else_clause.
     // The else_clause itself (if not else-if) will add +1 score,
     // but it shouldn't inherit the nesting penalty from the parent IF.
-    return parent.type === 'if_statement' && child.type === 'else_clause';
+    return parentType === 'if_statement' && nodeType === 'else_clause';
   }
 }
 
