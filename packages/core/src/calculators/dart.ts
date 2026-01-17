@@ -7,6 +7,22 @@ import {
   Tree,
 } from './common';
 
+const LOOP_TYPES = new Set(['for_statement', 'while_statement', 'do_statement', 'for_element']);
+const CATCH_TYPES = new Set(['catch_clause', 'on_part']);
+const BINARY_TYPES = new Set([
+  'binary_expression',
+  'logical_and_expression',
+  'logical_or_expression',
+  'if_null_expression',
+]);
+const SIGNATURE_TYPES = new Set([
+  'function_signature',
+  'method_signature',
+  'constructor_signature',
+  'getter_signature',
+  'setter_signature',
+]);
+
 class DartAdapter extends BaseLanguageAdapter {
   isMethod(node: SyntaxNode): boolean {
     return node.type === 'function_body';
@@ -20,16 +36,7 @@ class DartAdapter extends BaseLanguageAdapter {
 
   private getSignatureNode(bodyNode: SyntaxNode): SyntaxNode | null {
     const sig = bodyNode.previousNamedSibling;
-    if (
-      sig &&
-      [
-        'function_signature',
-        'method_signature',
-        'constructor_signature',
-        'getter_signature',
-        'setter_signature',
-      ].includes(sig.type)
-    ) {
+    if (sig && SIGNATURE_TYPES.has(sig.type)) {
       return sig;
     }
     return null;
@@ -99,20 +106,15 @@ class DartAdapter extends BaseLanguageAdapter {
   }
 
   private isLoop(type: string): boolean {
-    return ['for_statement', 'while_statement', 'do_statement', 'for_element'].includes(type);
+    return LOOP_TYPES.has(type);
   }
 
   private isCatch(type: string): boolean {
-    return ['catch_clause', 'on_part'].includes(type);
+    return CATCH_TYPES.has(type);
   }
 
   private isBinary(type: string): boolean {
-    return [
-      'binary_expression',
-      'logical_and_expression',
-      'logical_or_expression',
-      'if_null_expression',
-    ].includes(type);
+    return BINARY_TYPES.has(type);
   }
 
   private isTernary(type: string): boolean {

@@ -7,15 +7,17 @@ import {
   Tree,
 } from './common';
 
+const METHOD_TYPES = new Set([
+  'function_declaration',
+  'method_definition',
+  'arrow_function',
+  'function_expression',
+  'generator_function_declaration',
+]);
+
 class TypeScriptAdapter extends BaseLanguageAdapter {
   isMethod(node: SyntaxNode): boolean {
-    return [
-      'function_declaration',
-      'method_definition',
-      'arrow_function',
-      'function_expression',
-      'generator_function_declaration',
-    ].includes(node.type);
+    return METHOD_TYPES.has(node.type);
   }
 
   getMethodName(node: SyntaxNode): string {
