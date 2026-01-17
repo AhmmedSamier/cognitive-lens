@@ -132,12 +132,12 @@ export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
         }
     },
     {
-        name: 'Core: Memory Usage',
-        metrics: {
-            rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
-            heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
-        }
-    }
+      name: 'Core: Memory Usage',
+      metrics: {
+        rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
+        heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
+      },
+    },
   ];
 }
 

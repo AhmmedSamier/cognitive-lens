@@ -1,10 +1,10 @@
-import * as path from 'path';
+import { calculateComplexity } from '@cognitive-complexity/core';
 import * as fs from 'fs';
+import * as path from 'path';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Language, Parser } from 'web-tree-sitter';
 import { IncrementalParser } from '../src/IncrementalParser';
 import { computeCodeLenses, computeInlayHints, defaultSettings } from '../src/logic';
-import { TextDocument } from 'vscode-languageserver-textdocument';
-import { calculateComplexity } from '@cognitive-complexity/core';
 
 export interface BenchmarkResult {
   name: string;
@@ -41,7 +41,7 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
   async function loadLang(name: string, relPath: string) {
     const wasmPath = path.resolve(import.meta.dir, relPath);
     if (!fs.existsSync(wasmPath)) {
-        throw new Error(`WASM not found: ${wasmPath}`);
+      throw new Error(`WASM not found: ${wasmPath}`);
     }
     const lang = await Language.load(wasmPath);
     const p = new Parser();
@@ -135,15 +135,15 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
         metrics: { ...updateResult.metrics }
     },
     {
-        name: 'LSP: Memory Usage',
-        metrics: {
-            rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
-            heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
-        }
-    }
+      name: 'LSP: Memory Usage',
+      metrics: {
+        rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
+        heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
+      },
+    },
   ];
 }
 
 if (import.meta.main) {
-    runLSPBenchmark().catch(console.error);
+  runLSPBenchmark().catch(console.error);
 }

@@ -1,13 +1,13 @@
+import * as fs from 'fs';
 import { runCoreBenchmark } from '../packages/core/benchmark/index.ts';
 import { runLSPBenchmark } from '../packages/language-server/benchmark/index.ts';
-import * as fs from 'fs';
 
 function formatTime(ms: number): string {
   if (typeof ms !== 'number') return '-';
   if (ms >= 1000) {
     return (ms / 1000).toFixed(2) + ' s';
   } else if (ms < 1) {
-    return (ms * 1000).toFixed(2) + ' µs';
+    return (ms * 1000).toFixed(2) + ' �s';
   } else {
     return ms.toFixed(2) + ' ms';
   }
