@@ -1,19 +1,21 @@
 import { MethodComplexity } from '../types';
 import { BaseLanguageAdapter, calculateGenericComplexity, ComplexityNodeType, SyntaxNode, Tree } from './common';
 
+const METHOD_TYPES = new Set([
+  'method_declaration',
+  'local_function_statement',
+  'lambda_expression',
+  'anonymous_method_expression',
+  'constructor_declaration',
+  'destructor_declaration',
+  'operator_declaration',
+]);
+
 class CSharpAdapter extends BaseLanguageAdapter {
   // SonarSource C# always increases nesting for lambdas (unlike SonarJS)
   override lambdaAlwaysNested = true;
   isMethod(node: SyntaxNode): boolean {
-    return [
-      'method_declaration',
-      'local_function_statement',
-      'lambda_expression',
-      'anonymous_method_expression',
-      'constructor_declaration',
-      'destructor_declaration',
-      'operator_declaration',
-    ].includes(node.type);
+    return METHOD_TYPES.has(node.type);
   }
 
   getMethodName(node: SyntaxNode): string {
