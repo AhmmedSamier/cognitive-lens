@@ -1,6 +1,25 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { runCoreBenchmark } from '../packages/core/benchmark/index.ts';
 import { runLSPBenchmark } from '../packages/language-server/benchmark/index.ts';
+
+function setupMocks() {
+  const mockSource = path.resolve(__dirname, '../packages/vscode-extension/benchmark/mocks/vscode');
+  const nodeModules = path.resolve(__dirname, '../node_modules');
+  const mockDest = path.join(nodeModules, 'vscode');
+
+  if (!fs.existsSync(nodeModules)) {
+    fs.mkdirSync(nodeModules, { recursive: true });
+  }
+
+  // If mock doesn't exist in node_modules, copy it
+  if (!fs.existsSync(mockDest)) {
+    console.log('Setting up VS Code mock in node_modules...');
+    fs.mkdirSync(mockDest, { recursive: true });
+    fs.copyFileSync(path.join(mockSource, 'package.json'), path.join(mockDest, 'package.json'));
+    fs.copyFileSync(path.join(mockSource, 'index.js'), path.join(mockDest, 'index.js'));
+  }
+}
 
 function formatTime(ms: number): string {
   if (typeof ms !== 'number') return '-';
@@ -14,6 +33,7 @@ function formatTime(ms: number): string {
 }
 
 async function main() {
+  setupMocks();
   console.log('Starting benchmarks...');
 
   let coreResults: any[] = [];
@@ -32,6 +52,16 @@ async function main() {
   } catch (e) {
     console.error('LSP benchmark failed:', e);
     lspResults.push({ name: 'LSP: Failed', metrics: { error: String(e) } });
+  }
+
+  let vscodeResults: any[] = [];
+  try {
+    console.log('Running VS Code Benchmarks...');
+    const { runVSCodeBenchmark } = await import('../packages/vscode-extension/benchmark/index.ts');
+    vscodeResults = await runVSCodeBenchmark();
+  } catch (e) {
+    console.error('VS Code benchmark failed:', e);
+    vscodeResults.push({ name: 'VS Code: Failed', metrics: { error: String(e) } });
   }
 
   // Generate Report
@@ -76,10 +106,19 @@ async function main() {
 
   // VS Code Extension Section
   report += '\n## VS Code Extension\n\n';
-  report += '| Benchmark | Average Time | Total Time |\n';
-  report += '|---|---|---|\n';
-  report += '| Activation | - | Skipped |\n';
-  report += '| Complexity Calculation | - | Skipped |\n';
+  report += '| Benchmark | Average Time | Total Time | Iterations |\n';
+  report += '|---|---|---|---|\n';
+
+  for (const res of vscodeResults) {
+    if (res.metrics.error) {
+        report += `| ${res.name} | Error: ${res.metrics.error} | - | - |\n`;
+        continue;
+    }
+    const avg = formatTime(res.metrics.averageTimeMs as number);
+    const total = formatTime(res.metrics.totalTimeMs as number);
+    const iter = res.metrics.iterations || 1;
+    report += `| ${res.name} | ${avg} | ${total} | ${iter} |\n`;
+  }
 
   console.log('\nReport Preview:');
   console.log(report);
