@@ -2,11 +2,16 @@ import * as path from 'path';
 import { Language, Parser } from 'web-tree-sitter';
 import { calculateComplexity } from '../src/complexity';
 
-async function runBenchmark() {
+export interface BenchmarkResult {
+  name: string;
+  metrics: { [key: string]: number | string };
+}
+
+export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
   await Parser.init();
   const parser = new Parser();
   const langPath = path.resolve(
-    __dirname,
+    import.meta.dir,
     '../../vscode-extension/public/tree-sitter-typescript.wasm',
   );
   const lang = await Language.load(langPath);
@@ -39,8 +44,9 @@ async function runBenchmark() {
   const iterations = 2000;
   const code = baseFunction.repeat(iterations);
 
-  console.log(`Running benchmark with ${iterations} function definitions...`);
-  console.log(`Code size: ${(code.length / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`[Core] Running benchmark with ${iterations} function definitions...`);
+  const codeSizeMB = (code.length / 1024 / 1024).toFixed(2);
+  console.log(`[Core] Code size: ${codeSizeMB} MB`);
 
   // Warmup
   parser.parse(baseFunction);
@@ -49,19 +55,20 @@ async function runBenchmark() {
   const startParse = performance.now();
   const tree = parser.parse(code);
   const endParse = performance.now();
-  console.log(`Full Parsing time: ${(endParse - startParse).toFixed(2)} ms`);
+  const parseTime = (endParse - startParse);
+  console.log(`[Core] Full Parsing time: ${parseTime.toFixed(2)} ms`);
 
   // Measure Complexity Calculation
   const startCalc = performance.now();
   const results = await calculateComplexity(tree, 'typescript');
   const endCalc = performance.now();
-  console.log(`Complexity calculation time: ${(endCalc - startCalc).toFixed(2)} ms`);
+  const calcTime = (endCalc - startCalc);
+  console.log(`[Core] Complexity calculation time: ${calcTime.toFixed(2)} ms`);
 
-  console.log(`Total methods processed: ${results.length}`);
+  console.log(`[Core] Total methods processed: ${results.length}`);
 
   // Measure Incremental Parsing
-  // Simulate adding a character at the beginning
-  const editStartIndex = 10; // arbitrary
+  const editStartIndex = 10;
   const oldEndIndex = 10;
   const newEndIndex = 11;
   const startPosition = { row: 0, column: 10 };
@@ -82,11 +89,44 @@ async function runBenchmark() {
   const startIncParse = performance.now();
   const newTree = parser.parse(newCode, tree);
   const endIncParse = performance.now();
-  console.log(`Incremental Parsing time: ${(endIncParse - startIncParse).toFixed(2)} ms`);
+  const incParseTime = (endIncParse - startIncParse);
+  console.log(`[Core] Incremental Parsing time: ${incParseTime.toFixed(2)} ms`);
 
-  // Verify tree is valid
-  const newResults = await calculateComplexity(newTree, 'typescript');
-  console.log(`Methods processed after edit: ${newResults.length}`);
+  // Memory Usage
+  const memoryUsage = process.memoryUsage();
+
+  return [
+    {
+        name: 'Core: Full Parsing',
+        metrics: {
+            timeMs: parseTime,
+            codeSizeMB: codeSizeMB,
+        }
+    },
+    {
+        name: 'Core: Complexity Calculation',
+        metrics: {
+            timeMs: calcTime,
+            methodsProcessed: results.length,
+        }
+    },
+    {
+        name: 'Core: Incremental Parsing',
+        metrics: {
+            timeMs: incParseTime,
+        }
+    },
+    {
+        name: 'Core: Memory Usage',
+        metrics: {
+            rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
+            heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
+        }
+    }
+  ];
 }
 
-runBenchmark();
+// Check if running directly
+if (import.meta.main) {
+  runCoreBenchmark().catch(console.error);
+}
