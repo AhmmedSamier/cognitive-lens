@@ -1,6 +1,6 @@
+import * as fs from 'fs';
 import { runCoreBenchmark } from '../packages/core/benchmark/index.ts';
 import { runLSPBenchmark } from '../packages/language-server/benchmark/index.ts';
-import * as fs from 'fs';
 
 async function main() {
   console.log('Starting benchmarks...');
@@ -30,10 +30,10 @@ async function main() {
 
   // VS Code (Skipped)
   results.push({
-      name: 'VS Code Extension',
-      metrics: {
-          note: 'Skipped - Requires VS Code Environment'
-      }
+    name: 'VS Code Extension',
+    metrics: {
+      note: 'Skipped - Requires VS Code Environment',
+    },
   });
 
   // Generate Report
@@ -43,10 +43,10 @@ async function main() {
   report += '|---|---|\n';
 
   for (const res of results) {
-      const metricsStr = Object.entries(res.metrics)
-        .map(([k, v]) => `**${k}**: ${v}`)
-        .join('<br>');
-      report += `| ${res.name} | ${metricsStr} |\n`;
+    const metricsStr = Object.entries(res.metrics)
+      .map(([k, v]) => `**${k}**: ${v}`)
+      .join('<br>');
+    report += `| ${res.name} | ${metricsStr} |\n`;
   }
 
   console.log('\n' + report);

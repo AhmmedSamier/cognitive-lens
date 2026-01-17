@@ -143,7 +143,6 @@ export class GitService extends EventEmitter {
           return root;
         }
       }
-       
     } catch {
       // Not a git repo
     }
