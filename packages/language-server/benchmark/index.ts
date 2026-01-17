@@ -103,12 +103,14 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
   let currentVersion = 2;
   const updateResult = await measure('LSP: Handle Change', async () => {
       // Prepend space
-      const newText = ' ' + currentText;
       await incrementalParser.handleChange({
           textDocument: { uri, version: ++currentVersion },
-          contentChanges: [{ text: newText }]
+          contentChanges: [{
+              range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+              text: ' '
+          }]
       });
-      currentText = newText;
+      currentText = ' ' + currentText;
   }, 20);
 
   const memoryUsage = process.memoryUsage();

@@ -75,20 +75,56 @@ export class IncrementalParser {
     const parser = this.getParser(entry.languageId);
     if (!parser) return;
 
-    const newVersion = params.textDocument.version;
+    let doc = entry.document;
+    let oldTree = entry.tree;
+    let useOldTree = true;
 
-    // Perform full document update
-    // We iterate to respect the sequence of changes if there are multiple,
-    // although for full sync we just want the final text.
-    // But TextDocument.update correctly handles array of changes.
+    for (const change of params.contentChanges) {
+      if ('range' in change) {
+        if (useOldTree) {
+          const startIndex = doc.offsetAt(change.range.start);
+          const oldEndIndex = doc.offsetAt(change.range.end);
+          const newEndIndex = startIndex + change.text.length;
 
-    const newDoc = TextDocument.update(entry.document, params.contentChanges, newVersion);
-    entry.document = newDoc;
+          const startPos = change.range.start;
+          const oldEndPos = change.range.end;
 
-    // Force full re-parse to ensure correctness and avoid offset issues with incremental edits.
-    // We delete the old tree to free memory.
-    entry.tree.delete();
-    entry.tree = parser.parse(newDoc.getText());
+          // Apply change to doc to get new positions
+          // We update the doc incrementally to ensure subsequent changes in the array are calculated against the correct state
+          const nextDoc = TextDocument.update(doc, [change], doc.version);
+          const newEndPos = nextDoc.positionAt(newEndIndex);
+
+          oldTree.edit({
+            startIndex,
+            oldEndIndex,
+            newEndIndex,
+            startPosition: { row: startPos.line, column: startPos.character },
+            oldEndPosition: { row: oldEndPos.line, column: oldEndPos.character },
+            newEndPosition: { row: newEndPos.line, column: newEndPos.character },
+          });
+
+          doc = nextDoc;
+        } else {
+          // If we already had a full update, just update the doc text
+          doc = TextDocument.update(doc, [change], doc.version);
+        }
+      } else {
+        // Full update
+        doc = TextDocument.update(doc, [change], doc.version);
+        useOldTree = false;
+      }
+    }
+
+    entry.document = doc;
+    // Pass the edited tree to parse() to enable incremental parsing
+    if (useOldTree) {
+      const newTree = parser.parse(doc.getText(), oldTree);
+      oldTree.delete();
+      entry.tree = newTree;
+    } else {
+      oldTree.delete();
+      entry.tree = parser.parse(doc.getText());
+    }
   }
 
   public getTree(uri: string): Tree | undefined {
