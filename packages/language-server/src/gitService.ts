@@ -143,7 +143,6 @@ export class GitService extends EventEmitter {
           return root;
         }
       }
-       
     } catch {
       // Not a git repo
     }
@@ -165,9 +164,10 @@ export class GitService extends EventEmitter {
           // Handling git submodules or worktrees where .git is a file
           // Content: "gitdir: <path>"
           const content = fs.readFileSync(gitPath, 'utf8');
-          const match = content.match(/^gitdir:\s*(.*)$/m);
-          if (match) {
-            const rawGitDir = match[1].trim();
+          const lines = content.split(/\r?\n/);
+          const gitdirLine = lines.find((l) => l.startsWith('gitdir:'));
+          if (gitdirLine) {
+            const rawGitDir = gitdirLine.substring(7).trim(); // "gitdir:".length is 7
             // gitDir can be relative or absolute
             gitDir = path.resolve(root, rawGitDir);
           }

@@ -25,6 +25,7 @@ import { Language, Parser } from 'web-tree-sitter';
 import { IncrementalParser } from './IncrementalParser';
 import { GitService } from './gitService';
 import {
+  calculateDeltas,
   CognitiveComplexitySettings,
   computeCodeLenses,
   computeDiagnostics,
@@ -248,7 +249,6 @@ function validateTextDocumentDebounced(textDocument: TextDocument) {
   ); // 500ms delay
 }
 
-
 async function getComplexity(textDocument: TextDocument): Promise<MethodComplexity[]> {
   const cached = complexityCache.get(textDocument.uri);
   if (cached && cached.version === textDocument.version) {
@@ -267,7 +267,9 @@ async function getComplexity(textDocument: TextDocument): Promise<MethodComplexi
   return promise;
 }
 
-async function performComplexityCalculation(textDocument: TextDocument): Promise<MethodComplexity[]> {
+async function performComplexityCalculation(
+  textDocument: TextDocument,
+): Promise<MethodComplexity[]> {
   if (!(await ensureParserForAnalysis())) {
     return [];
   }
@@ -363,15 +365,7 @@ async function calculateGitDeltas(textDocument: TextDocument, complexities: Meth
 
       const baseComplexities = baseComplexityCache.get(textDocument.uri) || [];
       if (baseComplexities.length > 0) {
-        let deltasCalculated = 0;
-        complexities.forEach((current) => {
-          if (current.isCallback) return;
-          const base = baseComplexities.find((b) => b.name === current.name);
-          if (base) {
-            current.complexityDelta = current.score - base.score;
-            if (current.complexityDelta !== 0) deltasCalculated++;
-          }
-        });
+        const deltasCalculated = calculateDeltas(complexities, baseComplexities);
         if (deltasCalculated > 0) {
           connection.console.log(
             `[Git] Calculated ${deltasCalculated} non-zero deltas for ${fsPath}`,
@@ -519,7 +513,6 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
   }
 });
 
-
 async function analyzeContent(text: string, languageId: string): Promise<MethodComplexity[]> {
   if (!(await ensureParserForAnalysis())) {
     return [];
@@ -565,7 +558,7 @@ function selectParser(languageId: string): Parser | undefined {
 async function executeAnalysis(
   parser: Parser,
   text: string,
-  languageId: string
+  languageId: string,
 ): Promise<MethodComplexity[]> {
   let tree: any;
   try {

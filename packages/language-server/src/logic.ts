@@ -59,12 +59,10 @@ function processNestedSettings(settings: CognitiveComplexitySettings, input: any
   if (input.threshold) {
     if (typeof input.threshold.warning === 'number')
       settings.threshold.warning = input.threshold.warning;
-    if (typeof input.threshold.error === 'number')
-      settings.threshold.error = input.threshold.error;
+    if (typeof input.threshold.error === 'number') settings.threshold.error = input.threshold.error;
   }
   if (typeof input.showCodeLens === 'boolean') settings.showCodeLens = input.showCodeLens;
-  if (typeof input.showDiagnostics === 'boolean')
-    settings.showDiagnostics = input.showDiagnostics;
+  if (typeof input.showDiagnostics === 'boolean') settings.showDiagnostics = input.showDiagnostics;
   if (input.showInlayHints) {
     if (typeof input.showInlayHints.methodScore === 'boolean')
       settings.showInlayHints.methodScore = input.showInlayHints.methodScore;
@@ -146,7 +144,6 @@ function parseBoolean(value: any): boolean {
   return Boolean(value);
 }
 
-
 export function computeDiagnostics(
   document: TextDocument,
   complexities: MethodComplexity[],
@@ -180,10 +177,11 @@ export function computeDiagnostics(
       const diagnostic: Diagnostic = {
         severity,
         range,
-        message: `Cognitive Complexity is ${complexity.score} (threshold: ${severity === DiagnosticSeverity.Error
-          ? settings.threshold.error
-          : settings.threshold.warning
-          })`,
+        message: `Cognitive Complexity is ${complexity.score} (threshold: ${
+          severity === DiagnosticSeverity.Error
+            ? settings.threshold.error
+            : settings.threshold.warning
+        })`,
         source: 'Cognitive Complexity',
       };
       diagnostics.push(diagnostic);
@@ -328,7 +326,7 @@ function createMethodScoreLabel(
   method: MethodComplexity,
   settings: CognitiveComplexitySettings,
   labelPrefix: string,
-  lines: number
+  lines: number,
 ): string {
   let deltaLabel = '';
   const hasDelta = method.complexityDelta !== undefined && method.complexityDelta !== null;
@@ -522,4 +520,31 @@ export function computeHover(
       end: document.positionAt(method.startIndex + method.name.length), // Highlight name
     },
   };
+}
+
+export function calculateDeltas(
+  currentComplexities: MethodComplexity[],
+  baseComplexities: MethodComplexity[],
+): number {
+  if (!baseComplexities || baseComplexities.length === 0) return 0;
+
+  let deltasCalculated = 0;
+  // Create a copy of base complexities to consume matches
+  const basePool = [...baseComplexities];
+
+  currentComplexities.forEach((current) => {
+    if (current.isCallback) return;
+
+    const baseIndex = basePool.findIndex((b) => b.name === current.name);
+    if (baseIndex !== -1) {
+      const base = basePool[baseIndex];
+      current.complexityDelta = current.score - base.score;
+      if (current.complexityDelta !== 0) deltasCalculated++;
+
+      // Remove the matched method from the pool so it's not reused
+      basePool.splice(baseIndex, 1);
+    }
+  });
+
+  return deltasCalculated;
 }

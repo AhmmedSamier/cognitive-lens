@@ -55,14 +55,14 @@ export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
   const startParse = performance.now();
   const tree = parser.parse(code);
   const endParse = performance.now();
-  const parseTime = (endParse - startParse);
+  const parseTime = endParse - startParse;
   console.log(`[Core] Full Parsing time: ${parseTime.toFixed(2)} ms`);
 
   // Measure Complexity Calculation
   const startCalc = performance.now();
   const results = await calculateComplexity(tree, 'typescript');
   const endCalc = performance.now();
-  const calcTime = (endCalc - startCalc);
+  const calcTime = endCalc - startCalc;
   console.log(`[Core] Complexity calculation time: ${calcTime.toFixed(2)} ms`);
 
   console.log(`[Core] Total methods processed: ${results.length}`);
@@ -87,9 +87,9 @@ export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
   });
 
   const startIncParse = performance.now();
-  const newTree = parser.parse(newCode, tree);
+  parser.parse(newCode, tree);
   const endIncParse = performance.now();
-  const incParseTime = (endIncParse - startIncParse);
+  const incParseTime = endIncParse - startIncParse;
   console.log(`[Core] Incremental Parsing time: ${incParseTime.toFixed(2)} ms`);
 
   // Memory Usage
@@ -97,32 +97,32 @@ export async function runCoreBenchmark(): Promise<BenchmarkResult[]> {
 
   return [
     {
-        name: 'Core: Full Parsing',
-        metrics: {
-            timeMs: parseTime,
-            codeSizeMB: codeSizeMB,
-        }
+      name: 'Core: Full Parsing',
+      metrics: {
+        timeMs: parseTime,
+        codeSizeMB: codeSizeMB,
+      },
     },
     {
-        name: 'Core: Complexity Calculation',
-        metrics: {
-            timeMs: calcTime,
-            methodsProcessed: results.length,
-        }
+      name: 'Core: Complexity Calculation',
+      metrics: {
+        timeMs: calcTime,
+        methodsProcessed: results.length,
+      },
     },
     {
-        name: 'Core: Incremental Parsing',
-        metrics: {
-            timeMs: incParseTime,
-        }
+      name: 'Core: Incremental Parsing',
+      metrics: {
+        timeMs: incParseTime,
+      },
     },
     {
-        name: 'Core: Memory Usage',
-        metrics: {
-            rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
-            heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
-        }
-    }
+      name: 'Core: Memory Usage',
+      metrics: {
+        rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
+        heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
+      },
+    },
   ];
 }
 

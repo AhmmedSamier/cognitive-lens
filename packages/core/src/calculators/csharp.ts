@@ -1,5 +1,11 @@
 import { MethodComplexity } from '../types';
-import { BaseLanguageAdapter, calculateGenericComplexity, ComplexityNodeType, SyntaxNode, Tree } from './common';
+import {
+  BaseLanguageAdapter,
+  calculateGenericComplexity,
+  ComplexityNodeType,
+  SyntaxNode,
+  Tree,
+} from './common';
 
 const METHOD_TYPES = new Set([
   'method_declaration',

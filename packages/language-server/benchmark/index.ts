@@ -1,10 +1,10 @@
-import * as path from 'path';
+import { calculateComplexity } from '@cognitive-complexity/core';
 import * as fs from 'fs';
+import * as path from 'path';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Language, Parser } from 'web-tree-sitter';
 import { IncrementalParser } from '../src/IncrementalParser';
 import { computeCodeLenses, computeInlayHints, defaultSettings } from '../src/logic';
-import { TextDocument } from 'vscode-languageserver-textdocument';
-import { calculateComplexity } from '@cognitive-complexity/core';
 
 export interface BenchmarkResult {
   name: string;
@@ -20,7 +20,7 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
   async function loadLang(name: string, relPath: string) {
     const wasmPath = path.resolve(import.meta.dir, relPath);
     if (!fs.existsSync(wasmPath)) {
-        throw new Error(`WASM not found: ${wasmPath}`);
+      throw new Error(`WASM not found: ${wasmPath}`);
     }
     const lang = await Language.load(wasmPath);
     const p = new Parser();
@@ -32,7 +32,10 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
   // We are in packages/language-server/benchmark/
   // VSCode ext root is ../../vscode-extension/
 
-  parsers.typescript = await loadLang('typescript', '../../vscode-extension/public/tree-sitter-typescript.wasm');
+  parsers.typescript = await loadLang(
+    'typescript',
+    '../../vscode-extension/public/tree-sitter-typescript.wasm',
+  );
   // Add other languages if needed, but TypeScript is enough for logic benchmark
 
   const incrementalParser = new IncrementalParser(parsers);
@@ -56,7 +59,9 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
 
   // Measure IncrementalParser.handleOpen
   const startOpen = performance.now();
-  await incrementalParser.handleOpen({ textDocument: { uri, languageId: 'typescript', version: 1, text: code } });
+  await incrementalParser.handleOpen({
+    textDocument: { uri, languageId: 'typescript', version: 1, text: code },
+  });
   const endOpen = performance.now();
   const openTime = endOpen - startOpen;
   console.log(`[LSP] Handle Open time: ${openTime.toFixed(2)} ms`);
@@ -78,7 +83,10 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
 
   // Measure Compute InlayHints
   const startHints = performance.now();
-  const hints = computeInlayHints(textDocument, complexities, defaultSettings, { start: { line: 0, character: 0 }, end: { line: textDocument.lineCount, character: 0 } });
+  const hints = computeInlayHints(textDocument, complexities, defaultSettings, {
+    start: { line: 0, character: 0 },
+    end: { line: textDocument.lineCount, character: 0 },
+  });
   const endHints = performance.now();
   const hintsTime = endHints - startHints;
   console.log(`[LSP] Compute InlayHints time: ${hintsTime.toFixed(2)} ms`);
@@ -90,8 +98,8 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
 
   const startUpdate = performance.now();
   incrementalParser.handleChange({
-      textDocument: { uri, version: 2 },
-      contentChanges: [{ text: newText }]
+    textDocument: { uri, version: 2 },
+    contentChanges: [{ text: newText }],
   });
   const endUpdate = performance.now();
   const updateTime = endUpdate - startUpdate;
@@ -101,35 +109,35 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
 
   return [
     {
-        name: 'LSP: Handle Open',
-        metrics: { timeMs: openTime }
+      name: 'LSP: Handle Open',
+      metrics: { timeMs: openTime },
     },
     {
-        name: 'LSP: Complexity Calc',
-        metrics: { timeMs: calcTime, methods: complexities.length }
+      name: 'LSP: Complexity Calc',
+      metrics: { timeMs: calcTime, methods: complexities.length },
     },
     {
-        name: 'LSP: CodeLens',
-        metrics: { timeMs: lensTime, count: lenses.length }
+      name: 'LSP: CodeLens',
+      metrics: { timeMs: lensTime, count: lenses.length },
     },
     {
-        name: 'LSP: InlayHints',
-        metrics: { timeMs: hintsTime, count: hints.length }
+      name: 'LSP: InlayHints',
+      metrics: { timeMs: hintsTime, count: hints.length },
     },
     {
-        name: 'LSP: Handle Change',
-        metrics: { timeMs: updateTime }
+      name: 'LSP: Handle Change',
+      metrics: { timeMs: updateTime },
     },
     {
-        name: 'LSP: Memory Usage',
-        metrics: {
-            rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
-            heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
-        }
-    }
+      name: 'LSP: Memory Usage',
+      metrics: {
+        rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
+        heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
+      },
+    },
   ];
 }
 
 if (import.meta.main) {
-    runLSPBenchmark().catch(console.error);
+  runLSPBenchmark().catch(console.error);
 }
