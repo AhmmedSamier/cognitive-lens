@@ -80,13 +80,26 @@ class CSharpAdapter extends BaseLanguageAdapter {
   getBinaryOperator(node: SyntaxNode): string | undefined {
     // SonarSource C# counts BOTH && and || (unlike SonarJS which only counts &&)
     // See: sonar-dotnet/CSharpCognitiveComplexityMetric.cs VisitBinaryExpression
-    const operatorNode = node.children.find((c: SyntaxNode) => c.type === '&&' || c.type === '||');
-    return operatorNode?.type;
+    let child = node.firstChild;
+    while (child) {
+      if (child.type === '&&' || child.type === '||') {
+        return child.type;
+      }
+      child = child.nextSibling;
+    }
+    return undefined;
   }
 
   isElseIf(node: SyntaxNode): boolean {
     if (node.type === 'else_clause') {
-      return node.children.some((c: SyntaxNode) => c.type === 'if_statement');
+      let child = node.firstChild;
+      while (child) {
+        if (child.type === 'if_statement') {
+          return true;
+        }
+        child = child.nextSibling;
+      }
+      return false;
     }
     // For inferred ELSE (blocks), they don't wrap 'if' in the same way 'else_clause' does.
     // Even if a block contains an IF, it's nesting, not 'else if' structure.

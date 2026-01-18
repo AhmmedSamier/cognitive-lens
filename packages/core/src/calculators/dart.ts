@@ -48,8 +48,11 @@ class DartAdapter extends BaseLanguageAdapter {
     }
 
     if (sig.type === 'getter_signature' || sig.type === 'setter_signature') {
-      const id = sig.children.find((c: SyntaxNode) => c.type === 'identifier');
-      if (id) return id.text;
+      let child = sig.firstChild;
+      while (child) {
+        if (child.type === 'identifier') return child.text;
+        child = child.nextSibling;
+      }
     }
 
     if (sig.type === 'method_signature') {
@@ -61,11 +64,14 @@ class DartAdapter extends BaseLanguageAdapter {
   }
 
   private getNameFromMethodSignature(sig: SyntaxNode): string | null {
-    const inner = sig.children.find((c: SyntaxNode) => c.type === 'function_signature');
-    if (inner) {
-      // Check in function_signature
-      return this.getNameFromFunctionSignature(inner);
+    let child = sig.firstChild;
+    while (child) {
+      if (child.type === 'function_signature') {
+        return this.getNameFromFunctionSignature(child);
+      }
+      child = child.nextSibling;
     }
+
     // direct identifier?
     const nameNode = sig.childForFieldName('name');
     if (nameNode) return nameNode.text;
@@ -77,8 +83,11 @@ class DartAdapter extends BaseLanguageAdapter {
     if (nameNode) return nameNode.text;
 
     // manual fallback
-    const id = sig.children.find((c: SyntaxNode) => c.type === 'identifier');
-    if (id) return id.text;
+    let child = sig.firstChild;
+    while (child) {
+      if (child.type === 'identifier') return child.text;
+      child = child.nextSibling;
+    }
 
     return null;
   }
@@ -123,18 +132,38 @@ class DartAdapter extends BaseLanguageAdapter {
   getBinaryOperator(node: SyntaxNode): string | undefined {
     if (node.type === 'if_null_expression') return '??';
 
-    const opNode = node.children.find((c: SyntaxNode) =>
-      ['logical_and_operator', 'logical_or_operator', '??'].includes(c.type),
-    );
-    if (opNode) return opNode.text;
+    let child = node.firstChild;
+    while (child) {
+      if (
+        child.type === 'logical_and_operator' ||
+        child.type === 'logical_or_operator' ||
+        child.type === '??'
+      ) {
+        return child.text;
+      }
+      child = child.nextSibling;
+    }
 
-    const directOp = node.children.find((c: SyntaxNode) => ['&&', '||', '??'].includes(c.type));
-    return directOp?.type;
+    child = node.firstChild;
+    while (child) {
+      if (child.type === '&&' || child.type === '||' || child.type === '??') {
+        return child.type;
+      }
+      child = child.nextSibling;
+    }
+    return undefined;
   }
 
   isElseIf(node: SyntaxNode): boolean {
     if (node.type === 'else_clause') {
-      return node.children.some((c: SyntaxNode) => c.type === 'if_statement');
+      let child = node.firstChild;
+      while (child) {
+        if (child.type === 'if_statement') {
+          return true;
+        }
+        child = child.nextSibling;
+      }
+      return false;
     }
     if (node.type === 'else') {
       const next = node.nextNamedSibling;
