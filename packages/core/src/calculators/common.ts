@@ -31,7 +31,7 @@ export type ComplexityNodeType =
 export interface LanguageAdapter {
   isMethodType(nodeType: string): boolean;
   getMethodName(node: SyntaxNode): string;
-  isCallback(node: SyntaxNode): boolean;
+  isCallback(node: SyntaxNode, parentType: string): boolean;
   getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode): string | undefined;
   isBinaryContinuation(node: SyntaxNode): boolean;
@@ -43,7 +43,7 @@ export interface LanguageAdapter {
 export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract isMethodType(nodeType: string): boolean;
   abstract getMethodName(node: SyntaxNode): string;
-  abstract isCallback(node: SyntaxNode): boolean;
+  abstract isCallback(node: SyntaxNode, parentType: string): boolean;
   abstract getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   abstract getBinaryOperator(node: SyntaxNode): string | undefined;
   abstract isElseIf(node: SyntaxNode): boolean;
@@ -165,7 +165,7 @@ class ComplexityCalculator {
       endIndex: cursor.endIndex,
       startLine: cursor.startPosition.row,
       endLine: cursor.endPosition.row,
-      isCallback: this.adapter.isCallback(node),
+      isCallback: this.adapter.isCallback(node, parentType),
       isRoot: depth === 0,
     };
 

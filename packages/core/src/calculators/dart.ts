@@ -92,12 +92,15 @@ class DartAdapter extends BaseLanguageAdapter {
     return null;
   }
 
-  isCallback(node: SyntaxNode): boolean {
-    let p = node.parent;
-    if (p && p.type === 'function_expression') {
-      p = p.parent;
+  isCallback(node: SyntaxNode, parentType: string): boolean {
+    if (parentType === 'argument' || parentType === 'named_argument') {
+      return true;
     }
-    return !!(p && (p.type === 'argument' || p.type === 'named_argument'));
+    if (parentType === 'function_expression') {
+      const grandParent = node.parent?.parent;
+      return !!(grandParent && (grandParent.type === 'argument' || grandParent.type === 'named_argument'));
+    }
+    return false;
   }
 
   getComplexityType(nodeType: string, _currentFieldName?: string | null): ComplexityNodeType | undefined {
@@ -156,14 +159,7 @@ class DartAdapter extends BaseLanguageAdapter {
 
   isElseIf(node: SyntaxNode): boolean {
     if (node.type === 'else_clause') {
-      let child = node.firstChild;
-      while (child) {
-        if (child.type === 'if_statement') {
-          return true;
-        }
-        child = child.nextSibling;
-      }
-      return false;
+      return node.firstNamedChild?.type === 'if_statement';
     }
     if (node.type === 'else') {
       const next = node.nextNamedSibling;
