@@ -41,8 +41,8 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return 'anonymous';
   }
 
-  isCallback(node: SyntaxNode): boolean {
-    return !!(node.parent && node.parent.type === 'arguments');
+  isCallback(_node: SyntaxNode, parentType: string): boolean {
+    return parentType === 'arguments';
   }
 
   getComplexityType(nodeType: string, _currentFieldName?: string | null): ComplexityNodeType | undefined {
@@ -85,14 +85,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
   }
 
   isElseIf(node: SyntaxNode): boolean {
-    let child = node.firstChild;
-    while (child) {
-      if (child.type === 'if_statement') {
-        return true;
-      }
-      child = child.nextSibling;
-    }
-    return false;
+    return node.firstNamedChild?.type === 'if_statement';
   }
 
   shouldFlattenNesting(parentType: string, nodeType: string, _currentFieldName?: string | null): boolean {

@@ -37,8 +37,8 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return 'anonymous';
   }
 
-  isCallback(node: SyntaxNode): boolean {
-    return !!(node.parent && node.parent.type === 'argument');
+  isCallback(_node: SyntaxNode, parentType: string): boolean {
+    return parentType === 'argument';
   }
 
   getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined {
@@ -92,14 +92,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
 
   isElseIf(node: SyntaxNode): boolean {
     if (node.type === 'else_clause') {
-      let child = node.firstChild;
-      while (child) {
-        if (child.type === 'if_statement') {
-          return true;
-        }
-        child = child.nextSibling;
-      }
-      return false;
+      return node.firstNamedChild?.type === 'if_statement';
     }
     // For inferred ELSE (blocks), they don't wrap 'if' in the same way 'else_clause' does.
     // Even if a block contains an IF, it's nesting, not 'else if' structure.
