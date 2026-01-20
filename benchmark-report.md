@@ -1,30 +1,30 @@
 # Cognitive Complexity Extensions Benchmark Report
 
-Date: 2026-01-19T12:42:39.813Z
+Date: 2026-01-20T12:40:08.426Z
 
 ## Language Server
 
 | Benchmark | Average Time | Total Time | Iterations |
 |---|---|---|---|
-| Core: Full Parsing | 530.70 ms | 10.61 s | 20 |
-| Core: Complexity Calculation | 1.24 s | 24.72 s | 20 |
-| Core: Incremental Parsing | 12.22 ms | 610.96 ms | 50 |
-| LSP: Handle Open | 58.95 ms | 1.18 s | 20 |
-| LSP: Complexity Calc | 107.45 ms | 2.15 s | 20 |
-| LSP: CodeLens | 680.25 �s | 13.60 ms | 20 |
-| LSP: InlayHints | 5.08 ms | 101.66 ms | 20 |
-| LSP: Handle Change | 1.01 ms | 20.16 ms | 20 |
+| Core: Full Parsing | 353.52 ms | 7.07 s | 20 |
+| Core: Complexity Calculation | 955.52 ms | 19.11 s | 20 |
+| Core: Incremental Parsing | 3.56 ms | 178.05 ms | 50 |
+| LSP: Handle Open | 56.75 ms | 1.13 s | 20 |
+| LSP: Complexity Calc | 107.01 ms | 2.14 s | 20 |
+| LSP: CodeLens | 686.74 �s | 13.73 ms | 20 |
+| LSP: InlayHints | 4.94 ms | 98.77 ms | 20 |
+| LSP: Handle Change | 1.08 ms | 21.57 ms | 20 |
 
 ### Memory Usage
 
 | Component | RSS | Heap Used |
 |---|---|---|
-| Core: Memory Usage | 1219.14 MB | 1666.70 MB |
-| LSP: Memory Usage | 1051.81 MB | 1252.13 MB |
+| Core: Memory Usage | 1209.72 MB | 1668.15 MB |
+| LSP: Memory Usage | 954.13 MB | 1252.14 MB |
 
 ## VS Code Extension
 
 | Benchmark | Average Time | Total Time | Iterations |
 |---|---|---|---|
-| Delta Decorations | 153.13 �s | 15.31 ms | 100 |
-| Webview Update | 4.32 �s | 431.64 �s | 100 |
+| Delta Decorations | 183.67 �s | 18.37 ms | 100 |
+| Webview Update | 4.71 �s | 471.28 �s | 100 |

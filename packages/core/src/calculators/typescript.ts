@@ -21,22 +21,23 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
   }
 
   getMethodName(node: SyntaxNode): string {
-    if (node.childForFieldName('name')) {
-      return node.childForFieldName('name')!.text;
-    } else if (
-      node.parent &&
-      node.parent.type === 'variable_declarator' &&
-      node.parent.childForFieldName('name')
-    ) {
-      return node.parent.childForFieldName('name')!.text;
-    } else if (node.parent && node.parent.type === 'pair' && node.parent.childForFieldName('key')) {
-      return node.parent.childForFieldName('key')!.text;
-    } else if (
-      node.parent &&
-      node.parent.type === 'assignment_expression' &&
-      node.parent.childForFieldName('left')
-    ) {
-      return node.parent.childForFieldName('left')!.text;
+    const nameNode = node.childForFieldName('name');
+    if (nameNode) {
+      return nameNode.text;
+    }
+
+    const parent = node.parent;
+    if (parent) {
+      if (parent.type === 'variable_declarator') {
+        const parentName = parent.childForFieldName('name');
+        if (parentName) return parentName.text;
+      } else if (parent.type === 'pair') {
+        const key = parent.childForFieldName('key');
+        if (key) return key.text;
+      } else if (parent.type === 'assignment_expression') {
+        const left = parent.childForFieldName('left');
+        if (left) return left.text;
+      }
     }
     return 'anonymous';
   }
