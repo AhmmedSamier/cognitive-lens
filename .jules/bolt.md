@@ -2,3 +2,7 @@
 
 **Learning:** Instantiating small arrays (e.g., `['a', 'b'].includes(x)`) inside a recursive tree visitor caused significant GC pressure and execution time overhead (~35%).
 **Action:** Move static lists of strings to module-level `Set` constants for O(1) lookup and zero allocation during traversal.
+
+## 2026-01-18 - [Object Allocation in Visitor]
+**Learning:** Returning fresh objects (e.g., `{ structural: 1, ... }`) from frequently called analysis functions creates massive GC pressure in recursive visitors.
+**Action:** Use static constant objects for common return values (like `RESULT_IF`, `RESULT_NONE`) to avoid allocation on hot paths.
