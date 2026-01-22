@@ -333,20 +333,29 @@ class ComplexityCalculator {
     label: string,
     line: number,
   ) {
-    const recordDetails = (target: MethodComplexity) => {
-      target.details.push({ line, score: structural, message: label });
-      if (increasesNesting && currentNesting > 0) {
-        target.details.push({ line, score: currentNesting, message: 'nesting' });
-      }
-    };
-
     if (context.depth === 1 && !this.adapter.lambdaAlwaysNested) {
       context.ownComplexityIfTopLevel += structural;
       context.ownComplexityIfNested += structural + (increasesNesting ? currentNesting + 1 : 0);
-      recordDetails(context.method);
+      this.recordScoreDetail(context.method, line, structural, increasesNesting, currentNesting, label);
     } else {
       context.method.score += score;
-      recordDetails(context.method);
+      this.recordScoreDetail(context.method, line, structural, increasesNesting, currentNesting, label);
+    }
+  }
+
+  // Performance optimization: Extracted to a method to avoid creating a closure
+  // on every call to addScore, reducing allocation pressure.
+  private recordScoreDetail(
+    target: MethodComplexity,
+    line: number,
+    structural: number,
+    increasesNesting: boolean,
+    currentNesting: number,
+    label: string,
+  ) {
+    target.details.push({ line, score: structural, message: label });
+    if (increasesNesting && currentNesting > 0) {
+      target.details.push({ line, score: currentNesting, message: 'nesting' });
     }
   }
 }
