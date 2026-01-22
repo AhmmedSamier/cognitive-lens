@@ -25,10 +25,15 @@ const SIGNATURE_TYPES = new Set([
 
 class DartAdapter extends BaseLanguageAdapter {
   isMethodType(nodeType: string): boolean {
-    return nodeType === 'function_body';
+    return nodeType === 'function_body' || SIGNATURE_TYPES.has(nodeType);
   }
 
   getMethodName(node: SyntaxNode): string {
+    if (SIGNATURE_TYPES.has(node.type)) {
+      const name = this.getNameFromSignature(node);
+      return name ? `__SIG__${name}` : 'anonymous';
+    }
+
     const sig = this.getSignatureNode(node);
     if (!sig) return 'anonymous';
     return this.getNameFromSignature(sig) || 'anonymous';
@@ -183,5 +188,51 @@ class DartAdapter extends BaseLanguageAdapter {
 }
 
 export function calculateDartComplexity(tree: Tree): MethodComplexity[] {
-  return calculateGenericComplexity(tree, new DartAdapter());
+  const adapter = new DartAdapter();
+  const rawMethods = calculateGenericComplexity(tree, adapter);
+  return mergeDartMethods(rawMethods);
+}
+
+function mergeDartMethods(methods: MethodComplexity[]): MethodComplexity[] {
+  const merged: MethodComplexity[] = [];
+
+  for (let i = 0; i < methods.length; i++) {
+    const current = methods[i];
+
+    if (current.name.startsWith('__SIG__')) {
+      const realName = current.name.substring(7); // remove __SIG__
+
+      // Check if there is a next method
+      if (i + 1 < methods.length) {
+        const next = methods[i + 1];
+
+        // If next method has the same name (without prefix), it's the body
+        if (next.name === realName) {
+          // Merge
+          next.score += current.score;
+          // Prepend signature details to body details
+          next.details = [...current.details, ...next.details];
+          // Use signature start position
+          next.startIndex = current.startIndex;
+          next.startLine = current.startLine;
+
+          // Skip next iteration as we merged it
+          i++;
+          merged.push(next);
+          continue;
+        }
+      }
+
+      // If we are here, it means we didn't merge (e.g. abstract method or signature without body)
+      // Just rename it and keep it
+      current.name = realName;
+      merged.push(current);
+    } else {
+      // Normal method (or body that wasn't preceded by signature - e.g. anonymous or already processed?)
+      // Anonymous functions don't get __SIG__ prefix so they fall here.
+      merged.push(current);
+    }
+  }
+
+  return merged;
 }

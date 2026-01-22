@@ -164,4 +164,16 @@ describe('Dart Complexity', () => {
     expect(complexities.length).toBe(1);
     expect(complexities[0].score).toBe(1);
   });
+
+  it('should calculate complexity in default parameters', async () => {
+    const code = `
+            void testDefaultParam(int a, [int b = 1 > 0 ? 1 : 0]) {
+                print("body");
+            }
+        `;
+    const complexities = await analyze(code);
+    expect(complexities.length).toBe(1);
+    // Ternary in default param should add +1 if traversing signature
+    expect(complexities[0].score).toBe(1);
+  });
 });
