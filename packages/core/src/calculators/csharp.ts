@@ -20,6 +20,8 @@ const METHOD_TYPES = new Set([
 class CSharpAdapter extends BaseLanguageAdapter {
   // SonarSource C# always increases nesting for lambdas (unlike SonarJS)
   override lambdaAlwaysNested = true;
+  // SonarSource C# aggregates lambda complexity into the parent method
+  override aggregateLambdaComplexity = true;
 
   isMethodType(nodeType: string): boolean {
     return METHOD_TYPES.has(nodeType);

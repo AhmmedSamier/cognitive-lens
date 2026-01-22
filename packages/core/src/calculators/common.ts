@@ -50,6 +50,7 @@ export interface LanguageAdapter {
   isElseIf(node: SyntaxNode): boolean;
   shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean;
+  aggregateLambdaComplexity: boolean;
 }
 
 export abstract class BaseLanguageAdapter implements LanguageAdapter {
@@ -61,6 +62,7 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract isElseIf(node: SyntaxNode): boolean;
   abstract shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean = false;
+  aggregateLambdaComplexity: boolean = false;
 
   isBinaryContinuation(node: SyntaxNode): boolean {
     const op = this.getBinaryOperator(node);
@@ -81,19 +83,9 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   }
 }
 
-interface SecondLevelFunction {
-  method: MethodComplexity;
-  complexityIfNested: number;
-  complexityIfTopLevel: number;
-}
-
 interface MethodContext {
   method: MethodComplexity;
   depth: number;
-  hasStructuralComplexity: boolean;
-  secondLevelFunctions: SecondLevelFunction[];
-  ownComplexityIfNested: number;
-  ownComplexityIfTopLevel: number;
 }
 
 class ComplexityCalculator {
@@ -186,10 +178,6 @@ class ComplexityCalculator {
     const newContext: MethodContext = {
       method: newMethod,
       depth,
-      hasStructuralComplexity: false,
-      secondLevelFunctions: [],
-      ownComplexityIfNested: 0,
-      ownComplexityIfTopLevel: 0,
     };
 
     this.contextStack.push(newContext);
@@ -205,39 +193,12 @@ class ComplexityCalculator {
 
   private finalizeMethodComplexity(
     newMethod: MethodComplexity,
-    newContext: MethodContext,
+    _newContext: MethodContext,
     depth: number,
   ) {
-    if (depth === 0) {
-      this.finalizeTopLevelMethod(newMethod, newContext);
-    } else if (depth === 1 && !this.adapter.lambdaAlwaysNested) {
-      this.registerSecondLevelFunction(newMethod, newContext);
-    } else {
+    if (depth > 0 && this.adapter.aggregateLambdaComplexity) {
       this.addToParentScore(newMethod);
     }
-  }
-
-  private finalizeTopLevelMethod(newMethod: MethodComplexity, newContext: MethodContext) {
-    let totalComplexity = newMethod.score;
-    for (const secondLevel of newContext.secondLevelFunctions) {
-      if (newContext.hasStructuralComplexity) {
-        totalComplexity += secondLevel.complexityIfNested;
-        secondLevel.method.score = secondLevel.complexityIfNested;
-      } else {
-        totalComplexity += secondLevel.complexityIfTopLevel;
-        secondLevel.method.score = secondLevel.complexityIfTopLevel;
-      }
-    }
-    newMethod.score = totalComplexity;
-  }
-
-  private registerSecondLevelFunction(newMethod: MethodComplexity, newContext: MethodContext) {
-    const parentContext = this.contextStack[0];
-    parentContext.secondLevelFunctions.push({
-      method: newMethod,
-      complexityIfNested: newContext.ownComplexityIfNested,
-      complexityIfTopLevel: newContext.ownComplexityIfTopLevel,
-    });
   }
 
   private addToParentScore(newMethod: MethodComplexity) {
@@ -254,10 +215,6 @@ class ComplexityCalculator {
     if (structural > 0) {
       const score = structural + (increasesNesting ? currentNesting : 0);
       const line = cursor.startPosition.row;
-
-      if (currentContext.depth === 0) {
-        currentContext.hasStructuralComplexity = true;
-      }
 
       this.addScore(
         currentContext,
@@ -333,14 +290,8 @@ class ComplexityCalculator {
     label: string,
     line: number,
   ) {
-    if (context.depth === 1 && !this.adapter.lambdaAlwaysNested) {
-      context.ownComplexityIfTopLevel += structural;
-      context.ownComplexityIfNested += structural + (increasesNesting ? currentNesting + 1 : 0);
-      this.recordScoreDetail(context.method, line, structural, increasesNesting, currentNesting, label);
-    } else {
-      context.method.score += score;
-      this.recordScoreDetail(context.method, line, structural, increasesNesting, currentNesting, label);
-    }
+    context.method.score += score;
+    this.recordScoreDetail(context.method, line, structural, increasesNesting, currentNesting, label);
   }
 
   // Performance optimization: Extracted to a method to avoid creating a closure
