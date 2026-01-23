@@ -68,9 +68,12 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
     const op = this.getBinaryOperator(node);
     if (!op) return false;
 
-    let left = node.childForFieldName('left');
+    // Performance optimization: Use firstNamedChild instead of childForFieldName
+    // to avoid string lookup overhead. In binary and parenthesized expressions,
+    // the left/inner expression is reliably the first named child.
+    let left = node.firstNamedChild;
     while (left && left.type === 'parenthesized_expression') {
-      left = left.childForFieldName('expression');
+      left = left.firstNamedChild;
     }
 
     if (left && left.type === 'binary_expression') {
