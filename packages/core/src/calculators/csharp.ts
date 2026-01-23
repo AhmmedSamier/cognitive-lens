@@ -82,6 +82,13 @@ class CSharpAdapter extends BaseLanguageAdapter {
   getBinaryOperator(node: SyntaxNode): string | undefined {
     // SonarSource C# counts BOTH && and || (unlike SonarJS which only counts &&)
     // See: sonar-dotnet/CSharpCognitiveComplexityMetric.cs VisitBinaryExpression
+
+    // Performance optimization: Check child(1) first as it is usually the operator
+    const secondChild = node.child(1);
+    if (secondChild && (secondChild.type === '&&' || secondChild.type === '||')) {
+      return secondChild.type;
+    }
+
     let child = node.firstChild;
     while (child) {
       if (child.type === '&&' || child.type === '||') {

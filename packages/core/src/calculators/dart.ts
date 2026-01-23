@@ -135,6 +135,21 @@ class DartAdapter extends BaseLanguageAdapter {
   getBinaryOperator(node: SyntaxNode): string | undefined {
     if (node.type === 'if_null_expression') return '??';
 
+    // Performance optimization: Check child(1) first
+    const secondChild = node.child(1);
+    if (secondChild) {
+      if (
+        secondChild.type === 'logical_and_operator' ||
+        secondChild.type === 'logical_or_operator' ||
+        secondChild.type === '??'
+      ) {
+        return secondChild.text;
+      }
+      if (secondChild.type === '&&' || secondChild.type === '||' || secondChild.type === '??') {
+        return secondChild.type;
+      }
+    }
+
     let child = node.firstChild;
     while (child) {
       if (

@@ -73,6 +73,14 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
   }
 
   getBinaryOperator(node: SyntaxNode): string | undefined {
+    // Performance optimization: Check child(1) first as it is usually the operator
+    // in a binary expression (left, op, right). This avoids iterating children
+    // and creating wrapper objects for them in the common case.
+    const secondChild = node.child(1);
+    if (secondChild && secondChild.type === '&&') {
+      return secondChild.type;
+    }
+
     let child = node.firstChild;
     while (child) {
       // SonarJS only counts && sequences, not || or ??
