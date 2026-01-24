@@ -46,7 +46,7 @@ export interface LanguageAdapter {
   isCallback(node: SyntaxNode, parentType: string): boolean;
   getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode): string | undefined;
-  isBinaryContinuation(node: SyntaxNode): boolean;
+  isBinaryContinuation(node: SyntaxNode, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode): boolean;
   shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean;
@@ -64,8 +64,8 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   lambdaAlwaysNested: boolean = false;
   aggregateLambdaComplexity: boolean = false;
 
-  isBinaryContinuation(node: SyntaxNode): boolean {
-    const op = this.getBinaryOperator(node);
+  isBinaryContinuation(node: SyntaxNode, cachedOp?: string): boolean {
+    const op = cachedOp || this.getBinaryOperator(node);
     if (!op) return false;
 
     // Performance optimization: Use firstNamedChild instead of childForFieldName
@@ -252,7 +252,7 @@ class ComplexityCalculator {
 
   private analyzeBinary(node: SyntaxNode) {
     const op = this.adapter.getBinaryOperator(node);
-    if (op && !this.adapter.isBinaryContinuation(node)) {
+    if (op && !this.adapter.isBinaryContinuation(node, op)) {
       return { structural: 1, increasesNesting: false, label: op };
     }
     return RESULT_NONE;
