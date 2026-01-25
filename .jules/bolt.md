@@ -10,3 +10,7 @@
 ## 2026-01-20 - [Closure Allocation in Hot Path]
 **Learning:** Defining helper closures (e.g., `const record = () => ...`) inside a method called thousands of times adds unnecessary allocation overhead.
 **Action:** Extract closures into private class methods to eliminate repeated function object creation in recursive visitors.
+
+## 2026-02-18 - [Redundant Wrapper Instantiation]
+**Learning:** `web-tree-sitter` accessors (like `node.child(1)`) instantiate new wrapper objects on every call. Redundant calls in recursive checks (like `isBinaryContinuation`) double the allocation cost.
+**Action:** Pass already-resolved node properties (like `op` string) as arguments to helper methods instead of re-fetching them from the AST node.
