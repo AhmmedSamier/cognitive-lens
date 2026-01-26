@@ -108,6 +108,10 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return false;
   }
 
+  canFlattenNesting(nodeType: string): boolean {
+    return nodeType === 'if_statement';
+  }
+
   shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean {
     if (parentType === 'if_statement') {
       // Flatten if the child is the 'else' branch (alternative field).
