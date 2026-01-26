@@ -49,6 +49,7 @@ export interface LanguageAdapter {
   isBinaryContinuation(node: SyntaxNode, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode): boolean;
   shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
+  canFlattenNesting(nodeType: string): boolean;
   lambdaAlwaysNested: boolean;
   aggregateLambdaComplexity: boolean;
 }
@@ -63,6 +64,10 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean = false;
   aggregateLambdaComplexity: boolean = false;
+
+  canFlattenNesting(_nodeType: string): boolean {
+    return false;
+  }
 
   isBinaryContinuation(node: SyntaxNode, cachedOp?: string): boolean {
     const op = cachedOp || this.getBinaryOperator(node);
@@ -108,7 +113,6 @@ class ComplexityCalculator {
 
   private visit(cursor: TreeCursor, parentType: string, currentNesting: number) {
     const nodeType = cursor.nodeType;
-    const fieldName = cursor.currentFieldName;
 
     let nextNesting = currentNesting;
     let pushedContext = false;
@@ -135,14 +139,17 @@ class ComplexityCalculator {
 
     // Visit Children
     if (cursor.gotoFirstChild()) {
+      // Performance optimization: Check if the parent node type supports flattening nesting at all.
+      // This avoids calling shouldFlattenNesting for every child of every node, which is a significant
+      // performance improvement (saving N calls per node where N is the number of children).
+      const canFlatten = this.contextStack.length > 0 && this.adapter.canFlattenNesting(nodeType);
+
       do {
         let childNesting = nextNesting;
         // Check flattening based on CURRENT node (which is parent of children)
         // and CHILD node (which is current cursor position in loop).
-        // Wait, 'parentType' argument to visit is the type of the node that CALLED visit.
-        // So 'nodeType' here is the parent of the children we are about to visit.
 
-        if (this.contextStack.length > 0 && this.adapter.shouldFlattenNesting(nodeType, cursor.nodeType, cursor.currentFieldName)) {
+        if (canFlatten && this.adapter.shouldFlattenNesting(nodeType, cursor.nodeType, cursor.currentFieldName)) {
            childNesting = Math.max(0, nextNesting - 1);
         }
 
