@@ -5,6 +5,8 @@ import {
   ComplexityNodeType,
   SyntaxNode,
   Tree,
+  TreeCursor,
+  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -79,7 +81,23 @@ class CSharpAdapter extends BaseLanguageAdapter {
     }
   }
 
-  getBinaryOperator(node: SyntaxNode): string | undefined {
+  getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined {
+    if (isCursor(node)) {
+      const cursor = node;
+      if (!cursor.gotoFirstChild()) return undefined;
+
+      do {
+        const type = cursor.nodeType;
+        if (type === '&&' || type === '||') {
+          cursor.gotoParent();
+          return type;
+        }
+      } while (cursor.gotoNextSibling());
+
+      cursor.gotoParent();
+      return undefined;
+    }
+
     // SonarSource C# counts BOTH && and || (unlike SonarJS which only counts &&)
     // See: sonar-dotnet/CSharpCognitiveComplexityMetric.cs VisitBinaryExpression
 

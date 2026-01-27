@@ -5,6 +5,8 @@ import {
   ComplexityNodeType,
   SyntaxNode,
   Tree,
+  TreeCursor,
+  isCursor,
 } from './common';
 
 const LOOP_TYPES = new Set(['for_statement', 'while_statement', 'do_statement', 'for_element']);
@@ -132,7 +134,37 @@ class DartAdapter extends BaseLanguageAdapter {
     return type === 'conditional_expression';
   }
 
-  getBinaryOperator(node: SyntaxNode): string | undefined {
+  getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined {
+    if (isCursor(node)) {
+      const cursor = node;
+      if (cursor.nodeType === 'if_null_expression') return '??';
+
+      if (!cursor.gotoFirstChild()) return undefined;
+
+      do {
+        const type = cursor.nodeType;
+        if (type === 'logical_and_operator') {
+          cursor.gotoParent();
+          return '&&';
+        }
+        if (type === 'logical_or_operator') {
+          cursor.gotoParent();
+          return '||';
+        }
+        if (type === '??') {
+          cursor.gotoParent();
+          return '??';
+        }
+        if (type === '&&' || type === '||') {
+          cursor.gotoParent();
+          return type;
+        }
+      } while (cursor.gotoNextSibling());
+
+      cursor.gotoParent();
+      return undefined;
+    }
+
     if (node.type === 'if_null_expression') return '??';
 
     // Performance optimization: Check child(1) first

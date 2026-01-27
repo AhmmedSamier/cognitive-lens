@@ -16,6 +16,10 @@ export interface TreeCursor {
   gotoNextSibling(): boolean;
 }
 
+export function isCursor(item: any): item is TreeCursor {
+  return typeof item.gotoFirstChild === 'function';
+}
+
 import { MethodComplexity } from '../types';
 
 export type ComplexityNodeType =
@@ -45,7 +49,7 @@ export interface LanguageAdapter {
   getMethodName(node: SyntaxNode): string;
   isCallback(node: SyntaxNode, parentType: string): boolean;
   getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
-  getBinaryOperator(node: SyntaxNode): string | undefined;
+  getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   isBinaryContinuation(node: SyntaxNode, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode): boolean;
   shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
@@ -59,7 +63,7 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract getMethodName(node: SyntaxNode): string;
   abstract isCallback(node: SyntaxNode, parentType: string): boolean;
   abstract getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
-  abstract getBinaryOperator(node: SyntaxNode): string | undefined;
+  abstract getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   abstract isElseIf(node: SyntaxNode): boolean;
   abstract shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean = false;
@@ -249,7 +253,7 @@ class ComplexityCalculator {
 
     // Instantiate node only if needed for detailed analysis
     if (type === 'BINARY') {
-      return this.analyzeBinary(cursor.currentNode);
+      return this.analyzeBinary(cursor);
     }
     if (type === 'ELSE') {
       return this.analyzeElse(cursor.currentNode);
@@ -257,10 +261,13 @@ class ComplexityCalculator {
     return this.analyzeSimpleStruct(type);
   }
 
-  private analyzeBinary(node: SyntaxNode) {
-    const op = this.adapter.getBinaryOperator(node);
-    if (op && !this.adapter.isBinaryContinuation(node, op)) {
-      return { structural: 1, increasesNesting: false, label: op };
+  private analyzeBinary(cursor: TreeCursor) {
+    const op = this.adapter.getBinaryOperator(cursor);
+    if (op) {
+      const node = cursor.currentNode;
+      if (!this.adapter.isBinaryContinuation(node, op)) {
+        return { structural: 1, increasesNesting: false, label: op };
+      }
     }
     return RESULT_NONE;
   }

@@ -5,6 +5,8 @@ import {
   ComplexityNodeType,
   SyntaxNode,
   Tree,
+  TreeCursor,
+  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -72,7 +74,25 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     }
   }
 
-  getBinaryOperator(node: SyntaxNode): string | undefined {
+  getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined {
+    if (isCursor(node)) {
+      const cursor = node;
+      if (!cursor.gotoFirstChild()) {
+        return undefined;
+      }
+
+      do {
+        if (cursor.nodeType === '&&') {
+          const op = cursor.nodeType;
+          cursor.gotoParent();
+          return op;
+        }
+      } while (cursor.gotoNextSibling());
+
+      cursor.gotoParent();
+      return undefined;
+    }
+
     // Performance optimization: Check child(1) first as it is usually the operator
     // in a binary expression (left, op, right). This avoids iterating children
     // and creating wrapper objects for them in the common case.
