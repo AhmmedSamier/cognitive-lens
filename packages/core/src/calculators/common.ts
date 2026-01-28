@@ -11,6 +11,7 @@ export interface TreeCursor {
   endPosition: { row: number; column: number };
   startIndex: number;
   endIndex: number;
+  nodeIsNamed: boolean;
   gotoParent(): boolean;
   gotoFirstChild(): boolean;
   gotoNextSibling(): boolean;
@@ -50,7 +51,7 @@ export interface LanguageAdapter {
   isCallback(node: SyntaxNode, parentType: string): boolean;
   getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
-  isBinaryContinuation(node: SyntaxNode, cachedOp?: string): boolean;
+  isBinaryContinuation(node: SyntaxNode | TreeCursor, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode): boolean;
   shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   canFlattenNesting(nodeType: string): boolean;
@@ -73,7 +74,11 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
     return false;
   }
 
-  isBinaryContinuation(node: SyntaxNode, cachedOp?: string): boolean {
+  isBinaryContinuation(node: SyntaxNode | TreeCursor, cachedOp?: string): boolean {
+    if (isCursor(node)) {
+      return this.isBinaryContinuationCursor(node, cachedOp);
+    }
+
     const op = cachedOp || this.getBinaryOperator(node);
     if (!op) return false;
 
@@ -92,6 +97,69 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
       }
     }
     return false;
+  }
+
+  private isBinaryContinuationCursor(cursor: TreeCursor, cachedOp?: string): boolean {
+    const op = cachedOp || this.getBinaryOperator(cursor);
+    if (!op) return false;
+
+    // Save state to restore later
+    // We need to find the first named child (left operand)
+    if (!cursor.gotoFirstChild()) {
+      return false;
+    }
+
+    let found = false;
+    let depth = 0; // Track how deep we descended into parenthesized expressions
+
+    // Find first named child, skipping anonymous nodes (like comments or punctuation if any)
+    // Usually the left operand is the first child or very close.
+    do {
+      if (cursor.nodeIsNamed) {
+        // Found first named child. Check if it is a continuation.
+        let isParen = cursor.nodeType === 'parenthesized_expression';
+        while (isParen) {
+          if (cursor.gotoFirstChild()) {
+            depth++;
+            // Find first named child inside parens
+            let foundInside = false;
+            while (!foundInside) {
+              if (cursor.nodeIsNamed) {
+                foundInside = true;
+              } else {
+                if (!cursor.gotoNextSibling()) break;
+              }
+            }
+            if (!foundInside) {
+              isParen = false;
+              break;
+            }
+            isParen = cursor.nodeType === 'parenthesized_expression';
+          } else {
+            break;
+          }
+        }
+
+        if (cursor.nodeType === 'binary_expression') {
+          const leftOp = this.getBinaryOperator(cursor);
+          if (leftOp === op) {
+            found = true;
+          }
+        }
+        break; // We found the relevant child and checked it.
+      }
+    } while (cursor.gotoNextSibling());
+
+    // Restore cursor position
+    // First, ascend from depth
+    while (depth > 0) {
+      cursor.gotoParent();
+      depth--;
+    }
+    // Then go back to parent of the children loop
+    cursor.gotoParent();
+
+    return found;
   }
 }
 
@@ -264,8 +332,7 @@ class ComplexityCalculator {
   private analyzeBinary(cursor: TreeCursor) {
     const op = this.adapter.getBinaryOperator(cursor);
     if (op) {
-      const node = cursor.currentNode;
-      if (!this.adapter.isBinaryContinuation(node, op)) {
+      if (!this.adapter.isBinaryContinuation(cursor, op)) {
         return { structural: 1, increasesNesting: false, label: op };
       }
     }
