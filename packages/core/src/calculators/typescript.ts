@@ -113,7 +113,23 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return undefined;
   }
 
-  isElseIf(node: SyntaxNode): boolean {
+  isElseIf(node: SyntaxNode | TreeCursor): boolean {
+    if (isCursor(node)) {
+      if (node.gotoFirstChild()) {
+        let found = false;
+        do {
+          if (node.nodeIsNamed) {
+            if (node.nodeType === 'if_statement') {
+              found = true;
+            }
+            break;
+          }
+        } while (node.gotoNextSibling());
+        node.gotoParent();
+        return found;
+      }
+      return false;
+    }
     return node.firstNamedChild?.type === 'if_statement';
   }
 

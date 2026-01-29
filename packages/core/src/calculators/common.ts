@@ -52,7 +52,7 @@ export interface LanguageAdapter {
   getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   isBinaryContinuation(node: SyntaxNode | TreeCursor, cachedOp?: string): boolean;
-  isElseIf(node: SyntaxNode): boolean;
+  isElseIf(node: SyntaxNode | TreeCursor): boolean;
   shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   canFlattenNesting(nodeType: string): boolean;
   lambdaAlwaysNested: boolean;
@@ -65,7 +65,7 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract isCallback(node: SyntaxNode, parentType: string): boolean;
   abstract getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
   abstract getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
-  abstract isElseIf(node: SyntaxNode): boolean;
+  abstract isElseIf(node: SyntaxNode | TreeCursor): boolean;
   abstract shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
   lambdaAlwaysNested: boolean = false;
   aggregateLambdaComplexity: boolean = false;
@@ -324,7 +324,7 @@ class ComplexityCalculator {
       return this.analyzeBinary(cursor);
     }
     if (type === 'ELSE') {
-      return this.analyzeElse(cursor.currentNode);
+      return this.analyzeElse(cursor);
     }
     return this.analyzeSimpleStruct(type);
   }
@@ -339,7 +339,7 @@ class ComplexityCalculator {
     return RESULT_NONE;
   }
 
-  private analyzeElse(node: SyntaxNode) {
+  private analyzeElse(node: SyntaxNode | TreeCursor) {
     if (!this.adapter.isElseIf(node)) {
       return RESULT_ELSE;
     }

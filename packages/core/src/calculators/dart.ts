@@ -204,7 +204,32 @@ class DartAdapter extends BaseLanguageAdapter {
     return undefined;
   }
 
-  isElseIf(node: SyntaxNode): boolean {
+  isElseIf(node: SyntaxNode | TreeCursor): boolean {
+    if (isCursor(node)) {
+      if (node.nodeType === 'else_clause') {
+        if (node.gotoFirstChild()) {
+          let found = false;
+          do {
+            if (node.nodeIsNamed) {
+              if (node.nodeType === 'if_statement') {
+                found = true;
+              }
+              break;
+            }
+          } while (node.gotoNextSibling());
+          node.gotoParent();
+          return found;
+        }
+        return false;
+      }
+      if (node.nodeType === 'else') {
+        const n = node.currentNode;
+        const next = n.nextNamedSibling;
+        return !!(next && next.type === 'if_statement');
+      }
+      return false;
+    }
+
     if (node.type === 'else_clause') {
       return node.firstNamedChild?.type === 'if_statement';
     }
