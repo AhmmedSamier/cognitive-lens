@@ -14,3 +14,7 @@
 ## 2026-02-18 - [Redundant Wrapper Instantiation]
 **Learning:** `web-tree-sitter` accessors (like `node.child(1)`) instantiate new wrapper objects on every call. Redundant calls in recursive checks (like `isBinaryContinuation`) double the allocation cost.
 **Action:** Pass already-resolved node properties (like `op` string) as arguments to helper methods instead of re-fetching them from the AST node.
+
+## 2026-01-29 - [Relative Performance Measurement]
+**Learning:** Absolute execution time in benchmarks fluctuates heavily (up to 30%) due to environmental load. However, the ratio between Complexity Calculation time and Parsing time remains consistent.
+**Action:** When optimizing CPU-bound tasks in this environment, use the ratio against a stable baseline (like Parsing time) to verify improvements even when absolute numbers are noisy.
