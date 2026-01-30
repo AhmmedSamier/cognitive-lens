@@ -183,8 +183,8 @@ class ComplexityCalculator {
     return this.methods;
   }
 
-  private visit(cursor: TreeCursor, parentType: string, currentNesting: number) {
-    const nodeType = cursor.nodeType;
+  private visit(cursor: TreeCursor, parentType: string, currentNesting: number, cachedNodeType?: string) {
+    const nodeType = cachedNodeType || cursor.nodeType;
 
     let nextNesting = currentNesting;
     let pushedContext = false;
@@ -206,7 +206,7 @@ class ComplexityCalculator {
       nextNesting = this.calculateChildNesting(depth, currentNesting);
 
     } else {
-      nextNesting = this.handleStructuralNode(cursor, parentType, currentNesting);
+      nextNesting = this.handleStructuralNode(cursor, parentType, currentNesting, nodeType);
     }
 
     // Visit Children
@@ -217,15 +217,16 @@ class ComplexityCalculator {
       const canFlatten = this.contextStack.length > 0 && this.adapter.canFlattenNesting(nodeType);
 
       do {
+        const childType = cursor.nodeType;
         let childNesting = nextNesting;
         // Check flattening based on CURRENT node (which is parent of children)
         // and CHILD node (which is current cursor position in loop).
 
-        if (canFlatten && this.adapter.shouldFlattenNesting(nodeType, cursor.nodeType, cursor.currentFieldName)) {
-           childNesting = Math.max(0, nextNesting - 1);
+        if (canFlatten && this.adapter.shouldFlattenNesting(nodeType, childType, cursor.currentFieldName)) {
+          childNesting = Math.max(0, nextNesting - 1);
         }
 
-        this.visit(cursor, nodeType, childNesting);
+        this.visit(cursor, nodeType, childNesting, childType);
       } while (cursor.gotoNextSibling());
       cursor.gotoParent();
     }
@@ -288,11 +289,16 @@ class ComplexityCalculator {
     parentContext.method.score += newMethod.score;
   }
 
-  private handleStructuralNode(cursor: TreeCursor, parentType: string, currentNesting: number): number {
+  private handleStructuralNode(
+    cursor: TreeCursor,
+    parentType: string,
+    currentNesting: number,
+    nodeType: string,
+  ): number {
     const currentContext = this.contextStack[this.contextStack.length - 1];
     if (!currentContext) return currentNesting;
 
-    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(cursor);
+    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(cursor, nodeType);
 
     if (structural > 0) {
       const score = structural + (increasesNesting ? currentNesting : 0);
@@ -315,8 +321,8 @@ class ComplexityCalculator {
     return currentNesting;
   }
 
-  private analyzeNodeComplexity(cursor: TreeCursor) {
-    const type = this.adapter.getComplexityType(cursor.nodeType, cursor.currentFieldName);
+  private analyzeNodeComplexity(cursor: TreeCursor, nodeType: string) {
+    const type = this.adapter.getComplexityType(nodeType, cursor.currentFieldName);
     if (!type) return RESULT_NONE;
 
     // Instantiate node only if needed for detailed analysis
