@@ -45,6 +45,19 @@ const RESULT_GOTO = { structural: 1, increasesNesting: true, label: 'goto' };
 const RESULT_ELSE = { structural: 1, increasesNesting: true, label: 'else' };
 const RESULT_NONE = { structural: 0, increasesNesting: false, label: '' };
 
+const RESULT_BINARY_AND = { structural: 1, increasesNesting: false, label: '&&' };
+const RESULT_BINARY_OR = { structural: 1, increasesNesting: false, label: '||' };
+const RESULT_BINARY_COALESCE = { structural: 1, increasesNesting: false, label: '??' };
+
+const RESULT_BINARY_CACHE: Record<
+  string,
+  { structural: number; increasesNesting: boolean; label: string }
+> = {
+  '&&': RESULT_BINARY_AND,
+  '||': RESULT_BINARY_OR,
+  '??': RESULT_BINARY_COALESCE,
+};
+
 export interface LanguageAdapter {
   isMethodType(nodeType: string): boolean;
   getMethodName(node: SyntaxNode): string;
@@ -171,6 +184,7 @@ interface MethodContext {
 class ComplexityCalculator {
   private methods: MethodComplexity[] = [];
   private contextStack: MethodContext[] = [];
+  private currentContext: MethodContext | undefined;
 
   constructor(private adapter: LanguageAdapter) {}
 
@@ -232,17 +246,28 @@ class ComplexityCalculator {
     }
 
     if (pushedContext) {
-        const context = this.contextStack.pop();
-        if (context) {
-             const method = context.method;
-             // We need to finalize. Depth is whatever it was.
-             // We can store depth in context.
-             this.finalizeMethodComplexity(method, context, context.depth);
-        }
+      const context = this.contextStack.pop();
+      // Update currentContext immediately after pop
+      this.currentContext =
+        this.contextStack.length > 0
+          ? this.contextStack[this.contextStack.length - 1]
+          : undefined;
+
+      if (context) {
+        const method = context.method;
+        // We need to finalize. Depth is whatever it was.
+        // We can store depth in context.
+        this.finalizeMethodComplexity(method, context, context.depth);
+      }
     }
   }
 
-  private handleMethodEntry(node: SyntaxNode, cursor: TreeCursor, parentType: string, currentNesting: number) {
+  private handleMethodEntry(
+    node: SyntaxNode,
+    cursor: TreeCursor,
+    parentType: string,
+    currentNesting: number,
+  ) {
     const depth = this.contextStack.length;
     const newMethod: MethodComplexity = {
       name: this.adapter.getMethodName(node),
@@ -264,6 +289,7 @@ class ComplexityCalculator {
     };
 
     this.contextStack.push(newContext);
+    this.currentContext = newContext;
   }
 
   private calculateChildNesting(depth: number, currentNesting: number): number {
@@ -285,8 +311,10 @@ class ComplexityCalculator {
   }
 
   private addToParentScore(newMethod: MethodComplexity) {
-    const parentContext = this.contextStack[this.contextStack.length - 1];
-    parentContext.method.score += newMethod.score;
+    // If we are here, we know there is a parent because depth > 0 check in finalizeMethodComplexity
+    if (this.currentContext) {
+      this.currentContext.method.score += newMethod.score;
+    }
   }
 
   private handleStructuralNode(
@@ -295,10 +323,13 @@ class ComplexityCalculator {
     currentNesting: number,
     nodeType: string,
   ): number {
-    const currentContext = this.contextStack[this.contextStack.length - 1];
+    const currentContext = this.currentContext;
     if (!currentContext) return currentNesting;
 
-    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(cursor, nodeType);
+    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(
+      cursor,
+      nodeType,
+    );
 
     if (structural > 0) {
       const score = structural + (increasesNesting ? currentNesting : 0);
@@ -339,7 +370,9 @@ class ComplexityCalculator {
     const op = this.adapter.getBinaryOperator(cursor);
     if (op) {
       if (!this.adapter.isBinaryContinuation(cursor, op)) {
-        return { structural: 1, increasesNesting: false, label: op };
+        return (
+          RESULT_BINARY_CACHE[op] || { structural: 1, increasesNesting: false, label: op }
+        );
       }
     }
     return RESULT_NONE;
