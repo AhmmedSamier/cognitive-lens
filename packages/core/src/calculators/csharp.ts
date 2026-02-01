@@ -45,7 +45,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return parentType === 'argument';
   }
 
-  getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined {
     switch (nodeType) {
       case 'if_statement':
         return 'IF';
@@ -73,7 +73,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
         // C# 'if' structure: if (cond) con alternative
         // If currentFieldName is 'alternative' and nodeType is NOT 'if_statement',
         // it is a pure ELSE branch (e.g. a block).
-        if (currentFieldName === 'alternative' && nodeType !== 'if_statement') {
+        if (nodeType !== 'if_statement' && cursor.currentFieldName === 'alternative') {
             return 'ELSE';
         }
         return undefined;
