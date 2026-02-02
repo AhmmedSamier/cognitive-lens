@@ -62,7 +62,7 @@ export interface LanguageAdapter {
   isMethodType(nodeType: string): boolean;
   getMethodName(node: SyntaxNode): string;
   isCallback(node: SyntaxNode, parentType: string): boolean;
-  getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
+  getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   isBinaryContinuation(node: SyntaxNode | TreeCursor, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode | TreeCursor): boolean;
@@ -76,7 +76,7 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract isMethodType(nodeType: string): boolean;
   abstract getMethodName(node: SyntaxNode): string;
   abstract isCallback(node: SyntaxNode, parentType: string): boolean;
-  abstract getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
+  abstract getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined;
   abstract getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   abstract isElseIf(node: SyntaxNode | TreeCursor): boolean;
   abstract shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
@@ -353,7 +353,7 @@ class ComplexityCalculator {
   }
 
   private analyzeNodeComplexity(cursor: TreeCursor, nodeType: string) {
-    const type = this.adapter.getComplexityType(nodeType, cursor.currentFieldName);
+    const type = this.adapter.getComplexityType(nodeType, cursor);
     if (!type) return RESULT_NONE;
 
     // Instantiate node only if needed for detailed analysis
