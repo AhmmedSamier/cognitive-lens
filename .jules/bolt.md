@@ -18,3 +18,7 @@
 ## 2026-01-29 - [Relative Performance Measurement]
 **Learning:** Absolute execution time in benchmarks fluctuates heavily (up to 30%) due to environmental load. However, the ratio between Complexity Calculation time and Parsing time remains consistent.
 **Action:** When optimizing CPU-bound tasks in this environment, use the ratio against a stable baseline (like Parsing time) to verify improvements even when absolute numbers are noisy.
+
+## 2026-03-01 - [WASM Property Access Cost]
+**Learning:** Accessing properties on `web-tree-sitter` cursors (like `cursor.currentFieldName`) involves a WASM boundary crossing and potential string allocation, which is costly in hot loops.
+**Action:** Pass the `TreeCursor` object itself to analysis methods and only access specific properties (like field names) lazily when strictly necessary, rather than eagerly extracting them for every node.
