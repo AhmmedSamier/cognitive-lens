@@ -852,6 +852,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     if (ext === 'cs') currentLanguage.value = 'csharp';
                     else if (ext === 'tsx') currentLanguage.value = 'tsx';
                     else if (ext === 'jsx') currentLanguage.value = 'jsx';
+                    else if (ext === 'js') currentLanguage.value = 'javascript';
+                    else if (ext === 'dart') currentLanguage.value = 'dart';
                     else currentLanguage.value = 'typescript';
 
                     // For the simplified "File-only" view, we show ALL method annotations at once.
