@@ -18,3 +18,7 @@
 ## 2026-01-29 - [Relative Performance Measurement]
 **Learning:** Absolute execution time in benchmarks fluctuates heavily (up to 30%) due to environmental load. However, the ratio between Complexity Calculation time and Parsing time remains consistent.
 **Action:** When optimizing CPU-bound tasks in this environment, use the ratio against a stable baseline (like Parsing time) to verify improvements even when absolute numbers are noisy.
+
+## 2026-02-04 - [Web-Tree-Sitter Getter Overhead]
+**Learning:** Accessing `cursor.currentFieldName` is expensive (likely due to WASM boundary) and should be avoided in hot loops unless necessary.
+**Action:** Refactor `LanguageAdapter` methods to accept `TreeCursor` allowing lazy access to properties, rather than passing extracted property values.
