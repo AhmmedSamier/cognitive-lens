@@ -62,11 +62,11 @@ export interface LanguageAdapter {
   isMethodType(nodeType: string): boolean;
   getMethodName(node: SyntaxNode): string;
   isCallback(node: SyntaxNode, parentType: string): boolean;
-  getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
+  getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   isBinaryContinuation(node: SyntaxNode | TreeCursor, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode | TreeCursor): boolean;
-  shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
+  shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean;
   canFlattenNesting(nodeType: string): boolean;
   lambdaAlwaysNested: boolean;
   aggregateLambdaComplexity: boolean;
@@ -76,10 +76,10 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract isMethodType(nodeType: string): boolean;
   abstract getMethodName(node: SyntaxNode): string;
   abstract isCallback(node: SyntaxNode, parentType: string): boolean;
-  abstract getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined;
+  abstract getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined;
   abstract getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   abstract isElseIf(node: SyntaxNode | TreeCursor): boolean;
-  abstract shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean;
+  abstract shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean;
   lambdaAlwaysNested: boolean = false;
   aggregateLambdaComplexity: boolean = false;
 
@@ -236,7 +236,7 @@ class ComplexityCalculator {
         // Check flattening based on CURRENT node (which is parent of children)
         // and CHILD node (which is current cursor position in loop).
 
-        if (canFlatten && this.adapter.shouldFlattenNesting(nodeType, childType, cursor.currentFieldName)) {
+        if (canFlatten && this.adapter.shouldFlattenNesting(nodeType, childType, cursor)) {
           childNesting = Math.max(0, nextNesting - 1);
         }
 
@@ -353,7 +353,7 @@ class ComplexityCalculator {
   }
 
   private analyzeNodeComplexity(cursor: TreeCursor, nodeType: string) {
-    const type = this.adapter.getComplexityType(nodeType, cursor.currentFieldName);
+    const type = this.adapter.getComplexityType(nodeType, cursor);
     if (!type) return RESULT_NONE;
 
     // Instantiate node only if needed for detailed analysis
