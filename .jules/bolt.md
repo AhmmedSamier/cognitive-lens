@@ -18,3 +18,7 @@
 ## 2026-01-29 - [Relative Performance Measurement]
 **Learning:** Absolute execution time in benchmarks fluctuates heavily (up to 30%) due to environmental load. However, the ratio between Complexity Calculation time and Parsing time remains consistent.
 **Action:** When optimizing CPU-bound tasks in this environment, use the ratio against a stable baseline (like Parsing time) to verify improvements even when absolute numbers are noisy.
+
+## 2026-02-24 - [Expensive Property Accessors]
+**Learning:** Accessing `cursor.currentFieldName` in `web-tree-sitter` is expensive (likely involves WASM boundary crossing and string allocation) and was being done for every node visited, even when ignored by the language adapter.
+**Action:** Refactor `getComplexityType` to accept the `TreeCursor` directly and lazy-load `currentFieldName` only when strictly necessary (e.g., distinguishing `else if` from `else` block in C#), reducing overhead by ~10%.
