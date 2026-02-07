@@ -48,7 +48,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return parentType === 'arguments';
   }
 
-  getComplexityType(nodeType: string, _currentFieldName?: string | null): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, _cursor: TreeCursor): ComplexityNodeType | undefined {
     switch (nodeType) {
       case 'if_statement':
         return 'IF';
