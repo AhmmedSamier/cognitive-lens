@@ -137,7 +137,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return nodeType === 'if_statement';
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, _currentFieldName?: string | null): boolean {
+  shouldFlattenNesting(parentType: string, nodeType: string, _cursor: TreeCursor): boolean {
     // Flatten nesting for any else_clause.
     // The else_clause itself (if not else-if) will add +1 score,
     // but it shouldn't inherit the nesting penalty from the parent IF.

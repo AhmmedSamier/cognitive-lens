@@ -244,13 +244,12 @@ class DartAdapter extends BaseLanguageAdapter {
     return nodeType === 'if_statement' || nodeType === 'if_element';
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean {
+  shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean {
     if (parentType === 'if_statement' || parentType === 'if_element') {
       if (nodeType === 'else' || nodeType === 'else_clause') {
         return true;
       }
-      const alternative = currentFieldName;
-      if (alternative === 'alternative') {
+      if (cursor.currentFieldName === 'alternative') {
         return true;
       }
     }
