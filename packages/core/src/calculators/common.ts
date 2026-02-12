@@ -67,6 +67,7 @@ export interface LanguageAdapter {
   isBinaryContinuation(node: SyntaxNode | TreeCursor, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode | TreeCursor): boolean;
   shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean;
+
   canFlattenNesting(nodeType: string): boolean;
   lambdaAlwaysNested: boolean;
   aggregateLambdaComplexity: boolean;
@@ -80,6 +81,7 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   abstract isElseIf(node: SyntaxNode | TreeCursor): boolean;
   abstract shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean;
+
   lambdaAlwaysNested: boolean = false;
   aggregateLambdaComplexity: boolean = false;
 
@@ -290,9 +292,9 @@ class ComplexityCalculator {
 
   private calculateChildNesting(depth: number, currentNesting: number): number {
     if (this.adapter.lambdaAlwaysNested) {
-      return depth >= 1 ? currentNesting + 1 : 0;
+      return depth >= 1 ? currentNesting + 1 : currentNesting;
     } else {
-      return depth >= 2 ? currentNesting + 1 : 0;
+      return depth >= 2 ? currentNesting + 1 : currentNesting;
     }
   }
 

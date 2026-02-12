@@ -1,30 +1,30 @@
 # Cognitive Complexity Extensions Benchmark Report
 
-Date: 2026-02-05T12:46:01.139Z
+Date: 2026-02-04T12:48:43.266Z
 
 ## Language Server
 
-| Benchmark | Average Time | Total Time | Iterations |
-|---|---|---|---|
-| Core: Full Parsing | 728.72 ms | 14.57 s | 20 |
-| Core: Complexity Calculation | 544.54 ms | 10.89 s | 20 |
-| Core: Incremental Parsing | 13.38 ms | 669.04 ms | 50 |
-| LSP: Handle Open | 68.75 ms | 1.37 s | 20 |
-| LSP: Complexity Calc | 64.16 ms | 1.28 s | 20 |
-| LSP: CodeLens | 702.95 �s | 14.06 ms | 20 |
-| LSP: InlayHints | 14.05 ms | 280.96 ms | 20 |
-| LSP: Handle Change | 1.97 ms | 39.36 ms | 20 |
+| Benchmark                    | Average Time | Total Time | Iterations |
+| ---------------------------- | ------------ | ---------- | ---------- |
+| Core: Full Parsing           | 412.48 ms    | 8.25 s     | 20         |
+| Core: Complexity Calculation | 512.70 ms    | 10.25 s    | 20         |
+| Core: Incremental Parsing    | 3.48 ms      | 173.98 ms  | 50         |
+| LSP: Handle Open             | 43.22 ms     | 864.38 ms  | 20         |
+| LSP: Complexity Calc         | 60.20 ms     | 1.20 s     | 20         |
+| LSP: CodeLens                | 616.14 �s    | 12.32 ms   | 20         |
+| LSP: InlayHints              | 4.71 ms      | 94.20 ms   | 20         |
+| LSP: Handle Change           | 1.05 ms      | 21.10 ms   | 20         |
 
 ### Memory Usage
 
-| Component | RSS | Heap Used |
-|---|---|---|
-| Core: Memory Usage | 732.77 MB | 1666.76 MB |
-| LSP: Memory Usage | 840.59 MB | 1251.59 MB |
+| Component          | RSS       | Heap Used  |
+| ------------------ | --------- | ---------- |
+| Core: Memory Usage | 734.43 MB | 1666.70 MB |
+| LSP: Memory Usage  | 844.29 MB | 1251.87 MB |
 
 ## VS Code Extension
 
-| Benchmark | Average Time | Total Time | Iterations |
-|---|---|---|---|
-| Delta Decorations | 178.32 �s | 17.83 ms | 100 |
-| Webview Update | 4.47 �s | 447.03 �s | 100 |
+| Benchmark         | Average Time | Total Time | Iterations |
+| ----------------- | ------------ | ---------- | ---------- |
+| Delta Decorations | 186.42 �s    | 18.64 ms   | 100        |
+| Webview Update    | 4.20 �s      | 420.23 �s  | 100        |

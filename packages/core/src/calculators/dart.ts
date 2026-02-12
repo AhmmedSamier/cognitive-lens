@@ -3,10 +3,10 @@ import {
   BaseLanguageAdapter,
   calculateGenericComplexity,
   ComplexityNodeType,
+  isCursor,
   SyntaxNode,
   Tree,
   TreeCursor,
-  isCursor,
 } from './common';
 
 const LOOP_TYPES = new Set(['for_statement', 'while_statement', 'do_statement', 'for_element']);
@@ -26,6 +26,9 @@ const SIGNATURE_TYPES = new Set([
 ]);
 
 class DartAdapter extends BaseLanguageAdapter {
+  // Aggregate lambda complexity into the parent method
+  override aggregateLambdaComplexity = true;
+
   isMethodType(nodeType: string): boolean {
     return nodeType === 'function_body';
   }
@@ -100,7 +103,10 @@ class DartAdapter extends BaseLanguageAdapter {
     }
     if (parentType === 'function_expression') {
       const grandParent = node.parent?.parent;
-      return !!(grandParent && (grandParent.type === 'argument' || grandParent.type === 'named_argument'));
+      return !!(
+        grandParent &&
+        (grandParent.type === 'argument' || grandParent.type === 'named_argument')
+      );
     }
     return false;
   }
@@ -211,7 +217,8 @@ class DartAdapter extends BaseLanguageAdapter {
           let found = false;
           do {
             if (node.nodeIsNamed) {
-              if (node.nodeType === 'if_statement') {
+              const currentType: string = node.nodeType;
+              if (currentType === 'if_statement') {
                 found = true;
               }
               break;

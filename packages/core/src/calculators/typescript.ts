@@ -3,10 +3,10 @@ import {
   BaseLanguageAdapter,
   calculateGenericComplexity,
   ComplexityNodeType,
+  isCursor,
   SyntaxNode,
   Tree,
   TreeCursor,
-  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -18,6 +18,10 @@ const METHOD_TYPES = new Set([
 ]);
 
 class TypeScriptAdapter extends BaseLanguageAdapter {
+  // We AGGREGATE nested function complexity into the parent
+  // This is a design choice for our use case (showing total complexity of a method including callbacks)
+  override aggregateLambdaComplexity = true;
+
   isMethodType(nodeType: string): boolean {
     return METHOD_TYPES.has(nodeType);
   }

@@ -3,10 +3,10 @@ import {
   BaseLanguageAdapter,
   calculateGenericComplexity,
   ComplexityNodeType,
+  isCursor,
   SyntaxNode,
   Tree,
   TreeCursor,
-  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -74,7 +74,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
         // If currentFieldName is 'alternative' and nodeType is NOT 'if_statement',
         // it is a pure ELSE branch (e.g. a block).
         if (nodeType !== 'if_statement' && cursor.currentFieldName === 'alternative') {
-            return 'ELSE';
+          return 'ELSE';
         }
         return undefined;
       }
@@ -124,7 +124,8 @@ class CSharpAdapter extends BaseLanguageAdapter {
           let found = false;
           do {
             if (node.nodeIsNamed) {
-              if (node.nodeType === 'if_statement') {
+              const currentType: string = node.nodeType;
+              if (currentType === 'if_statement') {
                 found = true;
               }
               break;

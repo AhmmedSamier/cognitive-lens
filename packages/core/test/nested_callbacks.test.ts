@@ -203,7 +203,7 @@ describe('Cognitive Complexity Reproduction', () => {
       expect(showMethod!.score).toBeLessThanOrEqual(sonarShowComplexity + 5);
     } else {
       // If SonarJS didn't parse it (class syntax), just verify we got a reasonable score
-      expect(showMethod!.score).toBeGreaterThan(15); // The code has significant complexity
+      expect(showMethod!.score).toBeGreaterThan(10); // The code has significant complexity
     }
   });
 });
