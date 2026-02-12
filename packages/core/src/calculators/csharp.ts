@@ -3,10 +3,10 @@ import {
   BaseLanguageAdapter,
   calculateGenericComplexity,
   ComplexityNodeType,
+  isCursor,
   SyntaxNode,
   Tree,
   TreeCursor,
-  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -45,7 +45,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return parentType === 'argument';
   }
 
-  getComplexityType(nodeType: string, cursor?: TreeCursor): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined {
     switch (nodeType) {
       case 'if_statement':
         return 'IF';
@@ -73,8 +73,8 @@ class CSharpAdapter extends BaseLanguageAdapter {
         // C# 'if' structure: if (cond) con alternative
         // If currentFieldName is 'alternative' and nodeType is NOT 'if_statement',
         // it is a pure ELSE branch (e.g. a block).
-        if (cursor?.currentFieldName === 'alternative' && nodeType !== 'if_statement') {
-            return 'ELSE';
+        if (nodeType !== 'if_statement' && cursor.currentFieldName === 'alternative') {
+          return 'ELSE';
         }
         return undefined;
       }
@@ -124,7 +124,8 @@ class CSharpAdapter extends BaseLanguageAdapter {
           let found = false;
           do {
             if (node.nodeIsNamed) {
-              if (node.nodeType === 'if_statement') {
+              const currentType: string = node.nodeType;
+              if (currentType === 'if_statement') {
                 found = true;
               }
               break;
@@ -149,11 +150,11 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return nodeType === 'if_statement';
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, cursor?: TreeCursor): boolean {
+  shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean {
     if (parentType === 'if_statement') {
       // Flatten if the child is the 'else' branch (alternative field).
       // Whether it is 'else if' or just 'else', it shouldn't inherit the 'if's nesting.
-      if (cursor?.currentFieldName === 'alternative') {
+      if (cursor.currentFieldName === 'alternative') {
         return true;
       }
     }

@@ -3,10 +3,10 @@ import {
   BaseLanguageAdapter,
   calculateGenericComplexity,
   ComplexityNodeType,
+  isCursor,
   SyntaxNode,
   Tree,
   TreeCursor,
-  isCursor,
 } from './common';
 
 const LOOP_TYPES = new Set(['for_statement', 'while_statement', 'do_statement', 'for_element']);
@@ -100,12 +100,15 @@ class DartAdapter extends BaseLanguageAdapter {
     }
     if (parentType === 'function_expression') {
       const grandParent = node.parent?.parent;
-      return !!(grandParent && (grandParent.type === 'argument' || grandParent.type === 'named_argument'));
+      return !!(
+        grandParent &&
+        (grandParent.type === 'argument' || grandParent.type === 'named_argument')
+      );
     }
     return false;
   }
 
-  getComplexityType(nodeType: string, _cursor?: TreeCursor): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, _cursor: TreeCursor): ComplexityNodeType | undefined {
     // Map node types to ComplexityNodeType
     if (this.isLoop(nodeType)) return 'LOOP';
     if (this.isCatch(nodeType)) return 'CATCH';
@@ -211,7 +214,8 @@ class DartAdapter extends BaseLanguageAdapter {
           let found = false;
           do {
             if (node.nodeIsNamed) {
-              if (node.nodeType === 'if_statement') {
+              const currentType: string = node.nodeType;
+              if (currentType === 'if_statement') {
                 found = true;
               }
               break;
@@ -244,13 +248,12 @@ class DartAdapter extends BaseLanguageAdapter {
     return nodeType === 'if_statement' || nodeType === 'if_element';
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, cursor?: TreeCursor): boolean {
+  shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean {
     if (parentType === 'if_statement' || parentType === 'if_element') {
       if (nodeType === 'else' || nodeType === 'else_clause') {
         return true;
       }
-      const alternative = cursor?.currentFieldName;
-      if (alternative === 'alternative') {
+      if (cursor.currentFieldName === 'alternative') {
         return true;
       }
     }

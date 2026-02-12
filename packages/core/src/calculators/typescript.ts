@@ -3,10 +3,10 @@ import {
   BaseLanguageAdapter,
   calculateGenericComplexity,
   ComplexityNodeType,
+  isCursor,
   SyntaxNode,
   Tree,
   TreeCursor,
-  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -48,7 +48,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return parentType === 'arguments';
   }
 
-  getComplexityType(nodeType: string, _cursor?: TreeCursor): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, _cursor: TreeCursor): ComplexityNodeType | undefined {
     switch (nodeType) {
       case 'if_statement':
         return 'IF';
@@ -137,7 +137,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return nodeType === 'if_statement';
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, _cursor?: TreeCursor): boolean {
+  shouldFlattenNesting(parentType: string, nodeType: string, _cursor: TreeCursor): boolean {
     // Flatten nesting for any else_clause.
     // The else_clause itself (if not else-if) will add +1 score,
     // but it shouldn't inherit the nesting penalty from the parent IF.
