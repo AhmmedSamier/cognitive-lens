@@ -144,7 +144,6 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
               }
             }
             if (!foundInside) {
-              isParen = false;
               break;
             }
             isParen = cursor.nodeType === 'parenthesized_expression';
@@ -197,16 +196,21 @@ class ComplexityCalculator {
     return this.methods;
   }
 
-  private visit(cursor: TreeCursor, parentType: string, currentNesting: number, cachedNodeType?: string) {
+  private visit(
+    cursor: TreeCursor,
+    parentType: string,
+    currentNesting: number,
+    cachedNodeType?: string,
+  ) {
     const nodeType = cachedNodeType || cursor.nodeType;
 
-    let nextNesting = currentNesting;
+    let nextNesting;
     let pushedContext = false;
 
     if (this.adapter.isMethodType(nodeType)) {
       // For method checks, we need the node
       const node = cursor.currentNode;
-      this.handleMethodEntry(node, cursor, parentType, currentNesting);
+      this.handleMethodEntry(node, cursor, parentType);
       // handleMethodEntry pushes context and calls visitChildren logic internally?
       // No, we should avoid recursion in handleMethodEntry if we want to stick to cursor logic.
       // But we are using recursive visit(cursor).
@@ -218,7 +222,6 @@ class ComplexityCalculator {
       // We need to determine the nesting for children of this method.
       const depth = this.contextStack.length - 1; // 0-based
       nextNesting = this.calculateChildNesting(depth, currentNesting);
-
     } else {
       nextNesting = this.handleStructuralNode(cursor, parentType, currentNesting, nodeType);
     }
@@ -249,9 +252,7 @@ class ComplexityCalculator {
       const context = this.contextStack.pop();
       // Update currentContext immediately after pop
       this.currentContext =
-        this.contextStack.length > 0
-          ? this.contextStack[this.contextStack.length - 1]
-          : undefined;
+        this.contextStack.length > 0 ? this.contextStack[this.contextStack.length - 1] : undefined;
 
       if (context) {
         const method = context.method;
@@ -262,12 +263,7 @@ class ComplexityCalculator {
     }
   }
 
-  private handleMethodEntry(
-    node: SyntaxNode,
-    cursor: TreeCursor,
-    parentType: string,
-    currentNesting: number,
-  ) {
+  private handleMethodEntry(node: SyntaxNode, cursor: TreeCursor, parentType: string) {
     const depth = this.contextStack.length;
     const newMethod: MethodComplexity = {
       name: this.adapter.getMethodName(node),
@@ -326,10 +322,7 @@ class ComplexityCalculator {
     const currentContext = this.currentContext;
     if (!currentContext) return currentNesting;
 
-    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(
-      cursor,
-      nodeType,
-    );
+    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(cursor, nodeType);
 
     if (structural > 0) {
       const score = structural + (increasesNesting ? currentNesting : 0);
@@ -370,9 +363,7 @@ class ComplexityCalculator {
     const op = this.adapter.getBinaryOperator(cursor);
     if (op) {
       if (!this.adapter.isBinaryContinuation(cursor, op)) {
-        return (
-          RESULT_BINARY_CACHE[op] || { structural: 1, increasesNesting: false, label: op }
-        );
+        return RESULT_BINARY_CACHE[op] || { structural: 1, increasesNesting: false, label: op };
       }
     }
     return RESULT_NONE;
@@ -414,7 +405,14 @@ class ComplexityCalculator {
     line: number,
   ) {
     context.method.score += score;
-    this.recordScoreDetail(context.method, line, structural, increasesNesting, currentNesting, label);
+    this.recordScoreDetail(
+      context.method,
+      line,
+      structural,
+      increasesNesting,
+      currentNesting,
+      label,
+    );
   }
 
   // Performance optimization: Extracted to a method to avoid creating a closure
