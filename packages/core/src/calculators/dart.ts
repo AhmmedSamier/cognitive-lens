@@ -5,6 +5,8 @@ import {
   ComplexityNodeType,
   SyntaxNode,
   Tree,
+  TreeCursor,
+  isCursor,
 } from './common';
 
 const LOOP_TYPES = new Set(['for_statement', 'while_statement', 'do_statement', 'for_element']);
@@ -103,7 +105,7 @@ class DartAdapter extends BaseLanguageAdapter {
     return false;
   }
 
-  getComplexityType(nodeType: string, _currentFieldName?: string | null): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, _cursor: TreeCursor): ComplexityNodeType | undefined {
     // Map node types to ComplexityNodeType
     if (this.isLoop(nodeType)) return 'LOOP';
     if (this.isCatch(nodeType)) return 'CATCH';
@@ -132,7 +134,37 @@ class DartAdapter extends BaseLanguageAdapter {
     return type === 'conditional_expression';
   }
 
-  getBinaryOperator(node: SyntaxNode): string | undefined {
+  getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined {
+    if (isCursor(node)) {
+      const cursor = node;
+      if (cursor.nodeType === 'if_null_expression') return '??';
+
+      if (!cursor.gotoFirstChild()) return undefined;
+
+      do {
+        const type = cursor.nodeType;
+        if (type === 'logical_and_operator') {
+          cursor.gotoParent();
+          return '&&';
+        }
+        if (type === 'logical_or_operator') {
+          cursor.gotoParent();
+          return '||';
+        }
+        if (type === '??') {
+          cursor.gotoParent();
+          return '??';
+        }
+        if (type === '&&' || type === '||') {
+          cursor.gotoParent();
+          return type;
+        }
+      } while (cursor.gotoNextSibling());
+
+      cursor.gotoParent();
+      return undefined;
+    }
+
     if (node.type === 'if_null_expression') return '??';
 
     // Performance optimization: Check child(1) first
@@ -172,7 +204,32 @@ class DartAdapter extends BaseLanguageAdapter {
     return undefined;
   }
 
-  isElseIf(node: SyntaxNode): boolean {
+  isElseIf(node: SyntaxNode | TreeCursor): boolean {
+    if (isCursor(node)) {
+      if (node.nodeType === 'else_clause') {
+        if (node.gotoFirstChild()) {
+          let found = false;
+          do {
+            if (node.nodeIsNamed) {
+              if (node.nodeType === 'if_statement') {
+                found = true;
+              }
+              break;
+            }
+          } while (node.gotoNextSibling());
+          node.gotoParent();
+          return found;
+        }
+        return false;
+      }
+      if (node.nodeType === 'else') {
+        const n = node.currentNode;
+        const next = n.nextNamedSibling;
+        return !!(next && next.type === 'if_statement');
+      }
+      return false;
+    }
+
     if (node.type === 'else_clause') {
       return node.firstNamedChild?.type === 'if_statement';
     }
@@ -183,13 +240,16 @@ class DartAdapter extends BaseLanguageAdapter {
     return false;
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean {
+  canFlattenNesting(nodeType: string): boolean {
+    return nodeType === 'if_statement' || nodeType === 'if_element';
+  }
+
+  shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean {
     if (parentType === 'if_statement' || parentType === 'if_element') {
       if (nodeType === 'else' || nodeType === 'else_clause') {
         return true;
       }
-      const alternative = currentFieldName;
-      if (alternative === 'alternative') {
+      if (cursor.currentFieldName === 'alternative') {
         return true;
       }
     }

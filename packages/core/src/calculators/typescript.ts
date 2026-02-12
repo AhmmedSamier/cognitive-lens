@@ -5,6 +5,8 @@ import {
   ComplexityNodeType,
   SyntaxNode,
   Tree,
+  TreeCursor,
+  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -46,7 +48,7 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return parentType === 'arguments';
   }
 
-  getComplexityType(nodeType: string, _currentFieldName?: string | null): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, _cursor: TreeCursor): ComplexityNodeType | undefined {
     switch (nodeType) {
       case 'if_statement':
         return 'IF';
@@ -72,7 +74,25 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     }
   }
 
-  getBinaryOperator(node: SyntaxNode): string | undefined {
+  getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined {
+    if (isCursor(node)) {
+      const cursor = node;
+      if (!cursor.gotoFirstChild()) {
+        return undefined;
+      }
+
+      do {
+        if (cursor.nodeType === '&&') {
+          const op = cursor.nodeType;
+          cursor.gotoParent();
+          return op;
+        }
+      } while (cursor.gotoNextSibling());
+
+      cursor.gotoParent();
+      return undefined;
+    }
+
     // Performance optimization: Check child(1) first as it is usually the operator
     // in a binary expression (left, op, right). This avoids iterating children
     // and creating wrapper objects for them in the common case.
@@ -93,11 +113,31 @@ class TypeScriptAdapter extends BaseLanguageAdapter {
     return undefined;
   }
 
-  isElseIf(node: SyntaxNode): boolean {
+  isElseIf(node: SyntaxNode | TreeCursor): boolean {
+    if (isCursor(node)) {
+      if (node.gotoFirstChild()) {
+        let found = false;
+        do {
+          if (node.nodeIsNamed) {
+            if (node.nodeType === 'if_statement') {
+              found = true;
+            }
+            break;
+          }
+        } while (node.gotoNextSibling());
+        node.gotoParent();
+        return found;
+      }
+      return false;
+    }
     return node.firstNamedChild?.type === 'if_statement';
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, _currentFieldName?: string | null): boolean {
+  canFlattenNesting(nodeType: string): boolean {
+    return nodeType === 'if_statement';
+  }
+
+  shouldFlattenNesting(parentType: string, nodeType: string, _cursor: TreeCursor): boolean {
     // Flatten nesting for any else_clause.
     // The else_clause itself (if not else-if) will add +1 score,
     // but it shouldn't inherit the nesting penalty from the parent IF.

@@ -5,6 +5,8 @@ import {
   ComplexityNodeType,
   SyntaxNode,
   Tree,
+  TreeCursor,
+  isCursor,
 } from './common';
 
 const METHOD_TYPES = new Set([
@@ -43,7 +45,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return parentType === 'argument';
   }
 
-  getComplexityType(nodeType: string, currentFieldName?: string | null): ComplexityNodeType | undefined {
+  getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined {
     switch (nodeType) {
       case 'if_statement':
         return 'IF';
@@ -71,7 +73,7 @@ class CSharpAdapter extends BaseLanguageAdapter {
         // C# 'if' structure: if (cond) con alternative
         // If currentFieldName is 'alternative' and nodeType is NOT 'if_statement',
         // it is a pure ELSE branch (e.g. a block).
-        if (currentFieldName === 'alternative' && nodeType !== 'if_statement') {
+        if (nodeType !== 'if_statement' && cursor.currentFieldName === 'alternative') {
             return 'ELSE';
         }
         return undefined;
@@ -79,7 +81,23 @@ class CSharpAdapter extends BaseLanguageAdapter {
     }
   }
 
-  getBinaryOperator(node: SyntaxNode): string | undefined {
+  getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined {
+    if (isCursor(node)) {
+      const cursor = node;
+      if (!cursor.gotoFirstChild()) return undefined;
+
+      do {
+        const type = cursor.nodeType;
+        if (type === '&&' || type === '||') {
+          cursor.gotoParent();
+          return type;
+        }
+      } while (cursor.gotoNextSibling());
+
+      cursor.gotoParent();
+      return undefined;
+    }
+
     // SonarSource C# counts BOTH && and || (unlike SonarJS which only counts &&)
     // See: sonar-dotnet/CSharpCognitiveComplexityMetric.cs VisitBinaryExpression
 
@@ -99,7 +117,26 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return undefined;
   }
 
-  isElseIf(node: SyntaxNode): boolean {
+  isElseIf(node: SyntaxNode | TreeCursor): boolean {
+    if (isCursor(node)) {
+      if (node.nodeType === 'else_clause') {
+        if (node.gotoFirstChild()) {
+          let found = false;
+          do {
+            if (node.nodeIsNamed) {
+              if (node.nodeType === 'if_statement') {
+                found = true;
+              }
+              break;
+            }
+          } while (node.gotoNextSibling());
+          node.gotoParent();
+          return found;
+        }
+      }
+      return false;
+    }
+
     if (node.type === 'else_clause') {
       return node.firstNamedChild?.type === 'if_statement';
     }
@@ -108,11 +145,15 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return false;
   }
 
-  shouldFlattenNesting(parentType: string, nodeType: string, currentFieldName?: string | null): boolean {
+  canFlattenNesting(nodeType: string): boolean {
+    return nodeType === 'if_statement';
+  }
+
+  shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean {
     if (parentType === 'if_statement') {
       // Flatten if the child is the 'else' branch (alternative field).
       // Whether it is 'else if' or just 'else', it shouldn't inherit the 'if's nesting.
-      if (currentFieldName === 'alternative') {
+      if (cursor.currentFieldName === 'alternative') {
         return true;
       }
     }
