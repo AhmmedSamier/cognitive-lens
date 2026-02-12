@@ -26,6 +26,9 @@ const SIGNATURE_TYPES = new Set([
 ]);
 
 class DartAdapter extends BaseLanguageAdapter {
+  // Aggregate lambda complexity into the parent method
+  override aggregateLambdaComplexity = true;
+
   isMethodType(nodeType: string): boolean {
     return nodeType === 'function_body';
   }

@@ -292,9 +292,9 @@ class ComplexityCalculator {
 
   private calculateChildNesting(depth: number, currentNesting: number): number {
     if (this.adapter.lambdaAlwaysNested) {
-      return depth >= 1 ? currentNesting + 1 : 0;
+      return depth >= 1 ? currentNesting + 1 : currentNesting;
     } else {
-      return depth >= 2 ? currentNesting + 1 : 0;
+      return depth >= 2 ? currentNesting + 1 : currentNesting;
     }
   }
 
