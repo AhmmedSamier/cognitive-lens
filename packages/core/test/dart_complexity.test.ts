@@ -139,6 +139,35 @@ describe('Dart Complexity', () => {
     expect(complexities[0].score).toBe(2);
   });
 
+  it('should treat chained null coalescing as a sequence', async () => {
+    const code = `
+            String resolve(String? a, String? b, String? c) {
+                return a ?? b ?? c;
+            }
+        `;
+    const complexities = await analyze(code);
+    expect(complexities.length).toBe(1);
+    expect(complexities[0].score).toBe(2);
+  });
+
+  it('should handle else-if with explicit else token', async () => {
+    const code = `
+            void testElseIfToken(int x) {
+                if (x == 1) {
+                    print("1");
+                } else
+                if (x == 2) {
+                    print("2");
+                } else {
+                    print("other");
+                }
+            }
+        `;
+    const complexities = await analyze(code);
+    expect(complexities.length).toBe(1);
+    expect(complexities[0].score).toBe(3);
+  });
+
   it('should handle nesting', async () => {
     const code = `
             void testNesting(bool a, bool b) {

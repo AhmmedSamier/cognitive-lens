@@ -27,7 +27,6 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
     this._view = webviewView;
 
     webviewView.webview.options = {
-      // Allow scripts in the webview
       enableScripts: true,
       localResourceRoots: [this._extensionUri],
     };
@@ -50,6 +49,18 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
         }
       }
     });
+
+    webviewView.onDidChangeVisibility(() => {
+      if (this._view && this._view.visible && this._currentComplexities.length > 0) {
+        this.update(this._currentComplexities, this._currentConfig);
+      }
+    });
+
+    webviewView.onDidDispose(() => {
+      if (this._view === webviewView) {
+        this._view = undefined;
+      }
+    });
   }
 
   public update(complexities: MethodComplexity[], config?: WebviewConfig) {
@@ -57,7 +68,7 @@ export class ComplexityWebviewProvider implements vscode.WebviewViewProvider {
     if (config) {
       this._currentConfig = config;
     }
-    if (this._view) {
+    if (this._view && this._view.visible) {
       this._view.webview.postMessage({
         type: 'update',
         body: complexities,

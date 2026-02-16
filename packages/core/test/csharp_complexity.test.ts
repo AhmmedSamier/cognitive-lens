@@ -222,4 +222,22 @@ describe('Cognitive Complexity (C#)', () => {
     console.log('C# OR operator - Process score:', processMethod!.score);
     expect(processMethod!.score).toBe(2);
   });
+
+  test('Binary continuation with parentheses matches SonarSource C# behavior', async () => {
+    const code = `
+        class Test {
+            void Process(bool a, bool b, bool c) {
+                if ((a && b) && c) {
+                    return;
+                }
+            }
+        }`;
+    const tree = parser.parse(code);
+    const results = await calculateComplexity(tree, 'csharp');
+
+    const processMethod = results.find((r) => r.name === 'Process');
+    expect(processMethod).toBeDefined();
+
+    expect(processMethod!.score).toBe(2);
+  });
 });

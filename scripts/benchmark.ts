@@ -36,94 +36,108 @@ async function main() {
   setupMocks();
   console.log('Starting benchmarks...');
 
-  let coreResults: any[] = [];
-  try {
-    console.log('Running Core Benchmarks...');
-    coreResults = await runCoreBenchmark();
-  } catch (e) {
-    console.error('Core benchmark failed:', e);
-    coreResults.push({ name: 'Core: Failed', metrics: { error: String(e) } });
-  }
+  const coreResults = await runWithHandling('Core', 'Core Benchmarks', runCoreBenchmark);
+  const lspResults = await runWithHandling('LSP', 'LSP Benchmarks', runLSPBenchmark);
+  const vscodeResults = await runVSCodeWithHandling();
 
-  let lspResults: any[] = [];
-  try {
-    console.log('Running LSP Benchmarks...');
-    lspResults = await runLSPBenchmark();
-  } catch (e) {
-    console.error('LSP benchmark failed:', e);
-    lspResults.push({ name: 'LSP: Failed', metrics: { error: String(e) } });
-  }
-
-  let vscodeResults: any[] = [];
-  try {
-    console.log('Running VS Code Benchmarks...');
-    const { runVSCodeBenchmark } = await import('../packages/vscode-extension/benchmark/index.ts');
-    vscodeResults = await runVSCodeBenchmark();
-  } catch (e) {
-    console.error('VS Code benchmark failed:', e);
-    vscodeResults.push({ name: 'VS Code: Failed', metrics: { error: String(e) } });
-  }
-
-  // Generate Report
-  let report = '# Cognitive Complexity Extensions Benchmark Report\n\n';
-  report += `Date: ${new Date().toISOString()}\n\n`;
-
-  // Language Server Section
-  report += '## Language Server\n\n';
-  report += '| Benchmark | Average Time | Total Time | Iterations |\n';
-  report += '|---|---|---|---|\n';
-
-  const lsResults = [...coreResults, ...lspResults];
-  const memoryResults: any[] = [];
-
-  for (const res of lsResults) {
-    if (res.name.includes('Memory Usage')) {
-        memoryResults.push(res);
-        continue;
-    }
-    // If error, print it in Average Time column
-    if (res.metrics.error) {
-        report += `| ${res.name} | Error: ${res.metrics.error} | - | - |\n`;
-        continue;
-    }
-
-    const avg = formatTime(res.metrics.averageTimeMs as number);
-    const total = formatTime(res.metrics.totalTimeMs as number);
-    const iter = res.metrics.iterations || 1;
-    report += `| ${res.name} | ${avg} | ${total} | ${iter} |\n`;
-  }
-
-  if (memoryResults.length > 0) {
-      report += '\n### Memory Usage\n\n';
-      report += '| Component | RSS | Heap Used |\n';
-      report += '|---|---|---|\n';
-      for (const res of memoryResults) {
-          const rss = res.metrics.rssMB ? `${res.metrics.rssMB} MB` : '-';
-          const heap = res.metrics.heapUsedMB ? `${res.metrics.heapUsedMB} MB` : '-';
-          report += `| ${res.name} | ${rss} | ${heap} |\n`;
-      }
-  }
-
-  // VS Code Extension Section
-  report += '\n## VS Code Extension\n\n';
-  report += '| Benchmark | Average Time | Total Time | Iterations |\n';
-  report += '|---|---|---|---|\n';
-
-  for (const res of vscodeResults) {
-    if (res.metrics.error) {
-        report += `| ${res.name} | Error: ${res.metrics.error} | - | - |\n`;
-        continue;
-    }
-    const avg = formatTime(res.metrics.averageTimeMs as number);
-    const total = formatTime(res.metrics.totalTimeMs as number);
-    const iter = res.metrics.iterations || 1;
-    report += `| ${res.name} | ${avg} | ${total} | ${iter} |\n`;
-  }
+  const report = buildReport(coreResults, lspResults, vscodeResults);
 
   console.log('\nReport Preview:');
   console.log(report);
   fs.writeFileSync('benchmark-report.md', report);
   console.log('Report saved to benchmark-report.md');
+}
+
+async function runWithHandling(
+  label: string,
+  logLabel: string,
+  runner: () => Promise<any[]>,
+): Promise<any[]> {
+  let results: any[] = [];
+  try {
+    console.log(`Running ${logLabel}...`);
+    results = await runner();
+  } catch (e) {
+    console.error(`${label} benchmark failed:`, e);
+    results.push({ name: `${label}: Failed`, metrics: { error: String(e) } });
+  }
+  return results;
+}
+
+async function runVSCodeWithHandling(): Promise<any[]> {
+  return runWithHandling('VS Code', 'VS Code Benchmarks', async () => {
+    const { runVSCodeBenchmark } = await import(
+      '../packages/vscode-extension/benchmark/index.ts'
+    );
+    return runVSCodeBenchmark();
+  });
+}
+
+function buildReport(coreResults: any[], lspResults: any[], vscodeResults: any[]): string {
+  let report = '# Cognitive Complexity Extensions Benchmark Report\n\n';
+  report += `Date: ${new Date().toISOString()}\n\n`;
+
+  const lsResults = [...coreResults, ...lspResults];
+  report += buildLanguageServerSection(lsResults);
+  report += buildVSCodeSection(vscodeResults);
+
+  return report;
+}
+
+function buildLanguageServerSection(lsResults: any[]): string {
+  let section = '## Language Server\n\n';
+  section += '| Benchmark | Average Time | Total Time | Iterations |\n';
+  section += '|---|---|---|---|\n';
+
+  const memoryResults: any[] = [];
+
+  for (const res of lsResults) {
+    if (res.name.includes('Memory Usage')) {
+      memoryResults.push(res);
+      continue;
+    }
+    if (res.metrics.error) {
+      section += `| ${res.name} | Error: ${res.metrics.error} | - | - |\n`;
+      continue;
+    }
+
+    const avg = formatTime(res.metrics.averageTimeMs as number);
+    const total = formatTime(res.metrics.totalTimeMs as number);
+    const iter = res.metrics.iterations || 1;
+    section += `| ${res.name} | ${avg} | ${total} | ${iter} |\n`;
+  }
+
+  if (memoryResults.length > 0) {
+    section += '\n### Memory Usage\n\n';
+    section += '| Component | RSS | Heap Used |\n';
+    section += '|---|---|---|\n';
+    for (const res of memoryResults) {
+      const rss = res.metrics.rssMB ? `${res.metrics.rssMB} MB` : '-';
+      const heap = res.metrics.heapUsedMB ? `${res.metrics.heapUsedMB} MB` : '-';
+      section += `| ${res.name} | ${rss} | ${heap} |\n`;
+    }
+  }
+
+  return section;
+}
+
+function buildVSCodeSection(vscodeResults: any[]): string {
+  let section = '\n## VS Code Extension\n\n';
+  section += '| Benchmark | Average Time | Total Time | Iterations |\n';
+  section += '|---|---|---|---|\n';
+
+  for (const res of vscodeResults) {
+    if (res.metrics.error) {
+      section += `| ${res.name} | Error: ${res.metrics.error} | - | - |\n`;
+      continue;
+    }
+    const avg = formatTime(res.metrics.averageTimeMs as number);
+    const total = formatTime(res.metrics.totalTimeMs as number);
+    const iter = res.metrics.iterations || 1;
+    section += `| ${res.name} | ${avg} | ${total} | ${iter} |\n`;
+  }
+
+  return section;
 }
 
 main().catch(console.error);

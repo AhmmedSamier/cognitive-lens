@@ -76,7 +76,7 @@ export class IncrementalParser {
     if (!parser) return;
 
     let doc = entry.document;
-    let oldTree = entry.tree;
+    const oldTree = entry.tree;
     let useOldTree = true;
 
     for (const change of params.contentChanges) {

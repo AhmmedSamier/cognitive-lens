@@ -330,7 +330,13 @@ function calculateDecorationRanges(
   return { greenRanges, yellowRanges, redRanges };
 }
 
-function updateStatusBar(complexities: MethodComplexity[]) {
+function updateStatusBar(
+  complexities: MethodComplexity[],
+  config: WorkspaceConfiguration,
+) {
+  if (!config.get<boolean>('showComplexityDeltaDecoration', true)) {
+    return;
+  }
   const deltas = complexities.filter(
     (c) => !c.isCallback && c.complexityDelta !== undefined && c.complexityDelta !== 0,
   ).length;
@@ -343,7 +349,7 @@ function updateEditorDecorations(editor: TextEditor, complexities: MethodComplex
   const config = workspace.getConfiguration('cognitiveComplexity', editor.document.uri);
 
   updateDeltaDecorations(editor, complexities);
-  updateStatusBar(complexities);
+  updateStatusBar(complexities, config);
 
   if (!config.get<boolean>('showGutterIcon', true)) {
     clearGutterDecorations(editor);

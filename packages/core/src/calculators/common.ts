@@ -118,62 +118,78 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
     const op = cachedOp || this.getBinaryOperator(cursor);
     if (!op) return false;
 
-    // Save state to restore later
-    // We need to find the first named child (left operand)
     if (!cursor.gotoFirstChild()) {
       return false;
     }
 
-    let found = false;
-    let depth = 0; // Track how deep we descended into parenthesized expressions
+    const { found, depth } = this.findLeftBinaryExpression(cursor, op);
 
-    // Find first named child, skipping anonymous nodes (like comments or punctuation if any)
-    // Usually the left operand is the first child or very close.
-    do {
-      if (cursor.nodeIsNamed) {
-        // Found first named child. Check if it is a continuation.
-        let isParen = cursor.nodeType === 'parenthesized_expression';
-        while (isParen) {
-          if (cursor.gotoFirstChild()) {
-            depth++;
-            // Find first named child inside parens
-            let foundInside = false;
-            while (!foundInside) {
-              if (cursor.nodeIsNamed) {
-                foundInside = true;
-              } else {
-                if (!cursor.gotoNextSibling()) break;
-              }
-            }
-            if (!foundInside) {
-              break;
-            }
-            isParen = cursor.nodeType === 'parenthesized_expression';
-          } else {
-            break;
-          }
-        }
-
-        if (cursor.nodeType === 'binary_expression') {
-          const leftOp = this.getBinaryOperator(cursor);
-          if (leftOp === op) {
-            found = true;
-          }
-        }
-        break; // We found the relevant child and checked it.
-      }
-    } while (cursor.gotoNextSibling());
-
-    // Restore cursor position
-    // First, ascend from depth
-    while (depth > 0) {
-      cursor.gotoParent();
-      depth--;
-    }
-    // Then go back to parent of the children loop
-    cursor.gotoParent();
+    this.restoreCursorAfterBinarySearch(cursor, depth);
 
     return found;
+  }
+
+  private findLeftBinaryExpression(cursor: TreeCursor, op: string) {
+    if (!this.moveToFirstNamedChild(cursor)) {
+      return { found: false, depth: 0 };
+    }
+
+    let depth = 0;
+
+    if (!this.walkThroughParens(cursor, () => {
+      depth += 1;
+    })) {
+      return { found: false, depth };
+    }
+
+    if (cursor.nodeType !== 'binary_expression') {
+      return { found: false, depth };
+    }
+
+    const leftOp = this.getBinaryOperator(cursor);
+    if (!leftOp) {
+      return { found: false, depth };
+    }
+
+    return { found: leftOp === op, depth };
+  }
+
+  private moveToFirstNamedChild(cursor: TreeCursor) {
+    if (cursor.nodeIsNamed) {
+      return true;
+    }
+
+    while (cursor.gotoNextSibling()) {
+      if (cursor.nodeIsNamed) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private walkThroughParens(cursor: TreeCursor, incrementDepth: () => void) {
+    let isParen = cursor.nodeType === 'parenthesized_expression';
+
+    while (isParen) {
+      if (!cursor.gotoFirstChild()) {
+        return false;
+      }
+      incrementDepth();
+      if (!this.moveToFirstNamedChild(cursor)) {
+        return false;
+      }
+      isParen = cursor.nodeType === 'parenthesized_expression';
+    }
+
+    return true;
+  }
+
+  private restoreCursorAfterBinarySearch(cursor: TreeCursor, depth: number) {
+    while (depth > 0) {
+      cursor.gotoParent();
+      depth -= 1;
+    }
+    cursor.gotoParent();
   }
 }
 

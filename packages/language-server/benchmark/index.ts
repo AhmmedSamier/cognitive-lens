@@ -98,6 +98,19 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
     hints = computeInlayHints(textDocument, complexities, defaultSettings, { start: { line: 0, character: 0 }, end: { line: textDocument.lineCount, character: 0 } });
   }, 20);
 
+  // Measure combined CodeLens + InlayHints run
+  const combinedResult = await measure('LSP: Combined Features', () => {
+    const localLenses = computeCodeLenses(textDocument, complexities, defaultSettings);
+    const localHints = computeInlayHints(textDocument, complexities, defaultSettings, {
+      start: { line: 0, character: 0 },
+      end: { line: textDocument.lineCount, character: 0 },
+    });
+    // Use results to avoid accidental dead code elimination assumptions
+    if (!localLenses || !localHints) {
+      throw new Error('Unexpected empty results');
+    }
+  }, 20);
+
   // Measure Incremental Update
   let currentText = code;
   let currentVersion = 2;
@@ -135,6 +148,10 @@ export async function runLSPBenchmark(): Promise<BenchmarkResult[]> {
     {
         name: 'LSP: Handle Change',
         metrics: { ...updateResult.metrics }
+    },
+    {
+      name: 'LSP: Combined Features',
+      metrics: { ...combinedResult.metrics },
     },
     {
       name: 'LSP: Memory Usage',

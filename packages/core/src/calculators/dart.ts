@@ -142,101 +142,143 @@ class DartAdapter extends BaseLanguageAdapter {
 
   getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined {
     if (isCursor(node)) {
-      const cursor = node;
-      if (cursor.nodeType === 'if_null_expression') return '??';
-
-      if (!cursor.gotoFirstChild()) return undefined;
-
-      do {
-        const type = cursor.nodeType;
-        if (type === 'logical_and_operator') {
-          cursor.gotoParent();
-          return '&&';
-        }
-        if (type === 'logical_or_operator') {
-          cursor.gotoParent();
-          return '||';
-        }
-        if (type === '??') {
-          cursor.gotoParent();
-          return '??';
-        }
-        if (type === '&&' || type === '||') {
-          cursor.gotoParent();
-          return type;
-        }
-      } while (cursor.gotoNextSibling());
-
-      cursor.gotoParent();
-      return undefined;
+      return this.getBinaryOperatorCursor(node);
     }
+    return this.getBinaryOperatorNode(node);
+  }
 
+  private getBinaryOperatorCursor(cursor: TreeCursor): string | undefined {
+    if (cursor.nodeType === 'if_null_expression') return '??';
+
+    if (!cursor.gotoFirstChild()) return undefined;
+
+    const result = this.findBinaryOperatorInCursor(cursor);
+
+    cursor.gotoParent();
+    return result;
+  }
+
+  private findBinaryOperatorInCursor(cursor: TreeCursor): string | undefined {
+    do {
+      const type = cursor.nodeType;
+      if (type === 'logical_and_operator') {
+        return '&&';
+      }
+      if (type === 'logical_or_operator') {
+        return '||';
+      }
+      if (type === '??') {
+        return '??';
+      }
+      if (type === '&&' || type === '||') {
+        return type;
+      }
+    } while (cursor.gotoNextSibling());
+
+    return undefined;
+  }
+
+  private getBinaryOperatorNode(node: SyntaxNode): string | undefined {
     if (node.type === 'if_null_expression') return '??';
 
-    // Performance optimization: Check child(1) first
     const secondChild = node.child(1);
     if (secondChild) {
-      if (
-        secondChild.type === 'logical_and_operator' ||
-        secondChild.type === 'logical_or_operator' ||
-        secondChild.type === '??'
-      ) {
-        return secondChild.text;
-      }
-      if (secondChild.type === '&&' || secondChild.type === '||' || secondChild.type === '??') {
-        return secondChild.type;
+      const fromSecond = this.binaryOperatorFromChild(secondChild);
+      if (fromSecond) {
+        return fromSecond;
       }
     }
 
-    let child = node.firstChild;
-    while (child) {
-      if (
-        child.type === 'logical_and_operator' ||
-        child.type === 'logical_or_operator' ||
-        child.type === '??'
-      ) {
-        return child.text;
-      }
-      child = child.nextSibling;
+    const fromLogical = this.findLogicalOperator(node.firstChild);
+    if (fromLogical) {
+      return fromLogical;
     }
 
-    child = node.firstChild;
-    while (child) {
-      if (child.type === '&&' || child.type === '||' || child.type === '??') {
-        return child.type;
+    return this.findSymbolOperator(node.firstChild);
+  }
+
+  private binaryOperatorFromChild(child: SyntaxNode): string | undefined {
+    if (
+      child.type === 'logical_and_operator' ||
+      child.type === 'logical_or_operator' ||
+      child.type === '??'
+    ) {
+      return child.text;
+    }
+    if (child.type === '&&' || child.type === '||' || child.type === '??') {
+      return child.type;
+    }
+    return undefined;
+  }
+
+  private findLogicalOperator(child: SyntaxNode | null): string | undefined {
+    let current = child;
+    while (current) {
+      if (
+        current.type === 'logical_and_operator' ||
+        current.type === 'logical_or_operator' ||
+        current.type === '??'
+      ) {
+        return current.text;
       }
-      child = child.nextSibling;
+      current = current.nextSibling;
+    }
+    return undefined;
+  }
+
+  private findSymbolOperator(child: SyntaxNode | null): string | undefined {
+    let current = child;
+    while (current) {
+      if (current.type === '&&' || current.type === '||' || current.type === '??') {
+        return current.type;
+      }
+      current = current.nextSibling;
     }
     return undefined;
   }
 
   isElseIf(node: SyntaxNode | TreeCursor): boolean {
     if (isCursor(node)) {
-      if (node.nodeType === 'else_clause') {
-        if (node.gotoFirstChild()) {
-          let found = false;
-          do {
-            if (node.nodeIsNamed) {
-              const currentType: string = node.nodeType;
-              if (currentType === 'if_statement') {
-                found = true;
-              }
-              break;
-            }
-          } while (node.gotoNextSibling());
-          node.gotoParent();
-          return found;
-        }
-        return false;
-      }
-      if (node.nodeType === 'else') {
-        const n = node.currentNode;
-        const next = n.nextNamedSibling;
-        return !!(next && next.type === 'if_statement');
-      }
+      return this.isElseIfCursor(node);
+    }
+    return this.isElseIfNode(node);
+  }
+
+  private isElseIfCursor(cursor: TreeCursor): boolean {
+    if (cursor.nodeType === 'else_clause') {
+      return this.cursorElseClauseIsElseIf(cursor);
+    }
+    if (cursor.nodeType === 'else') {
+      return this.cursorElseTokenIsElseIf(cursor);
+    }
+    return false;
+  }
+
+  private cursorElseClauseIsElseIf(cursor: TreeCursor): boolean {
+    if (!cursor.gotoFirstChild()) {
       return false;
     }
+    const found = this.cursorFirstNamedChildIsIf(cursor);
+    cursor.gotoParent();
+    return found;
+  }
 
+  private cursorFirstNamedChildIsIf(cursor: TreeCursor): boolean {
+    do {
+      if (cursor.nodeIsNamed) {
+        return cursor.nodeType === 'if_statement';
+      }
+    } while (cursor.gotoNextSibling());
+    return false;
+  }
+
+  private cursorElseTokenIsElseIf(cursor: TreeCursor): boolean {
+    const node = cursor.currentNode;
+    const next = node.nextNamedSibling;
+    return !!(next && next.type === 'if_statement');
+  }
+
+  private isElseIfNode(node: SyntaxNode): boolean {
     if (node.type === 'else_clause') {
       return node.firstNamedChild?.type === 'if_statement';
     }

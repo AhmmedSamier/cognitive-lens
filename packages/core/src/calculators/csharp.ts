@@ -119,31 +119,37 @@ class CSharpAdapter extends BaseLanguageAdapter {
 
   isElseIf(node: SyntaxNode | TreeCursor): boolean {
     if (isCursor(node)) {
-      if (node.nodeType === 'else_clause') {
-        if (node.gotoFirstChild()) {
-          let found = false;
-          do {
-            if (node.nodeIsNamed) {
-              const currentType: string = node.nodeType;
-              if (currentType === 'if_statement') {
-                found = true;
-              }
-              break;
-            }
-          } while (node.gotoNextSibling());
-          node.gotoParent();
-          return found;
-        }
-      }
+      return this.isElseIfCursor(node);
+    }
+    return this.isElseIfNode(node);
+  }
+
+  private isElseIfCursor(cursor: TreeCursor): boolean {
+    if (cursor.nodeType !== 'else_clause') {
       return false;
     }
-
-    if (node.type === 'else_clause') {
-      return node.firstNamedChild?.type === 'if_statement';
+    if (!cursor.gotoFirstChild()) {
+      return false;
     }
-    // For inferred ELSE (blocks), they don't wrap 'if' in the same way 'else_clause' does.
-    // Even if a block contains an IF, it's nesting, not 'else if' structure.
+    const found = this.firstNamedChildIsIfStatement(cursor);
+    cursor.gotoParent();
+    return found;
+  }
+
+  private firstNamedChildIsIfStatement(cursor: TreeCursor): boolean {
+    do {
+      if (cursor.nodeIsNamed) {
+        return cursor.nodeType === 'if_statement';
+      }
+    } while (cursor.gotoNextSibling());
     return false;
+  }
+
+  private isElseIfNode(node: SyntaxNode): boolean {
+    if (node.type !== 'else_clause') {
+      return false;
+    }
+    return node.firstNamedChild?.type === 'if_statement';
   }
 
   canFlattenNesting(nodeType: string): boolean {

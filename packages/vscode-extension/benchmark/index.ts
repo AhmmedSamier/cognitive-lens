@@ -35,8 +35,7 @@ function createMockEditor(lineCount: number) {
     document: {
       uri: { toString: () => 'file:///mock.ts' },
       positionAt: (offset: number) => {
-        // Simple mock: assume 10 chars per line for performance
-        const line = Math.floor(offset / 10);
+        const line = Math.floor(offset / 10) % lineCount;
         return new vscode.Position(line, offset % 10);
       },
       lineAt: (line: number) => ({
@@ -52,8 +51,8 @@ function generateComplexities(count: number): MethodComplexity[] {
   for (let i = 0; i < count; i++) {
     complexities.push({
       name: `method${i}`,
-      score: Math.floor(Math.random() * 30),
-      complexityDelta: Math.floor(Math.random() * 5) - 2, // -2 to 2
+      score: (i * 7) % 30,
+      complexityDelta: (i % 5) - 2,
       startIndex: i * 20,
       endIndex: i * 20 + 15,
       startLine: i * 2,
@@ -71,12 +70,18 @@ export async function runVSCodeBenchmark(): Promise<BenchmarkResult[]> {
 
   // 1. Delta Decorator Benchmark
   const complexities = generateComplexities(1000);
+  const largeComplexities = generateComplexities(5000);
   const editor = createMockEditor(2000);
 
   const decoratorResult = await measure('Delta Decorations', () => {
     updateDeltaDecorations(editor, complexities);
   }, 100);
   results.push(decoratorResult);
+
+  const largeDecoratorResult = await measure('Delta Decorations (Large)', () => {
+    updateDeltaDecorations(editor, largeComplexities);
+  }, 50);
+  results.push(largeDecoratorResult);
 
   // 2. Webview Provider Update Benchmark
   const provider = new ComplexityWebviewProvider(vscode.Uri.parse('file:///extension'));
@@ -104,6 +109,11 @@ export async function runVSCodeBenchmark(): Promise<BenchmarkResult[]> {
     provider.update(complexities);
   }, 100);
   results.push(webviewResult);
+
+  const webviewLargeResult = await measure('Webview Update (Large)', () => {
+    provider.update(largeComplexities);
+  }, 50);
+  results.push(webviewLargeResult);
 
   return results;
 }
