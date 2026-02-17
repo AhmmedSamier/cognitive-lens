@@ -45,7 +45,11 @@ class CSharpAdapter extends BaseLanguageAdapter {
     return parentType === 'argument';
   }
 
-  getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined {
+  getComplexityType(
+    nodeType: string,
+    cursor: TreeCursor,
+    parentType: string,
+  ): ComplexityNodeType | undefined {
     switch (nodeType) {
       case 'if_statement':
         return 'IF';
@@ -69,11 +73,11 @@ class CSharpAdapter extends BaseLanguageAdapter {
       case 'goto_statement':
         return 'GOTO'; // SonarSource C#: goto adds +1 + nesting
       default: {
-        // Check for implicit else (alternative field which is not else_clause)
-        // C# 'if' structure: if (cond) con alternative
-        // If currentFieldName is 'alternative' and nodeType is NOT 'if_statement',
-        // it is a pure ELSE branch (e.g. a block).
-        if (nodeType !== 'if_statement' && cursor.currentFieldName === 'alternative') {
+        if (
+          parentType === 'if_statement' &&
+          nodeType !== 'if_statement' &&
+          cursor.currentFieldName === 'alternative'
+        ) {
           return 'ELSE';
         }
         return undefined;

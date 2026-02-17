@@ -223,6 +223,25 @@ describe('Cognitive Complexity (C#)', () => {
     expect(processMethod!.score).toBe(2);
   });
 
+  test('Ternary expression does not add else complexity', async () => {
+    const code = `
+        class Test {
+            void Process(bool flag) {
+                var x = flag ? 1 : 2;
+            }
+        }`;
+    const tree = parser.parse(code);
+    const results = await calculateComplexity(tree, 'csharp');
+
+    const processMethod = results.find((r) => r.name === 'Process');
+    expect(processMethod).toBeDefined();
+
+    expect(processMethod!.score).toBe(1);
+    const messages = processMethod!.details.map((d) => d.message);
+    expect(messages).toContain('ternary');
+    expect(messages).not.toContain('else');
+  });
+
   test('Binary continuation with parentheses matches SonarSource C# behavior', async () => {
     const code = `
         class Test {

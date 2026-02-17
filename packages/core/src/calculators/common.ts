@@ -62,7 +62,11 @@ export interface LanguageAdapter {
   isMethodType(nodeType: string): boolean;
   getMethodName(node: SyntaxNode): string;
   isCallback(node: SyntaxNode, parentType: string): boolean;
-  getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined;
+  getComplexityType(
+    nodeType: string,
+    cursor: TreeCursor,
+    parentType: string,
+  ): ComplexityNodeType | undefined;
   getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   isBinaryContinuation(node: SyntaxNode | TreeCursor, cachedOp?: string): boolean;
   isElseIf(node: SyntaxNode | TreeCursor): boolean;
@@ -77,7 +81,11 @@ export abstract class BaseLanguageAdapter implements LanguageAdapter {
   abstract isMethodType(nodeType: string): boolean;
   abstract getMethodName(node: SyntaxNode): string;
   abstract isCallback(node: SyntaxNode, parentType: string): boolean;
-  abstract getComplexityType(nodeType: string, cursor: TreeCursor): ComplexityNodeType | undefined;
+  abstract getComplexityType(
+    nodeType: string,
+    cursor: TreeCursor,
+    parentType: string,
+  ): ComplexityNodeType | undefined;
   abstract getBinaryOperator(node: SyntaxNode | TreeCursor): string | undefined;
   abstract isElseIf(node: SyntaxNode | TreeCursor): boolean;
   abstract shouldFlattenNesting(parentType: string, nodeType: string, cursor: TreeCursor): boolean;
@@ -340,7 +348,11 @@ class ComplexityCalculator {
     const currentContext = this.currentContext;
     if (!currentContext) return currentNesting;
 
-    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(cursor, nodeType);
+    const { structural, increasesNesting, label } = this.analyzeNodeComplexity(
+      cursor,
+      nodeType,
+      parentType,
+    );
 
     if (structural > 0) {
       const score = structural + (increasesNesting ? currentNesting : 0);
@@ -363,8 +375,8 @@ class ComplexityCalculator {
     return currentNesting;
   }
 
-  private analyzeNodeComplexity(cursor: TreeCursor, nodeType: string) {
-    const type = this.adapter.getComplexityType(nodeType, cursor);
+  private analyzeNodeComplexity(cursor: TreeCursor, nodeType: string, parentType: string) {
+    const type = this.adapter.getComplexityType(nodeType, cursor, parentType);
     if (!type) return RESULT_NONE;
 
     // Instantiate node only if needed for detailed analysis

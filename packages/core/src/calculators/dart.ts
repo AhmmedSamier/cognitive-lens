@@ -111,7 +111,11 @@ class DartAdapter extends BaseLanguageAdapter {
     return false;
   }
 
-  getComplexityType(nodeType: string, _cursor: TreeCursor): ComplexityNodeType | undefined {
+  getComplexityType(
+    nodeType: string,
+    _cursor: TreeCursor,
+    _parentType: string,
+  ): ComplexityNodeType | undefined {
     // Map node types to ComplexityNodeType
     if (this.isLoop(nodeType)) return 'LOOP';
     if (this.isCatch(nodeType)) return 'CATCH';
