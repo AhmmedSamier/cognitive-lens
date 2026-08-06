@@ -40,19 +40,33 @@ async function filterIgnoredFiles(
   return files.filter((f) => validPaths.has(f.fsPath.toLowerCase()));
 }
 
+async function resolveLanguageId(file: vscode.Uri, ext: string): Promise<string> {
+  if (ext === '.h') {
+    try {
+      const doc = await vscode.workspace.openTextDocument(file);
+      const id = doc.languageId.toLowerCase();
+      if (id === 'c' || id === 'cpp') return id;
+    } catch {
+      // Fall through to default
+    }
+    return 'c';
+  }
+
+  if (ext === '.cs') return 'csharp';
+  if (ext === '.js') return 'javascript';
+  if (ext === '.jsx') return 'javascriptreact';
+  if (ext === '.tsx') return 'typescriptreact';
+  if (ext === '.dart') return 'dart';
+  if (ext === '.c') return 'c';
+  if (['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'].includes(ext)) return 'cpp';
+  return 'typescript';
+}
+
 async function analyzeSingleFile(client: LanguageClient, file: vscode.Uri): Promise<any | null> {
   try {
     const relativePath = vscode.workspace.asRelativePath(file).split(/[/\\]/).join('/');
     const ext = path.extname(file.fsPath).toLowerCase();
-
-    let languageId = 'typescript';
-    if (ext === '.cs') languageId = 'csharp';
-    else if (ext === '.js') languageId = 'javascript';
-    else if (ext === '.jsx') languageId = 'javascriptreact';
-    else if (ext === '.tsx') languageId = 'typescriptreact';
-    else if (ext === '.dart') languageId = 'dart';
-    else if (ext === '.c' || ext === '.h') languageId = 'c';
-    else if (['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'].includes(ext)) languageId = 'cpp';
+    const languageId = await resolveLanguageId(file, ext);
 
     const contentBuffer = await vscode.workspace.fs.readFile(file);
     const content = Buffer.from(contentBuffer).toString('utf8');
@@ -66,7 +80,7 @@ async function analyzeSingleFile(client: LanguageClient, file: vscode.Uri): Prom
       { uri: file.toString(), languageId, content },
     );
 
-    return { file, relativePath, complexities, content };
+    return { file, relativePath, complexities, content, languageId };
   } catch (e) {
     console.error(`Failed to analyze ${file.fsPath}:`, e);
     return null;
@@ -92,6 +106,7 @@ function processSingleResult(res: any): any {
     content: res.content,
     methods: (res.complexities as any[]).map(mapMethodComplexity),
     totalScore: fileScore,
+    languageId: res.languageId,
   };
 }
 
