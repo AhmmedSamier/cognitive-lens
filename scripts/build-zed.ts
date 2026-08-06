@@ -10,6 +10,8 @@ const filesToCopy = [
   'tree-sitter.wasm',
   'tree-sitter-c_sharp.wasm',
   'tree-sitter-dart.wasm',
+  'tree-sitter-c.wasm',
+  'tree-sitter-cpp.wasm',
 ];
 
 console.log('Building Zed extension artifacts...');

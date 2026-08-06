@@ -54,6 +54,9 @@ Our calculation engine is meticulously tuned to match industry-standard rules wh
 | **TypeScript / JS** | **SonarJS (S3776)**    |
 | **C#**              | **SonarSource C#**     |
 | **Dart**            | **Community Standard** |
+| **C / C++**         | **SonarSource C/C++**  |
+
+> **Tip for C/C++ projects:** SonarSource defaults C/C++ complexity thresholds to 25, while Cognitive Lens uses a global default of 15 (warning) / 25 (error). Consider raising `cognitiveComplexity.threshold.warning` and `cognitiveComplexity.threshold.error` in your settings if your team follows Sonar's C/C++ conventions.
 
 ---
 

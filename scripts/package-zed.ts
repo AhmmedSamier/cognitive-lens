@@ -15,6 +15,8 @@ const filesToZip = [
   'tree-sitter-c_sharp.wasm',
   'tree-sitter-typescript.wasm',
   'tree-sitter-tsx.wasm',
+  'tree-sitter-c.wasm',
+  'tree-sitter-cpp.wasm',
 ];
 
 console.log('Packaging Zed extension...');

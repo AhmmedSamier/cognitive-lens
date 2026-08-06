@@ -67,6 +67,8 @@ export function activate(context: ExtensionContext) {
       { scheme: 'file', language: 'javascriptreact' },
       { scheme: 'file', language: 'csharp' },
       { scheme: 'file', language: 'dart' },
+      { scheme: 'file', language: 'c' },
+      { scheme: 'file', language: 'cpp' },
     ],
     synchronize: {
       fileEvents: workspace.createFileSystemWatcher('**/.clientrc'),

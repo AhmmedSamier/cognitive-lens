@@ -6,6 +6,8 @@ export interface FileAnalysisResult {
   content: string;
   methods: any[];
   totalScore: number;
+  /** VS Code language ID used for analysis / Prism highlighting (e.g. c vs cpp for .h). */
+  languageId?: string;
 }
 
 export interface ProjectAnalysisResult {
@@ -398,6 +400,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
 
@@ -415,6 +419,16 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
         const projectFiles = decompress("${projectFilesBase64}");
         const initialTree = decompress("${treeBase64}");
         const generatedDate = "${date}";
+
+        function toPrismLanguage(languageId) {
+            const id = (languageId || '').toLowerCase();
+            if (id === 'javascriptreact') return 'jsx';
+            if (id === 'typescriptreact') return 'tsx';
+            if (['csharp', 'javascript', 'typescript', 'dart', 'c', 'cpp', 'jsx', 'tsx'].includes(id)) {
+                return id;
+            }
+            return 'typescript';
+        }
 
         const SIDEBAR_SVG = \`<svg viewBox="0 0 512 512"><path d="M28.44 85.33h28.44c.03-15.7 12.75-28.42 28.44-28.44h341.33c15.7.03 28.42 12.75 28.44 28.44v341.33c-.03 15.7-12.75 28.42-28.44 28.44H85.33c-15.7-.03-28.42-12.75-28.44-28.44V85.33H28.44H0v341.33c.02 47.14 38.19 85.31 85.33 85.33h341.33c47.14-.02 85.31-38.19 85.33-85.33V85.33C511.98 38.19 473.81.02 426.67 0H85.33C38.19.02.02 38.19 0 85.33H28.44z"/><path d="M142.22 28.44v455.11c0 15.71 12.74 28.44 28.44 28.44s28.44-12.74 28.44-28.44V28.44C199.11 12.73 186.38 0 170.67 0s-28.45 12.73-28.45 28.44"/><path d="M321.22 179l-56.89 56.89c-11.11 11.11-11.11 29.12 0 40.23L321.22 333c11.11 11.11 29.12 11.11 40.23 0s11.11-29.12 0-40.23L324.67 256l36.78-36.78c11.11-11.11 11.11-29.12 0-40.23-11.11-11.11-29.12-11.11-40.23 0z"/></svg>\`;
         const CLEAR_SVG = \`<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>\`;
@@ -848,13 +862,19 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     currentFilePath.value = node.fullPath;
                     currentFileContent.value = file.content;
 
-                    const ext = node.fullPath.split('.').pop();
-                    if (ext === 'cs') currentLanguage.value = 'csharp';
-                    else if (ext === 'tsx') currentLanguage.value = 'tsx';
-                    else if (ext === 'jsx') currentLanguage.value = 'jsx';
-                    else if (ext === 'js') currentLanguage.value = 'javascript';
-                    else if (ext === 'dart') currentLanguage.value = 'dart';
-                    else currentLanguage.value = 'typescript';
+                    if (file.languageId) {
+                        currentLanguage.value = toPrismLanguage(file.languageId);
+                    } else {
+                        const ext = node.fullPath.split('.').pop();
+                        if (ext === 'cs') currentLanguage.value = 'csharp';
+                        else if (ext === 'tsx') currentLanguage.value = 'tsx';
+                        else if (ext === 'jsx') currentLanguage.value = 'jsx';
+                        else if (ext === 'js') currentLanguage.value = 'javascript';
+                        else if (ext === 'dart') currentLanguage.value = 'dart';
+                        else if (ext === 'c' || ext === 'h') currentLanguage.value = 'c';
+                        else if (['cpp', 'cc', 'cxx', 'hpp', 'hh', 'hxx'].includes(ext)) currentLanguage.value = 'cpp';
+                        else currentLanguage.value = 'typescript';
+                    }
 
                     // For the simplified "File-only" view, we show ALL method annotations at once.
                     if (file.methods && file.methods.length > 0) {
