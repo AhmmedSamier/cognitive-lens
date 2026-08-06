@@ -398,6 +398,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
 
@@ -854,6 +856,8 @@ export function generateHtmlReport(result: ProjectAnalysisResult): string {
                     else if (ext === 'jsx') currentLanguage.value = 'jsx';
                     else if (ext === 'js') currentLanguage.value = 'javascript';
                     else if (ext === 'dart') currentLanguage.value = 'dart';
+                    else if (ext === 'c' || ext === 'h') currentLanguage.value = 'c';
+                    else if (['cpp', 'cc', 'cxx', 'hpp', 'hh', 'hxx'].includes(ext)) currentLanguage.value = 'cpp';
                     else currentLanguage.value = 'typescript';
 
                     // For the simplified "File-only" view, we show ALL method annotations at once.

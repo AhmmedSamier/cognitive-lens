@@ -19,7 +19,12 @@ async function getFavicon(context: vscode.ExtensionContext): Promise<string> {
 
 async function findPotentialFiles(token: vscode.CancellationToken): Promise<vscode.Uri[]> {
   const excludePattern = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/.*/**}';
-  return vscode.workspace.findFiles('**/*.{ts,tsx,js,jsx,cs,dart}', excludePattern, undefined, token);
+  return vscode.workspace.findFiles(
+    '**/*.{ts,tsx,js,jsx,cs,dart,c,h,cpp,cc,cxx,hpp,hh,hxx}',
+    excludePattern,
+    undefined,
+    token,
+  );
 }
 
 async function filterIgnoredFiles(
@@ -46,6 +51,8 @@ async function analyzeSingleFile(client: LanguageClient, file: vscode.Uri): Prom
     else if (ext === '.jsx') languageId = 'javascriptreact';
     else if (ext === '.tsx') languageId = 'typescriptreact';
     else if (ext === '.dart') languageId = 'dart';
+    else if (ext === '.c' || ext === '.h') languageId = 'c';
+    else if (['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'].includes(ext)) languageId = 'cpp';
 
     const contentBuffer = await vscode.workspace.fs.readFile(file);
     const content = Buffer.from(contentBuffer).toString('utf8');
@@ -122,7 +129,7 @@ export async function generateProjectReport(
         let files = await findPotentialFiles(token);
         if (files.length === 0) {
           vscode.window.showInformationMessage(
-            'No supported files found in workspace (checked ts, tsx, js, jsx, cs, dart).',
+            'No supported files found in workspace (checked ts, tsx, js, jsx, cs, dart, c, cpp).',
           );
           return;
         }

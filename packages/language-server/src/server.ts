@@ -45,6 +45,8 @@ let csharpParser: Parser | undefined;
 let typescriptParser: Parser | undefined;
 let tsxParser: Parser | undefined;
 let dartParser: Parser | undefined;
+let cParser: Parser | undefined;
+let cppParser: Parser | undefined;
 let parserInitialized = false;
 let initPromise: Promise<void> | undefined;
 
@@ -96,11 +98,27 @@ async function initParser() {
       const dartLang = await Language.load(dartWasmPath);
       dartParser.setLanguage(dartLang);
 
+      // Load C
+      cParser = new Parser();
+      const cWasmPath = path.resolve(__dirname, 'tree-sitter-c.wasm');
+      connection.console.log(`Loading C grammar from ${cWasmPath}`);
+      const cLang = await Language.load(cWasmPath);
+      cParser.setLanguage(cLang);
+
+      // Load C++
+      cppParser = new Parser();
+      const cppWasmPath = path.resolve(__dirname, 'tree-sitter-cpp.wasm');
+      connection.console.log(`Loading C++ grammar from ${cppWasmPath}`);
+      const cppLang = await Language.load(cppWasmPath);
+      cppParser.setLanguage(cppLang);
+
       incrementalParser = new IncrementalParser({
         csharp: csharpParser,
         typescript: typescriptParser,
         tsx: tsxParser,
         dart: dartParser,
+        c: cParser,
+        cpp: cppParser,
       });
 
       parserInitialized = true;
@@ -290,6 +308,10 @@ async function performComplexityCalculation(
       complexities = await calculateComplexity(tree, 'csharp');
     } else if (languageId === 'dart') {
       complexities = await calculateComplexity(tree, 'dart');
+    } else if (languageId === 'c') {
+      complexities = await calculateComplexity(tree, 'c');
+    } else if (languageId === 'cpp') {
+      complexities = await calculateComplexity(tree, 'cpp');
     } else if (
       languageId === 'typescript' ||
       languageId === 'javascript' ||
@@ -549,6 +571,8 @@ function selectParser(languageId: string): Parser | undefined {
 
   if (normalizedLangId === 'csharp') return csharpParser;
   if (normalizedLangId === 'dart') return dartParser;
+  if (normalizedLangId === 'c') return cParser;
+  if (normalizedLangId === 'cpp') return cppParser;
   if (['typescript', 'javascript'].includes(normalizedLangId)) return typescriptParser;
   if (['typescriptreact', 'javascriptreact'].includes(normalizedLangId)) return tsxParser;
 
@@ -569,6 +593,10 @@ async function executeAnalysis(
       return await calculateComplexity(tree, 'csharp');
     } else if (normalizedLangId === 'dart') {
       return await calculateComplexity(tree, 'dart');
+    } else if (normalizedLangId === 'c') {
+      return await calculateComplexity(tree, 'c');
+    } else if (normalizedLangId === 'cpp') {
+      return await calculateComplexity(tree, 'cpp');
     } else {
       return await calculateComplexity(tree, 'typescript');
     }

@@ -68,6 +68,10 @@ Tailor the lens to your team's standards:
 | **JavaScript / JSX** | Full          | **SonarJS** Compatible        |
 | **C# (.cs)**         | Full          | **SonarSource C#** Compatible |
 | **Dart**             | Full          | **Community Standard**        |
+| **C (.c, .h)**       | Full          | **SonarSource C/C++**         |
+| **C++ (.cpp, .hpp)** | Full          | **SonarSource C/C++**         |
+
+> **C/C++ threshold tip:** SonarSource defaults C/C++ complexity thresholds to 25. Cognitive Lens uses global defaults of 15 (warning) / 25 (error). Adjust `cognitiveComplexity.threshold.warning` and `cognitiveComplexity.threshold.error` if your team follows Sonar's C/C++ conventions.
 
 ---
 

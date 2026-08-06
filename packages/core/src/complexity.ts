@@ -1,4 +1,6 @@
 import { Tree } from 'web-tree-sitter';
+import { calculateCComplexity } from './calculators/c';
+import { calculateCppComplexity } from './calculators/cpp';
 import { calculateCSharpComplexity } from './calculators/csharp';
 import { calculateDartComplexity } from './calculators/dart';
 import { calculateTypeScriptComplexity } from './calculators/typescript';
@@ -12,6 +14,8 @@ const calculators: Record<string, ComplexityCalculator> = {
   typescript: calculateTypeScriptComplexity,
   csharp: calculateCSharpComplexity,
   dart: calculateDartComplexity,
+  c: calculateCComplexity,
+  cpp: calculateCppComplexity,
 };
 
 export async function calculateComplexity(
